@@ -20,7 +20,10 @@
         "android.permission.CAMERA",
         "android.permission.VIBRATE",
         "android.permission.WAKE_LOCK",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -32,6 +35,17 @@
         "expo-camera",
         {
           "cameraPermission": "Allow Waky to scan in-room QR codes and verify your made bed."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#3B82F6",
+          "sounds": ["./assets/sounds/chime.wav"],
+          "androidMode": "default",
+          "androidCollapsedTitle": "Waky Wake-Up",
+          "iosDisplayInForeground": true
         }
       ]
     ]

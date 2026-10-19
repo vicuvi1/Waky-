@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, SafeAreaView, StatusBar } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, SafeAreaView, StatusBar, AppState } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
 
 import { AlarmState, AlarmSettings, UserStats, MissionType } from './src/types';
 import * as storageService from './src/services/storageService';
 import * as hardwareService from './src/services/hardwareService';
+import * as notificationService from './src/services/notificationService';
 
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { SunriseAlarmScreen } from './src/screens/SunriseAlarmScreen';
 import { GraceCountdownScreen } from './src/screens/GraceCountdownScreen';
 import { RelapsePenaltyScreen } from './src/screens/RelapsePenaltyScreen';
+import { RelapseCheckScreen } from './src/screens/RelapseCheckScreen';
 import { AwakeScreen } from './src/screens/AwakeScreen';
 
 import { PostureHoldMission } from './src/screens/missions/PostureHoldMission';
@@ -17,24 +20,53 @@ import { StroopMission } from './src/screens/missions/StroopMission';
 import { WaterQrMission } from './src/screens/missions/WaterQrMission';
 import { BedPhotoMission } from './src/screens/missions/BedPhotoMission';
 
+// ─── Extended alarm state machine ──────────────────────────────────────────
+type FullAlarmState = AlarmState | 'RELAPSE_CHECK';
+
 export default function App() {
-  const [alarmState, setAlarmState] = useState<AlarmState>('IDLE');
+  const [alarmState, setAlarmState] = useState<FullAlarmState>('IDLE');
   const [settings, setSettings] = useState<AlarmSettings>(storageService.DEFAULT_SETTINGS);
   const [stats, setStats] = useState<UserStats>(storageService.DEFAULT_STATS);
   const [currentMissionIndex, setCurrentMissionIndex] = useState(0);
+  const appState = useRef(AppState.currentState);
 
-  // Load persisted settings and user stats on startup
+  // ─── Load persisted data & setup hardware/notifications ───────────────────
   useEffect(() => {
     (async () => {
-      const loadedSettings = await storageService.loadSettings();
-      const loadedStats = await storageService.loadStats();
+      const [loadedSettings, loadedStats] = await Promise.all([
+        storageService.loadSettings(),
+        storageService.loadStats(),
+      ]);
       setSettings(loadedSettings);
       setStats(loadedStats);
+
       await hardwareService.setupAudioSession();
+      await notificationService.setupNotifications();
+
+      // Re-schedule alarms in case of app restart
+      if (loadedSettings.enabled) {
+        notificationService.scheduleWakeAlarm(loadedSettings.targetWakeTime);
+        notificationService.scheduleBedtimeWindDown(loadedSettings.targetBedtime);
+      }
     })();
   }, []);
 
-  // Periodic alarm trigger check (runs in background of app)
+  // ─── Handle incoming notifications (app in foreground or background) ────
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data as Record<string, unknown>;
+      if (data?.type === 'WAKE_ALARM' && alarmState === 'IDLE') {
+        setAlarmState('SUNRISE');
+      }
+      if (data?.type === 'RELAPSE_CHECK' && alarmState === 'IDLE') {
+        setAlarmState('RELAPSE_CHECK');
+      }
+    });
+
+    return () => sub.remove();
+  }, [alarmState]);
+
+  // ─── In-app alarm trigger check (when app is open in foreground) ─────────
   useEffect(() => {
     if (!settings.enabled || alarmState !== 'IDLE') return;
 
@@ -42,7 +74,7 @@ export default function App() {
       const now = new Date();
       const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-      if (currentHHMM === settings.targetWakeTime && now.getSeconds() < 10) {
+      if (currentHHMM === settings.targetWakeTime && now.getSeconds() < 15) {
         setAlarmState('SUNRISE');
       }
     }, 10000);
@@ -50,49 +82,78 @@ export default function App() {
     return () => clearInterval(interval);
   }, [settings.enabled, settings.targetWakeTime, alarmState]);
 
+  // ─── App lifecycle: watch for foreground resume from notification tap ────
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', nextState => {
+      if (appState.current?.match(/inactive|background/) && nextState === 'active') {
+        Notifications.getLastNotificationResponseAsync().then(response => {
+          if (!response) return;
+          const data = response.notification.request.content.data as Record<string, unknown>;
+          if (data?.type === 'WAKE_ALARM' && alarmState === 'IDLE') {
+            setAlarmState('SUNRISE');
+          }
+          if (data?.type === 'RELAPSE_CHECK' && alarmState === 'IDLE') {
+            setAlarmState('RELAPSE_CHECK');
+          }
+        });
+      }
+      appState.current = nextState;
+    });
+
+    return () => sub.remove();
+  }, [alarmState]);
+
+  // ─── Settings Update ──────────────────────────────────────────────────────
   const handleUpdateSettings = async (newSettings: AlarmSettings) => {
     setSettings(newSettings);
     await storageService.saveSettings(newSettings);
   };
 
-  // Launch the 30-second full protocol test
+  // ─── Alarm Flow Handlers ─────────────────────────────────────────────────
+
   const handleTriggerTestAlarm = () => {
     setCurrentMissionIndex(0);
     setAlarmState('SUNRISE');
   };
 
-  // When user dismisses the initial sunrise alarm, enter the 2-Minute Grace Timer
   const handleDismissToGrace = () => {
     setAlarmState('GRACE_COUNTDOWN');
   };
 
-  // When user presses "Start Missions" from the Grace countdown screen
   const handleStartMissions = () => {
     setCurrentMissionIndex(0);
     setAlarmState('MISSION');
   };
 
-  // If user fails to complete missions within the 2-minute grace timer
   const handleExpireRelapse = () => {
     setAlarmState('RELAPSE_PENALTY');
   };
 
-  // Advance to next in-bedroom mission or finish waking up
   const handleMissionComplete = async () => {
     const nextIdx = currentMissionIndex + 1;
+
     if (nextIdx < settings.activeMissions.length) {
       setCurrentMissionIndex(nextIdx);
     } else {
-      // All in-room missions cleared!
+      // All missions cleared → record streak + schedule T+15 relapse check
       const updatedStats = await storageService.recordSuccessfulWakeup();
       setStats(updatedStats);
+
+      // Schedule T+15 relapse check notification (15 min = 900s)
+      await notificationService.scheduleRelapseCheck(900);
+
       setAlarmState('AWAKE_CONFIRMED');
     }
   };
 
-  // Render active mission
+  const handleFinishFromAwake = () => {
+    hardwareService.stopAllHardwareAlerts();
+    setAlarmState('IDLE');
+  };
+
+  // ─── Render Active Mission ────────────────────────────────────────────────
   const renderCurrentMission = () => {
-    const activeMissionType = settings.activeMissions[currentMissionIndex] || 'POSTURE_HOLD';
+    const activeMissionType: MissionType = settings.activeMissions[currentMissionIndex] || 'POSTURE_HOLD';
 
     switch (activeMissionType) {
       case 'POSTURE_HOLD':
@@ -113,10 +174,12 @@ export default function App() {
     }
   };
 
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safeArea}>
       <ExpoStatusBar style="light" />
       <View style={styles.container}>
+
         {alarmState === 'IDLE' && (
           <DashboardScreen
             settings={settings}
@@ -154,11 +217,27 @@ export default function App() {
         {alarmState === 'AWAKE_CONFIRMED' && (
           <AwakeScreen
             stats={stats}
-            onFinish={() => {
+            onFinish={handleFinishFromAwake}
+          />
+        )}
+
+        {/* ── T+15 Relapse Check ── */}
+        {alarmState === 'RELAPSE_CHECK' && (
+          <RelapseCheckScreen
+            countdownSeconds={60}
+            onConfirmed={() => {
+              // Cancel any pending relapse check notifications
+              notificationService.cancelRelapseCheck();
               setAlarmState('IDLE');
+            }}
+            onExpired={() => {
+              // Fire the full relapse penalty!
+              notificationService.cancelRelapseCheck();
+              setAlarmState('RELAPSE_PENALTY');
             }}
           />
         )}
+
       </View>
     </SafeAreaView>
   );

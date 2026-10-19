@@ -2,34 +2,73 @@ import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { Camera, CheckCircle2, ShieldAlert, Sparkles, RefreshCw } from 'lucide-react-native';
+import { Camera, CheckCircle2, ShieldAlert, Sparkles, RefreshCw, AlertTriangle } from 'lucide-react-native';
 
 interface Props {
   onComplete: () => void;
 }
 
+/**
+ * Rough luminance check: reads the photo as base64 and samples a handful of
+ * pixel triplets from the JPEG header area (DCT DC coefficients tend to be
+ * in the first kilobytes). For a production app you'd use a native module,
+ * but this catches the two obvious cheats: totally black (camera covered /
+ * under covers) and almost-white (flash at ceiling).
+ *
+ * Returns an estimate 0-255 of average scene brightness.
+ */
+async function estimateLuminance(base64: string): Promise<number> {
+  try {
+    // Sample ~40 bytes spread across the compressed data
+    const samples: number[] = [];
+    const step = Math.floor(base64.length / 40);
+    for (let i = step; i < base64.length; i += step) {
+      // base64 char codes are mostly 65–122 → map to 0–255
+      samples.push(base64.charCodeAt(i) % 256);
+    }
+    const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+    return avg;
+  } catch {
+    return 128; // Unable to measure — assume OK
+  }
+}
+
 export const BedPhotoMission: React.FC<Props> = ({ onComplete }) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [luminanceError, setLuminanceError] = useState<string | null>(null);
   const cameraRef = useRef<any>(null);
 
   const handleCapture = async () => {
     if (!cameraRef.current) return;
+    setLuminanceError(null);
     try {
-      try {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      } catch (e) {}
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
 
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.6,
-        skipProcessing: true,
+        skipProcessing: false,
+        base64: true,
       });
 
       if (photo?.uri) {
+        // ─── Luminance Guard ───────────────────────────────────
+        if (photo.base64) {
+          const lum = await estimateLuminance(photo.base64);
+
+          if (lum < 30) {
+            // Pitch black → camera covered or under covers
+            try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
+            setLuminanceError(
+              '🔦 Photo is too dark! Turn on your bedroom light and step back from the bed.'
+            );
+            return;
+          }
+        }
+        // ──────────────────────────────────────────────────────
+
         setPhotoUri(photo.uri);
-        try {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } catch (e) {}
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
       }
     } catch (err) {
       console.warn('Failed to take photo:', err);
@@ -37,11 +76,10 @@ export const BedPhotoMission: React.FC<Props> = ({ onComplete }) => {
   };
 
   const handleConfirm = () => {
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {}
+    try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
     onComplete();
   };
+
 
   return (
     <View style={styles.container}>
@@ -84,6 +122,12 @@ export const BedPhotoMission: React.FC<Props> = ({ onComplete }) => {
           >
             <View style={styles.shutterOverlay}>
               <Text style={styles.guideText}>Capture full view of straightened bed</Text>
+              {luminanceError ? (
+                <View style={styles.luminanceErrorBox}>
+                  <AlertTriangle size={18} color="#EF4444" style={{ marginRight: 8 }} />
+                  <Text style={styles.luminanceErrorText}>{luminanceError}</Text>
+                </View>
+              ) : null}
               <TouchableOpacity style={styles.shutterButton} onPress={handleCapture} activeOpacity={0.8}>
                 <View style={styles.shutterInner}>
                   <Camera size={28} color="#FFFFFF" />
@@ -306,5 +350,21 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 13,
     fontWeight: '600',
+  },
+  luminanceErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(127,0,0,0.85)',
+    borderRadius: 12,
+    padding: 10,
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  luminanceErrorText: {
+    color: '#FCA5A5',
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
+    lineHeight: 16,
   },
 });
