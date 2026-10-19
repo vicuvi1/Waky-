@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { Sun, Bell, Volume2, ShieldAlert, Target } from 'lucide-react-native';
+import { Sun, Bell, Volume2, ShieldAlert, Target, Dumbbell } from 'lucide-react-native';
 import * as hardwareService from '../services/hardwareService';
 
 import { SoundProfile } from '../types';
 
 interface Props {
   onDismissToGrace: () => void;
+  onStartPushUps?: () => void;
   targetWakeTime: string;
   soundProfile?: SoundProfile;
   dopamineAnchor?: string;
@@ -14,6 +15,7 @@ interface Props {
 
 export const SunriseAlarmScreen: React.FC<Props> = ({
   onDismissToGrace,
+  onStartPushUps,
   targetWakeTime,
   soundProfile = 'PROGRESSIVE_CHIME',
   dopamineAnchor,
@@ -101,7 +103,11 @@ export const SunriseAlarmScreen: React.FC<Props> = ({
   const handleDismiss = async () => {
     await hardwareService.stopSound();
     hardwareService.stopHaptics();
-    onDismissToGrace();
+    if (onStartPushUps) {
+      onStartPushUps();
+    } else {
+      onDismissToGrace();
+    }
   };
 
   const now = new Date();
@@ -154,15 +160,15 @@ export const SunriseAlarmScreen: React.FC<Props> = ({
       ) : null}
 
       <View style={styles.warningBox}>
-        <ShieldAlert size={18} color="#F59E0B" style={{ marginRight: 8 }} />
+        <Dumbbell size={18} color="#10B981" style={{ marginRight: 8 }} />
         <Text style={styles.warningText}>
-          Dismissing starts the 2-minute Anti-Relapse Grace Timer. Don't linger in bed!
+          Tapping disarms alarm and enters Sport Proof mode. Do 20 push-ups on the floor to fully unlock!
         </Text>
       </View>
 
       <TouchableOpacity style={styles.dismissButton} onPress={handleDismiss} activeOpacity={0.85}>
-        <Bell size={22} color="#000000" style={{ marginRight: 10 }} />
-        <Text style={styles.dismissText}>I'M UP — START 2-MIN GRACE</Text>
+        <Dumbbell size={22} color="#000000" style={{ marginRight: 10 }} />
+        <Text style={styles.dismissText}>I'M AWAKE — START 20 PUSH-UPS</Text>
       </TouchableOpacity>
     </View>
   );

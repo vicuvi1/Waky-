@@ -23,6 +23,7 @@ export const DEFAULT_SETTINGS: AlarmSettings = {
   dopamineAnchor: 'Crush my goals and make today count!',
   torchEnabled: true,
   whisperPhrase: 'I am standing and ready for today',
+  targetPushUps: 20,
 };
 
 export const DEFAULT_STATS: UserStats = {

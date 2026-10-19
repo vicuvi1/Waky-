@@ -41,6 +41,7 @@ export interface AlarmSettings {
   dopamineAnchor?: string;
   torchEnabled?: boolean;
   whisperPhrase?: string;
+  targetPushUps?: number;
 }
 
 export interface UserStats {

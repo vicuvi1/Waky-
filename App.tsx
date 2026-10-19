@@ -24,9 +24,10 @@ import { BedPhotoMission } from './src/screens/missions/BedPhotoMission';
 import { SquatCounterMission } from './src/screens/missions/SquatCounterMission';
 import { WhisperMission } from './src/screens/missions/WhisperMission';
 import { BedtimeLockdownScreen } from './src/screens/BedtimeLockdownScreen';
+import { PushUpSportScreen } from './src/screens/PushUpSportScreen';
 
 // ─── Extended alarm state machine ──────────────────────────────────────────
-type FullAlarmState = AlarmState | 'RELAPSE_CHECK';
+type FullAlarmState = AlarmState | 'RELAPSE_CHECK' | 'PUSH_UP_SPORT';
 
 export default function App() {
   const [alarmState, setAlarmState] = useState<FullAlarmState>('IDLE');
@@ -149,6 +150,39 @@ export default function App() {
 
   const handleDismissToGrace = () => {
     setAlarmState('GRACE_COUNTDOWN');
+  };
+
+  const handleStartPushUps = () => {
+    setAlarmState('PUSH_UP_SPORT');
+  };
+
+  const handlePushUpsComplete = async () => {
+    hardwareService.stopAllHardwareAlerts();
+
+    const updatedStats = await storageService.recordSuccessfulWakeup();
+    setStats(updatedStats);
+
+    const now = new Date();
+    const actualHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const [targetH, targetM] = settings.targetWakeTime.split(':').map(Number);
+    const deltaMins = (now.getHours() * 60 + now.getMinutes()) - (targetH * 60 + targetM);
+
+    await historyService.recordWakeEntry({
+      date: now.toISOString().split('T')[0],
+      targetTime: settings.targetWakeTime,
+      actualTime: actualHHMM,
+      deltaMinutes: deltaMins,
+      completed: true,
+      missionsCount: 1,
+      streak: updatedStats.currentStreak,
+    });
+
+    await telegramService.sendMessage(
+      `🏋️ *WAKY SPORT PROOF: Victor is AWAKE!*\n\n✅ *${settings.targetPushUps ?? 20} PUSH-UPS CRUSHED!*\n⏰ Time: \`${actualHHMM}\`\n🔥 Current streak: *${updatedStats.currentStreak} days*\n\nSleep inertia crushed on the floor. Moving forward with the day! 💪`
+    );
+
+    setIsDryRun(false);
+    setAlarmState('IDLE');
   };
 
   const handleStartMissions = () => {
@@ -280,6 +314,15 @@ export default function App() {
             soundProfile={settings.soundProfile}
             dopamineAnchor={settings.dopamineAnchor}
             onDismissToGrace={handleDismissToGrace}
+            onStartPushUps={handleStartPushUps}
+          />
+        )}
+
+        {alarmState === 'PUSH_UP_SPORT' && (
+          <PushUpSportScreen
+            targetPushUps={isDryRun ? 3 : (settings.targetPushUps ?? 20)}
+            onComplete={handlePushUpsComplete}
+            onUpdateTarget={val => handleUpdateSettings({ ...settings, targetPushUps: val })}
           />
         )}
 

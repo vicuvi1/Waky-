@@ -6,6 +6,7 @@ import {
   Sun, Moon, Flame, Smartphone, Brain, QrCode, Bed, Play,
   ShieldCheck, Clock, X, BellRing, MessageCircle, Send, ChevronRight,
   TrendingUp, Settings, AlertCircle, CheckCircle2, Activity, Volume2, ShieldAlert, Zap, Cpu, BatteryCharging,
+  Dumbbell, Minus, Plus,
 } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Slider from '@react-native-community/slider';
@@ -274,6 +275,47 @@ export const DashboardScreen: React.FC<Props> = ({
           </View>
         </View>
       </TouchableOpacity>
+
+      {/* Sport Proof Push-Up Wakeup Card */}
+      <View style={styles.pushUpCard}>
+        <View style={styles.pushUpHeader}>
+          <Dumbbell size={18} color="#10B981" style={{ marginRight: 8 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.pushUpTitle}>SPORT PROOF WAKE-UP</Text>
+            <Text style={styles.pushUpSub}>Phone on floor · Disarm by doing push-ups</Text>
+          </View>
+        </View>
+        <View style={styles.pushUpRow}>
+          <View>
+            <Text style={styles.pushUpValue}>{settings.targetPushUps ?? 20} REPS</Text>
+            <Text style={styles.pushUpHint}>Optical chest sensor + nose/chin tap</Text>
+          </View>
+          <View style={styles.pushUpButtons}>
+            <TouchableOpacity
+              style={styles.pushUpAdjBtn}
+              onPress={() => {
+                const current = settings.targetPushUps ?? 20;
+                const nextVal = Math.max(5, current - 5);
+                onUpdateSettings({ ...settings, targetPushUps: nextVal });
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+              }}
+            >
+              <Minus size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.pushUpAdjBtn}
+              onPress={() => {
+                const current = settings.targetPushUps ?? 20;
+                const nextVal = Math.min(50, current + 5);
+                onUpdateSettings({ ...settings, targetPushUps: nextVal });
+                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+              }}
+            >
+              <Plus size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
 
       {/* Bedtime Lockdown Sanctuary Card */}
       <TouchableOpacity
@@ -739,6 +781,64 @@ const styles = StyleSheet.create({
   bedtimeText: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
   windDownBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#312E8140', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 10 },
   windDownText: { color: '#A5B4FC', fontSize: 11, fontWeight: '600' },
+
+  // Push-Up Sport Card
+  pushUpCard: {
+    backgroundColor: '#06281E',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#10B98180',
+    marginBottom: 14,
+  },
+  pushUpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  pushUpTitle: {
+    color: '#6EE7B7',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  pushUpSub: {
+    color: '#A7F3D0',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  pushUpRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pushUpValue: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  pushUpHint: {
+    color: '#34D399',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  pushUpButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pushUpAdjBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#064E3B',
+    borderWidth: 1,
+    borderColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // Stats
   statsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
