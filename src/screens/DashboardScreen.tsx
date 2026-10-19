@@ -1,16 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Animated, Modal,
-  ScrollView, Pressable
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Modal,
 } from 'react-native';
 import {
   Sun, Moon, Flame, Smartphone, Brain, QrCode, Bed, Play,
-  ShieldCheck, Clock, X, Volume2, BellRing, Info
+  ShieldCheck, Clock, X, BellRing, MessageCircle, Send, ChevronRight,
+  TrendingUp, Settings, AlertCircle, CheckCircle2,
 } from 'lucide-react-native';
+import QRCode from 'react-native-qrcode-svg';
+import Slider from '@react-native-community/slider';
+
 import { AlarmSettings, UserStats, MissionType } from '../types';
-import * as Haptics from 'expo-haptics';
+import { CircadianGraph } from '../components/CircadianGraph';
+import * as historyService from '../services/historyService';
+import * as telegramService from '../services/telegramService';
 import * as notificationService from '../services/notificationService';
-import { Switch } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Switch as RNSwitch } from 'react-native';
 
 interface Props {
   settings: AlarmSettings;
@@ -19,53 +25,20 @@ interface Props {
   onTriggerTestAlarm: () => void;
 }
 
-// ── Lightweight Scroll Picker (hours or minutes) ──────────────────────────
-interface ScrollPickerProps {
-  values: string[];
-  selected: string;
-  onSelect: (val: string) => void;
-}
+// ── Hours & Minutes for pickers ───────────────────────────────────────────
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTES = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
-const ScrollPickerColumn: React.FC<ScrollPickerProps> = ({ values, selected, onSelect }) => {
-  return (
-    <ScrollView
-      style={styles.pickerColumn}
-      showsVerticalScrollIndicator={false}
-      snapToInterval={44}
-      decelerationRate="fast"
-    >
-      {values.map(val => (
-        <Pressable
-          key={val}
-          style={[styles.pickerItem, val === selected && styles.pickerItemSelected]}
-          onPress={() => {
-            try { Haptics.selectionAsync(); } catch (e) {}
-            onSelect(val);
-          }}
-        >
-          <Text style={[styles.pickerItemText, val === selected && styles.pickerItemTextSelected]}>
-            {val}
-          </Text>
-        </Pressable>
-      ))}
-    </ScrollView>
-  );
-};
-
-// ── Time Picker Modal ─────────────────────────────────────────────────────
 interface TimePickerModalProps {
   visible: boolean;
   title: string;
-  initialTime: string; // "HH:MM"
+  initialTime: string;
   onConfirm: (time: string) => void;
   onCancel: () => void;
 }
 
-const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-const MINUTES = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
-
 const TimePickerModal: React.FC<TimePickerModalProps> = ({
-  visible, title, initialTime, onConfirm, onCancel
+  visible, title, initialTime, onConfirm, onCancel,
 }) => {
   const [hh, setHh] = useState(initialTime.split(':')[0]);
   const [mm, setMm] = useState(initialTime.split(':')[1]);
@@ -73,15 +46,17 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
   useEffect(() => {
     if (visible) {
       setHh(initialTime.split(':')[0]);
-      // Snap minutes to nearest 5
       const rawMin = parseInt(initialTime.split(':')[1], 10);
       const snapped = String(Math.round(rawMin / 5) * 5 % 60).padStart(2, '0');
       setMm(MINUTES.includes(snapped) ? snapped : '00');
     }
   }, [visible, initialTime]);
 
+  const hourIndex = HOURS.indexOf(hh);
+  const minIndex = MINUTES.indexOf(mm);
+
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalBackdrop}>
         <View style={styles.pickerModal}>
           <View style={styles.pickerHeader}>
@@ -91,30 +66,63 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
             </TouchableOpacity>
           </View>
 
-          <View style={styles.pickerRow}>
-            <View style={styles.pickerWrap}>
-              <Text style={styles.pickerLabel}>HOUR</Text>
-              <ScrollPickerColumn values={HOURS} selected={hh} onSelect={setHh} />
+          <View style={styles.timePickerRow}>
+            {/* Hours column */}
+            <View style={styles.pickerColumnWrap}>
+              <Text style={styles.pickerColLabel}>HOUR</Text>
+              <ScrollView
+                style={styles.pickerScroll}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={48}
+                decelerationRate="fast"
+                contentOffset={{ x: 0, y: hourIndex * 48 }}
+                onMomentumScrollEnd={e => {
+                  const idx = Math.round(e.nativeEvent.contentOffset.y / 48);
+                  setHh(HOURS[Math.max(0, Math.min(idx, HOURS.length - 1))]);
+                }}
+              >
+                {HOURS.map(h => (
+                  <TouchableOpacity key={h} style={[styles.pickerCell, h === hh && styles.pickerCellActive]} onPress={() => { setHh(h); try { Haptics.selectionAsync(); } catch (e) {} }}>
+                    <Text style={[styles.pickerCellText, h === hh && styles.pickerCellTextActive]}>{h}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
+
             <Text style={styles.pickerColon}>:</Text>
-            <View style={styles.pickerWrap}>
-              <Text style={styles.pickerLabel}>MIN</Text>
-              <ScrollPickerColumn values={MINUTES} selected={mm} onSelect={setMm} />
+
+            {/* Minutes column */}
+            <View style={styles.pickerColumnWrap}>
+              <Text style={styles.pickerColLabel}>MIN</Text>
+              <ScrollView
+                style={styles.pickerScroll}
+                showsVerticalScrollIndicator={false}
+                snapToInterval={48}
+                decelerationRate="fast"
+                contentOffset={{ x: 0, y: minIndex * 48 }}
+                onMomentumScrollEnd={e => {
+                  const idx = Math.round(e.nativeEvent.contentOffset.y / 48);
+                  setMm(MINUTES[Math.max(0, Math.min(idx, MINUTES.length - 1))]);
+                }}
+              >
+                {MINUTES.map(m => (
+                  <TouchableOpacity key={m} style={[styles.pickerCell, m === mm && styles.pickerCellActive]} onPress={() => { setMm(m); try { Haptics.selectionAsync(); } catch (e) {} }}>
+                    <Text style={[styles.pickerCellText, m === mm && styles.pickerCellTextActive]}>{m}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           </View>
 
-          <View style={styles.pickerPreview}>
-            <Text style={styles.pickerPreviewTime}>{hh}:{mm}</Text>
+          <View style={styles.previewRow}>
+            <Text style={styles.previewTime}>{hh}:{mm}</Text>
           </View>
 
           <View style={styles.pickerActions}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.confirmBtn}
-              onPress={() => onConfirm(`${hh}:${mm}`)}
-            >
+            <TouchableOpacity style={styles.confirmBtn} onPress={() => onConfirm(`${hh}:${mm}`)}>
               <Text style={styles.confirmBtnText}>Set Time</Text>
             </TouchableOpacity>
           </View>
@@ -124,35 +132,59 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
   );
 };
 
-// ── Dashboard Screen ──────────────────────────────────────────────────────
+// ── Main Dashboard ─────────────────────────────────────────────────────────
 export const DashboardScreen: React.FC<Props> = ({
   settings, stats, onUpdateSettings, onTriggerTestAlarm,
 }) => {
-  const [showQrModal, setShowQrModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'HOME' | 'STATS' | 'SETTINGS'>('HOME');
   const [showWakePicker, setShowWakePicker] = useState(false);
   const [showBedPicker, setShowBedPicker] = useState(false);
-  const [notifGranted, setNotifGranted] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [history, setHistory] = useState<historyService.WakeEntry[]>([]);
+  const [notifGranted, setNotifGranted] = useState(true);
 
-  // Setup notifications on mount
+  // Telegram link state
+  const [telegramLinked, setTelegramLinked] = useState(false);
+  const [telegramLinking, setTelegramLinking] = useState(false);
+  const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [telegramMsg, setTelegramMsg] = useState<string | null>(null);
+
   useEffect(() => {
-    notificationService.setupNotifications().then(granted => {
-      setNotifGranted(granted);
-      if (granted && settings.enabled) {
-        notificationService.scheduleWakeAlarm(settings.targetWakeTime);
-        notificationService.scheduleBedtimeWindDown(settings.targetBedtime);
-      }
-    });
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.02, duration: 1800, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1800, useNativeDriver: true }),
-      ])
-    ).start();
+    historyService.loadHistory().then(setHistory);
+    notificationService.setupNotifications().then(granted => setNotifGranted(granted));
+    telegramService.getSavedChatId().then(id => setTelegramLinked(!!id));
+    telegramService.getBotUsername().then(setBotUsername);
+    if (settings.enabled) {
+      notificationService.scheduleWakeAlarm(settings.targetWakeTime);
+      notificationService.scheduleBedtimeWindDown(settings.targetBedtime);
+    }
   }, []);
 
-  const toggleAlarmEnabled = (val: boolean) => {
+  // ── Telegram linking ──────────────────────────────────────────────────
+  const handleLinkTelegram = async () => {
+    setTelegramLinking(true);
+    setTelegramMsg('Polling for your message to the bot...');
+    const chatId = await telegramService.discoverChatId();
+    if (chatId) {
+      setTelegramLinked(true);
+      setTelegramMsg(`✅ Linked! Chat ID: ${chatId}`);
+      await telegramService.sendMessage(
+        '🔗 *Waky is now linked to your Telegram!*\n\nEvery morning after you complete your wake missions, I\'ll send you a confirmation here. 💪',
+        chatId
+      );
+    } else {
+      setTelegramMsg('❌ No message found. Please send /start to the bot first, then tap again.');
+    }
+    setTelegramLinking(false);
+  };
+
+  const handleSendTestMessage = async () => {
+    const ok = await telegramService.sendWakeupSuccess(stats.currentStreak, settings.targetWakeTime, settings.activeMissions.length);
+    setTelegramMsg(ok ? '✅ Test message sent to Telegram!' : '❌ Failed. Make sure you\'ve linked the bot.');
+  };
+
+  // ── Settings handlers ─────────────────────────────────────────────────
+  const toggleAlarm = (val: boolean) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
     const updated = { ...settings, enabled: val };
     onUpdateSettings(updated);
@@ -165,17 +197,17 @@ export const DashboardScreen: React.FC<Props> = ({
     }
   };
 
-  const toggleMission = (missionId: MissionType) => {
+  const toggleMission = (id: MissionType) => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-    const exists = settings.activeMissions.includes(missionId);
+    const exists = settings.activeMissions.includes(id);
     if (exists && settings.activeMissions.length === 1) return;
     const updated = exists
-      ? settings.activeMissions.filter(m => m !== missionId)
-      : [...settings.activeMissions, missionId];
+      ? settings.activeMissions.filter(m => m !== id)
+      : [...settings.activeMissions, id];
     onUpdateSettings({ ...settings, activeMissions: updated });
   };
 
-  const handleWakeTimeConfirm = (time: string) => {
+  const handleWakeConfirm = (time: string) => {
     const updated = { ...settings, targetWakeTime: time };
     onUpdateSettings(updated);
     if (settings.enabled) notificationService.scheduleWakeAlarm(time);
@@ -183,7 +215,7 @@ export const DashboardScreen: React.FC<Props> = ({
     try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
   };
 
-  const handleBedtimeConfirm = (time: string) => {
+  const handleBedConfirm = (time: string) => {
     const updated = { ...settings, targetBedtime: time };
     onUpdateSettings(updated);
     if (settings.enabled) notificationService.scheduleBedtimeWindDown(time);
@@ -191,219 +223,278 @@ export const DashboardScreen: React.FC<Props> = ({
     try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
   };
 
-  const [hh, ampm] = (() => {
-    const [h, m] = settings.targetWakeTime.split(':').map(Number);
-    const isPM = h >= 12;
-    const displayH = h % 12 || 12;
-    return [`${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')}`, isPM ? 'PM' : 'AM'];
-  })();
+  const last7 = historyService.getLast7Days(history);
+  const avgVar = historyService.avgVarianceMinutes(history);
 
-  return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* ── Brand Header ── */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.brand}>WAKY</Text>
-            <Text style={styles.tagline}>In-Room Anti-Relapse System</Text>
-          </View>
-          <View style={styles.streakBadge}>
-            <Flame size={16} color="#EF4444" style={{ marginRight: 4 }} />
-            <Text style={styles.streakText}>{stats.currentStreak} DAY STREAK</Text>
+  // ── Render Tabs ───────────────────────────────────────────────────────
+  const renderHome = () => (
+    <>
+      {/* Alarm Hero Card */}
+      <View style={styles.heroCard}>
+        <View style={styles.heroTop}>
+          <View style={styles.iconCircle}><Sun size={26} color="#F59E0B" /></View>
+          <View style={styles.statusPill}>
+            <View style={[styles.statusDot, { backgroundColor: settings.enabled ? '#10B981' : '#6B7280' }]} />
+            <Text style={styles.statusPillText}>{settings.enabled ? 'ALARM ARMED' : 'ALARM OFF'}</Text>
           </View>
         </View>
 
-        {/* ── Notification Status Bar ── */}
-        {!notifGranted && (
-          <View style={styles.notifWarning}>
-            <BellRing size={16} color="#F59E0B" style={{ marginRight: 8 }} />
-            <Text style={styles.notifWarningText}>
-              Notification permission required for background alarm to work! Tap to re-enable.
-            </Text>
+        <TouchableOpacity onPress={() => setShowWakePicker(true)} activeOpacity={0.8}>
+          <View style={styles.timeRow}>
+            <Text style={styles.timeDisplay}>{settings.targetWakeTime}</Text>
+            <View style={styles.editBadge}><Text style={styles.editBadgeText}>TAP TO EDIT</Text></View>
+          </View>
+        </TouchableOpacity>
+
+        <Text style={styles.heroSub}>Sunrise ramp 5 min early · 2-min anti-relapse grace · T+15 check</Text>
+        <View style={styles.divider} />
+        <View style={styles.toggleRow}>
+          <View>
+            <Text style={styles.toggleLabel}>Wake Guard Active</Text>
+            <Text style={styles.toggleSub}>Alarm + all 4 in-room missions</Text>
+          </View>
+          <Switch value={settings.enabled} onValueChange={toggleAlarm} thumbColor={settings.enabled ? '#3B82F6' : '#9CA3AF'} trackColor={{ false: '#374151', true: '#1E3A8A' }} />
+        </View>
+      </View>
+
+      {/* Bedtime Card */}
+      <TouchableOpacity style={styles.circadianCard} onPress={() => setShowBedPicker(true)} activeOpacity={0.8}>
+        <View style={styles.circadianHeader}>
+          <Moon size={16} color="#818CF8" style={{ marginRight: 6 }} />
+          <Text style={styles.circadianTitle}>BEDTIME TARGET — TAP TO EDIT</Text>
+        </View>
+        <View style={styles.circadianRow}>
+          <Text style={styles.bedtimeText}>{settings.targetBedtime}</Text>
+          <View style={styles.windDownBadge}>
+            <Clock size={12} color="#818CF8" style={{ marginRight: 4 }} />
+            <Text style={styles.windDownText}>Wind-down 45m before</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {/* Stats Strip */}
+      <View style={styles.statsRow}>
+        {[
+          { label: 'STREAK', value: `${stats.currentStreak}d`, color: '#EF4444' },
+          { label: 'BEST', value: `${stats.bestStreak}d`, color: '#FBBF24' },
+          { label: 'AVOIDED', value: `${stats.relapsesAvoided}`, color: '#10B981' },
+          { label: 'AVG VAR', value: `${avgVar}m`, color: '#3B82F6' },
+        ].map(s => (
+          <View key={s.label} style={styles.statCard}>
+            <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
+            <Text style={styles.statLabel}>{s.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Circadian Graph */}
+      <CircadianGraph data={last7} targetTime={settings.targetWakeTime} />
+
+      {/* Demo Button */}
+      <TouchableOpacity style={styles.demoButton} onPress={() => { try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch (e) {} onTriggerTestAlarm(); }} activeOpacity={0.85}>
+        <Play size={20} color="#FFFFFF" style={{ marginRight: 10 }} />
+        <Text style={styles.demoButtonText}>TEST FULL PROTOCOL ON S23 ULTRA</Text>
+      </TouchableOpacity>
+      <Text style={styles.demoHelpText}>Sunrise → Bed-Down Detector → Missions → T+15 Check</Text>
+    </>
+  );
+
+  const renderStats = () => (
+    <>
+      <Text style={styles.sectionHeading}>WEEKLY CIRCADIAN ANALYSIS</Text>
+      <CircadianGraph data={last7} targetTime={settings.targetWakeTime} />
+
+      <View style={styles.statsDetailCard}>
+        <Text style={styles.statsDetailTitle}>YOUR STATS</Text>
+        {[
+          { label: 'Current Streak', value: `${stats.currentStreak} days`, color: '#EF4444' },
+          { label: 'Best Streak', value: `${stats.bestStreak} days`, color: '#FBBF24' },
+          { label: 'Total Wakeups', value: `${stats.totalWakeups}`, color: '#60A5FA' },
+          { label: 'Relapses Avoided', value: `${stats.relapsesAvoided}`, color: '#10B981' },
+          { label: 'Avg Wake Variance', value: `±${avgVar} min`, color: '#8B5CF6' },
+        ].map(item => (
+          <View key={item.label} style={styles.statsDetailRow}>
+            <Text style={styles.statsDetailLabel}>{item.label}</Text>
+            <Text style={[styles.statsDetailValue, { color: item.color }]}>{item.value}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.varianceInfoCard}>
+        <TrendingUp size={18} color="#8B5CF6" style={{ marginRight: 8 }} />
+        <Text style={styles.varianceInfoText}>
+          <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>±{avgVar} min</Text> average variance.
+          {avgVar <= 5 ? ' 🎯 Elite consistency! Practically zero sleep inertia.' :
+           avgVar <= 15 ? ' ✅ Good. Under 15min is optimal for circadian health.' :
+           ' ⚠️ High variance causes sleep inertia. Aim for under 15 min.'}
+        </Text>
+      </View>
+    </>
+  );
+
+  const renderSettings = () => (
+    <>
+      {/* ── Mission Toggles & Difficulty ── */}
+      <Text style={styles.sectionHeading}>IN-BEDROOM MISSIONS</Text>
+      {([
+        { id: 'POSTURE_HOLD' as MissionType, icon: <Smartphone size={19} color="#10B981" />, name: 'Vertical Posture Hold', desc: 'Duration (seconds)', min: 15, max: 90, step: 5, key: 'postureSeconds' },
+        { id: 'STROOP_TEST' as MissionType, icon: <Brain size={19} color="#8B5CF6" />, name: 'Stroop Cognitive Duel', desc: 'Correct streak required', min: 3, max: 15, step: 1, key: 'stroopStreak' },
+        { id: 'WATER_QR' as MissionType, icon: <QrCode size={19} color="#3B82F6" />, name: 'Desk / Bottle QR Scan', desc: 'Always on (scan required)', min: null, max: null, step: null, key: null },
+        { id: 'BED_PHOTO' as MissionType, icon: <Bed size={19} color="#F59E0B" />, name: '"Made Bed" Photo Proof', desc: 'Always on (photo required)', min: null, max: null, step: null, key: null },
+      ] as const).map(m => {
+        const diffValue = m.key ? ((settings as any)[m.key] ?? (m.id === 'POSTURE_HOLD' ? 45 : 7)) : null;
+        return (
+          <View key={m.id} style={styles.missionSettingCard}>
+            <View style={styles.missionSettingTop}>
+              <View style={styles.missionIconSmall}>{m.icon}</View>
+              <Text style={styles.missionSettingName}>{m.name}</Text>
+              <Switch
+                value={settings.activeMissions.includes(m.id)}
+                onValueChange={() => toggleMission(m.id)}
+                thumbColor={settings.activeMissions.includes(m.id) ? '#3B82F6' : '#9CA3AF'}
+                trackColor={{ false: '#374151', true: '#1E3A8A' }}
+              />
+            </View>
+            {m.key && diffValue !== null && settings.activeMissions.includes(m.id) && (
+              <View style={styles.difficultyRow}>
+                <Text style={styles.difficultyLabel}>{m.desc}: <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{diffValue}{m.id === 'POSTURE_HOLD' ? 's' : ' correct'}</Text></Text>
+                <Slider
+                  style={{ width: '100%', height: 32 }}
+                  minimumValue={m.min!}
+                  maximumValue={m.max!}
+                  step={m.step!}
+                  value={diffValue}
+                  minimumTrackTintColor="#3B82F6"
+                  maximumTrackTintColor="#374151"
+                  thumbTintColor="#3B82F6"
+                  onValueChange={(val: number) => onUpdateSettings({ ...settings, [m.key!]: val })}
+                />
+              </View>
+            )}
+          </View>
+        );
+      })}
+
+      {/* ── QR Code Generator ── */}
+      <Text style={[styles.sectionHeading, { marginTop: 20 }]}>BEDROOM QR ANCHOR</Text>
+      <TouchableOpacity style={styles.qrGenerateCard} onPress={() => setShowQrModal(true)} activeOpacity={0.85}>
+        <QrCode size={22} color="#3B82F6" style={{ marginRight: 12 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.qrCardTitle}>View & Print Your Desk QR Code</Text>
+          <Text style={styles.qrCardSub}>Key: {settings.qrCodeSecret}</Text>
+        </View>
+        <ChevronRight size={18} color="#6B7280" />
+      </TouchableOpacity>
+
+      {/* ── Telegram Accountability ── */}
+      <Text style={[styles.sectionHeading, { marginTop: 20 }]}>TELEGRAM ACCOUNTABILITY</Text>
+      <View style={styles.telegramCard}>
+        <View style={styles.telegramHeader}>
+          <MessageCircle size={22} color={telegramLinked ? '#10B981' : '#3B82F6'} style={{ marginRight: 10 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.telegramTitle}>{telegramLinked ? '✅ Bot Linked!' : 'Link Telegram Bot'}</Text>
+            {botUsername && <Text style={styles.telegramSub}>@{botUsername}</Text>}
+          </View>
+        </View>
+
+        {!telegramLinked && (
+          <Text style={styles.telegramInstructions}>
+            1. Open Telegram → search <Text style={{ color: '#60A5FA', fontWeight: '700' }}>@{botUsername ?? 'your_bot'}</Text>{'\n'}
+            2. Send <Text style={{ color: '#60A5FA', fontWeight: '700' }}>/start</Text> to the bot{'\n'}
+            3. Tap "Link Now" below
+          </Text>
+        )}
+
+        {telegramMsg && (
+          <View style={[styles.telegramMsgBox, { borderColor: telegramLinked ? '#10B98160' : '#EF444460' }]}>
+            <Text style={styles.telegramMsgText}>{telegramMsg}</Text>
           </View>
         )}
 
-        {/* ── Hero Alarm Card (Tappable Time Picker) ── */}
-        <Animated.View style={[styles.heroCard, { transform: [{ scale: pulseAnim }] }]}>
-          <View style={styles.heroTop}>
-            <View style={styles.iconCircle}>
-              <Sun size={26} color="#F59E0B" />
-            </View>
-            <View style={styles.statusPill}>
-              <View style={[styles.statusDot, { backgroundColor: settings.enabled ? '#10B981' : '#6B7280' }]} />
-              <Text style={styles.statusPillText}>
-                {settings.enabled ? 'ALARM ARMED' : 'ALARM OFF'}
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity onPress={() => setShowWakePicker(true)} activeOpacity={0.8}>
-            <View style={styles.timeRow}>
-              <Text style={styles.timeDisplay}>{hh}</Text>
-              <Text style={styles.ampm}>{ampm}</Text>
-              <View style={styles.editBadge}>
-                <Text style={styles.editBadgeText}>TAP TO EDIT</Text>
-              </View>
-            </View>
+        <View style={styles.telegramActions}>
+          <TouchableOpacity
+            style={[styles.telegramBtn, { backgroundColor: telegramLinked ? '#064E3B' : '#1E3A8A' }]}
+            onPress={handleLinkTelegram}
+            disabled={telegramLinking}
+          >
+            <Send size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.telegramBtnText}>{telegramLinking ? 'Checking...' : telegramLinked ? 'Re-link' : 'Link Now'}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.heroSub}>
-            Sunrise light ramp begins 5 min early at {(() => {
-              const [h, m] = settings.targetWakeTime.split(':').map(Number);
-              const total = h * 60 + m - 5;
-              const rh = Math.floor(((total % 1440) + 1440) % 1440 / 60);
-              const rm = ((total % 1440) + 1440) % 1440 % 60;
-              return `${String(rh).padStart(2,'0')}:${String(rm).padStart(2,'0')}`;
-            })()}
-          </Text>
-
-          <View style={styles.divider} />
-
-          <View style={styles.toggleRow}>
-            <View>
-              <Text style={styles.toggleLabel}>Wake Guard Active</Text>
-              <Text style={styles.toggleSub}>2-min grace • T+15 relapse check</Text>
-            </View>
-            <Switch
-              value={settings.enabled}
-              onValueChange={toggleAlarmEnabled}
-              thumbColor={settings.enabled ? '#3B82F6' : '#9CA3AF'}
-              trackColor={{ false: '#374151', true: '#1E3A8A' }}
-            />
-          </View>
-        </Animated.View>
-
-        {/* ── Circadian Bedtime Card (Tappable) ── */}
-        <TouchableOpacity
-          style={styles.circadianCard}
-          onPress={() => setShowBedPicker(true)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.circadianHeader}>
-            <Moon size={18} color="#818CF8" style={{ marginRight: 8 }} />
-            <Text style={styles.circadianTitle}>CIRCADIAN BEDTIME — TAP TO EDIT</Text>
-          </View>
-          <View style={styles.circadianRow}>
-            <Text style={styles.bedtimeText}>{settings.targetBedtime}</Text>
-            <View style={styles.windDownBadge}>
-              <Clock size={13} color="#818CF8" style={{ marginRight: 4 }} />
-              <Text style={styles.windDownText}>Wind-down 45m before</Text>
-            </View>
-          </View>
-          <Text style={styles.circadianSub}>
-            Fixed bedtime locks your sleep cycle. A push reminder fires at wind-down time.
-          </Text>
-        </TouchableOpacity>
-
-        {/* ── T+15 Relapse Check Info ── */}
-        <View style={styles.relapseCheckCard}>
-          <View style={styles.relapseCheckHeader}>
-            <BellRing size={18} color="#F87171" style={{ marginRight: 8 }} />
-            <Text style={styles.relapseCheckTitle}>T+15 RELAPSE CHECK</Text>
-          </View>
-          <Text style={styles.relapseCheckDesc}>
-            15 minutes after you finish all morning missions, Waky vibrates and sends a silent push check: <Text style={{ color: '#FCA5A5', fontWeight: '700' }}>"Are you still up?"</Text> — If you don't tap confirm within 60s, the relapse siren fires again.
-          </Text>
+          {telegramLinked && (
+            <TouchableOpacity style={[styles.telegramBtn, { backgroundColor: '#374151', flex: 1 }]} onPress={handleSendTestMessage}>
+              <Text style={styles.telegramBtnText}>Send Test Message</Text>
+            </TouchableOpacity>
+          )}
         </View>
+      </View>
 
-        {/* ── In-Bedroom Missions ── */}
-        <View style={styles.missionsHeader}>
-          <Text style={styles.sectionTitle}>IN-BEDROOM MISSIONS (0 dB)</Text>
-          <TouchableOpacity onPress={() => setShowQrModal(true)}>
-            <Text style={styles.qrLink}>View Desk QR</Text>
+      {/* ── Notification Status ── */}
+      {!notifGranted && (
+        <View style={styles.notifWarning}>
+          <AlertCircle size={16} color="#F59E0B" style={{ marginRight: 8 }} />
+          <Text style={styles.notifWarningText}>Notification permission required for background alarms to fire!</Text>
+        </View>
+      )}
+    </>
+  );
+
+  return (
+    <View style={styles.container}>
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.brand}>WAKY</Text>
+          <Text style={styles.tagline}>In-Room Anti-Relapse System</Text>
+        </View>
+        <View style={styles.streakBadge}>
+          <Flame size={15} color="#EF4444" style={{ marginRight: 4 }} />
+          <Text style={styles.streakText}>{stats.currentStreak} DAY STREAK</Text>
+        </View>
+      </View>
+
+      {/* ── Tab Bar ── */}
+      <View style={styles.tabBar}>
+        {(['HOME', 'STATS', 'SETTINGS'] as const).map(tab => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === tab && styles.tabActive]}
+            onPress={() => { setActiveTab(tab); try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {} }}
+          >
+            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>{tab}</Text>
           </TouchableOpacity>
-        </View>
-
-        {([
-          { id: 'POSTURE_HOLD' as MissionType, icon: <Smartphone size={20} color="#10B981" />, name: 'Vertical Posture Hold', desc: 'S23 Ultra Gyro: 45s standing upright at eye level', color: '#10B981', track: '#064E3B' },
-          { id: 'STROOP_TEST' as MissionType, icon: <Brain size={20} color="#8B5CF6" />, name: 'Stroop Cognitive Duel', desc: 'Reboot prefrontal cortex with 7 color clashes', color: '#8B5CF6', track: '#3B1F6E' },
-          { id: 'WATER_QR' as MissionType, icon: <QrCode size={20} color="#3B82F6" />, name: 'Desk / Bottle QR Scan', desc: 'Forces standing and walking to the bedroom anchor', color: '#3B82F6', track: '#1E3A8A' },
-          { id: 'BED_PHOTO' as MissionType, icon: <Bed size={20} color="#F59E0B" />, name: '"Made Bed" Photo Proof', desc: 'Photographs straight sheets to lock you out', color: '#F59E0B', track: '#78350F' },
-        ]).map(m => (
-          <View key={m.id} style={styles.missionCard}>
-            <View style={[styles.missionIcon, { backgroundColor: `${m.color}18` }]}>
-              {m.icon}
-            </View>
-            <View style={styles.missionInfo}>
-              <Text style={styles.missionName}>{m.name}</Text>
-              <Text style={styles.missionDesc}>{m.desc}</Text>
-            </View>
-            <Switch
-              value={settings.activeMissions.includes(m.id)}
-              onValueChange={() => toggleMission(m.id)}
-              thumbColor={settings.activeMissions.includes(m.id) ? m.color : '#9CA3AF'}
-              trackColor={{ false: '#374151', true: m.track }}
-            />
-          </View>
         ))}
+      </View>
 
-        {/* ── Stats Row ── */}
-        <View style={styles.statsRow}>
-          {[
-            { label: 'STREAK', value: `${stats.currentStreak}d`, color: '#EF4444' },
-            { label: 'BEST', value: `${stats.bestStreak}d`, color: '#FBBF24' },
-            { label: 'RELAPSES\nAVOIDED', value: `${stats.relapsesAvoided}`, color: '#10B981' },
-            { label: 'TOTAL\nWAKEUPS', value: `${stats.totalWakeups}`, color: '#3B82F6' },
-          ].map(s => (
-            <View key={s.label} style={styles.statCard}>
-              <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* ── Demo Button ── */}
-        <TouchableOpacity
-          style={styles.demoButton}
-          onPress={() => {
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch (e) {}
-            onTriggerTestAlarm();
-          }}
-          activeOpacity={0.85}
-        >
-          <Play size={20} color="#FFFFFF" style={{ marginRight: 10 }} />
-          <Text style={styles.demoButtonText}>TEST FULL PROTOCOL ON S23 ULTRA</Text>
-        </TouchableOpacity>
-        <Text style={styles.demoHelpText}>
-          Sunrise Ramp → Bed-Down Detector → 2-Min Grace → All Missions → T+15 Relapse Check
-        </Text>
+      {/* ── Content ── */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {activeTab === 'HOME' && renderHome()}
+        {activeTab === 'STATS' && renderStats()}
+        {activeTab === 'SETTINGS' && renderSettings()}
       </ScrollView>
 
-      {/* ── Wake Time Picker Modal ── */}
-      <TimePickerModal
-        visible={showWakePicker}
-        title="Set Wake-Up Time"
-        initialTime={settings.targetWakeTime}
-        onConfirm={handleWakeTimeConfirm}
-        onCancel={() => setShowWakePicker(false)}
-      />
+      {/* ── Modals ── */}
+      <TimePickerModal visible={showWakePicker} title="Set Wake-Up Time" initialTime={settings.targetWakeTime} onConfirm={handleWakeConfirm} onCancel={() => setShowWakePicker(false)} />
+      <TimePickerModal visible={showBedPicker} title="Set Bedtime Target" initialTime={settings.targetBedtime} onConfirm={handleBedConfirm} onCancel={() => setShowBedPicker(false)} />
 
-      {/* ── Bedtime Picker Modal ── */}
-      <TimePickerModal
-        visible={showBedPicker}
-        title="Set Bedtime Target"
-        initialTime={settings.targetBedtime}
-        onConfirm={handleBedtimeConfirm}
-        onCancel={() => setShowBedPicker(false)}
-      />
-
-      {/* ── Desk QR Modal ── */}
+      {/* Real QR Code Modal */}
       <Modal visible={showQrModal} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
-          <View style={styles.pickerModal}>
+          <View style={styles.qrModal}>
             <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Bedroom QR Anchor</Text>
-              <TouchableOpacity onPress={() => setShowQrModal(false)}>
-                <X size={22} color="#9CA3AF" />
-              </TouchableOpacity>
+              <Text style={styles.pickerTitle}>Your Bedroom QR Anchor</Text>
+              <TouchableOpacity onPress={() => setShowQrModal(false)}><X size={22} color="#9CA3AF" /></TouchableOpacity>
             </View>
-            <Text style={styles.qrDesc}>
-              Stick this on your desk, wardrobe, or water bottle across the room.
-            </Text>
+            <Text style={styles.qrInstructions}>Screenshot this, print it, and stick it on your desk, wardrobe, or water bottle.</Text>
             <View style={styles.qrCodeBox}>
-              <QrCode size={160} color="#000000" />
+              <QRCode
+                value={settings.qrCodeSecret}
+                size={220}
+                color="#000000"
+                backgroundColor="#FFFFFF"
+              />
             </View>
-            <Text style={styles.qrCodeText}>KEY: {settings.qrCodeSecret}</Text>
+            <Text style={styles.qrKeyText}>Key: <Text style={{ fontFamily: 'monospace', color: '#60A5FA' }}>{settings.qrCodeSecret}</Text></Text>
             <TouchableOpacity style={styles.confirmBtn} onPress={() => setShowQrModal(false)}>
               <Text style={styles.confirmBtnText}>Done</Text>
             </TouchableOpacity>
@@ -416,90 +507,121 @@ export const DashboardScreen: React.FC<Props> = ({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#090A0F' },
-  scrollContent: { padding: 20, paddingTop: 52, paddingBottom: 40 },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  brand: { color: '#FFFFFF', fontSize: 26, fontWeight: '900', letterSpacing: 2 },
-  tagline: { color: '#9CA3AF', fontSize: 12, marginTop: 1 },
-  streakBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1F2937', paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, borderColor: '#374151' },
-  streakText: { color: '#FFFFFF', fontSize: 12, fontWeight: '800' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 10 },
+  brand: { color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: 2 },
+  tagline: { color: '#9CA3AF', fontSize: 11, marginTop: 1 },
+  streakBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1F2937', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderColor: '#374151' },
+  streakText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
 
-  notifWarning: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#78350F30', borderColor: '#F59E0B60', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14 },
-  notifWarningText: { color: '#FDE68A', fontSize: 12, flex: 1, lineHeight: 16 },
+  tabBar: { flexDirection: 'row', backgroundColor: '#111827', marginHorizontal: 20, borderRadius: 14, padding: 4, marginBottom: 4 },
+  tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
+  tabActive: { backgroundColor: '#1F2937' },
+  tabText: { color: '#6B7280', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
+  tabTextActive: { color: '#FFFFFF' },
 
-  heroCard: { backgroundColor: '#111827', borderRadius: 22, padding: 22, borderWidth: 1, borderColor: '#1F2937', marginBottom: 16 },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  iconCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#1F2937', alignItems: 'center', justifyContent: 'center' },
-  statusPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1F2937', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 16 },
+  scrollContent: { padding: 20, paddingTop: 8, paddingBottom: 50 },
+  sectionHeading: { color: '#9CA3AF', fontSize: 10, fontWeight: '800', letterSpacing: 2, marginBottom: 10 },
+
+  // Hero card
+  heroCard: { backgroundColor: '#111827', borderRadius: 22, padding: 20, borderWidth: 1, borderColor: '#1F2937', marginBottom: 14 },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  iconCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#1F2937', alignItems: 'center', justifyContent: 'center' },
+  statusPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1F2937', paddingVertical: 5, paddingHorizontal: 10, borderRadius: 14 },
   statusDot: { width: 7, height: 7, borderRadius: 3.5, marginRight: 5 },
   statusPillText: { color: '#E5E7EB', fontSize: 10, fontWeight: '800' },
-  timeRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  timeDisplay: { color: '#FFFFFF', fontSize: 52, fontWeight: '900', letterSpacing: 1 },
-  ampm: { color: '#9CA3AF', fontSize: 18, fontWeight: '700' },
-  editBadge: { backgroundColor: '#1E3A8A', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, marginLeft: 4, alignSelf: 'center' },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  timeDisplay: { color: '#FFFFFF', fontSize: 50, fontWeight: '900', letterSpacing: 1 },
+  editBadge: { backgroundColor: '#1E3A8A', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'center' },
   editBadgeText: { color: '#93C5FD', fontSize: 9, fontWeight: '800' },
-  heroSub: { color: '#6B7280', fontSize: 12, marginTop: 4 },
-  divider: { height: 1, backgroundColor: '#1F2937', marginVertical: 16 },
+  heroSub: { color: '#6B7280', fontSize: 11, marginTop: 4, marginBottom: 12 },
+  divider: { height: 1, backgroundColor: '#1F2937', marginVertical: 14 },
   toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  toggleLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  toggleLabel: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
   toggleSub: { color: '#6B7280', fontSize: 11, marginTop: 2 },
 
+  // Bedtime card
   circadianCard: { backgroundColor: '#131826', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#1E293B', marginBottom: 14 },
-  circadianHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  circadianHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   circadianTitle: { color: '#818CF8', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  circadianRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
+  circadianRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   bedtimeText: { color: '#FFFFFF', fontSize: 22, fontWeight: '800' },
   windDownBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#312E8140', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 10 },
   windDownText: { color: '#A5B4FC', fontSize: 11, fontWeight: '600' },
-  circadianSub: { color: '#94A3B8', fontSize: 11, lineHeight: 15 },
 
-  relapseCheckCard: { backgroundColor: '#1C0A0A', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#7F1D1D60', marginBottom: 20 },
-  relapseCheckHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  relapseCheckTitle: { color: '#F87171', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  relapseCheckDesc: { color: '#FCA5A5', fontSize: 12, lineHeight: 18 },
-
-  missionsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  sectionTitle: { color: '#9CA3AF', fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },
-  qrLink: { color: '#3B82F6', fontSize: 12, fontWeight: '700' },
-
-  missionCard: { backgroundColor: '#111827', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 8, borderWidth: 1, borderColor: '#1F2937' },
-  missionIcon: { width: 42, height: 42, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  missionInfo: { flex: 1 },
-  missionName: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-  missionDesc: { color: '#9CA3AF', fontSize: 11, marginTop: 2 },
-
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 20, marginTop: 10 },
+  // Stats
+  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   statCard: { flex: 1, backgroundColor: '#111827', borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#1F2937' },
-  statValue: { fontSize: 22, fontWeight: '900' },
-  statLabel: { color: '#6B7280', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, textAlign: 'center', marginTop: 3 },
+  statValue: { fontSize: 20, fontWeight: '900' },
+  statLabel: { color: '#6B7280', fontSize: 8, fontWeight: '700', letterSpacing: 0.5, textAlign: 'center', marginTop: 2 },
 
-  demoButton: { width: '100%', height: 58, backgroundColor: '#2563EB', borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#2563EB', shadowOpacity: 0.4, shadowRadius: 14, elevation: 6 },
-  demoButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
-  demoHelpText: { color: '#6B7280', fontSize: 11, marginTop: 7, textAlign: 'center' },
+  // Demo
+  demoButton: { width: '100%', height: 56, backgroundColor: '#2563EB', borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: '#2563EB', shadowOpacity: 0.4, shadowRadius: 12, elevation: 5, marginTop: 4 },
+  demoButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  demoHelpText: { color: '#6B7280', fontSize: 11, marginTop: 6, textAlign: 'center' },
 
-  // Picker Modal
+  // Stats tab
+  statsDetailCard: { backgroundColor: '#111827', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#1F2937', marginBottom: 12 },
+  statsDetailTitle: { color: '#60A5FA', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, marginBottom: 10 },
+  statsDetailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#1F2937' },
+  statsDetailLabel: { color: '#9CA3AF', fontSize: 13 },
+  statsDetailValue: { fontSize: 14, fontWeight: '700' },
+  varianceInfoCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#2E1065', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#7C3AED60' },
+  varianceInfoText: { color: '#C4B5FD', fontSize: 12, lineHeight: 18, flex: 1 },
+
+  // Settings tab missions
+  missionSettingCard: { backgroundColor: '#111827', borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#1F2937' },
+  missionSettingTop: { flexDirection: 'row', alignItems: 'center' },
+  missionIconSmall: { width: 34, height: 34, borderRadius: 9, backgroundColor: '#1F2937', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  missionSettingName: { flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  difficultyRow: { marginTop: 10 },
+  difficultyLabel: { color: '#9CA3AF', fontSize: 12 },
+
+  // QR card
+  qrGenerateCard: { backgroundColor: '#111827', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#1F2937', marginBottom: 6 },
+  qrCardTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  qrCardSub: { color: '#6B7280', fontSize: 11, marginTop: 2 },
+
+  // Telegram card
+  telegramCard: { backgroundColor: '#111827', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#1F2937', marginBottom: 14 },
+  telegramHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  telegramTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  telegramSub: { color: '#6B7280', fontSize: 11, marginTop: 1 },
+  telegramInstructions: { color: '#9CA3AF', fontSize: 12, lineHeight: 20, backgroundColor: '#1F2937', borderRadius: 10, padding: 12, marginBottom: 12 },
+  telegramMsgBox: { borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 10 },
+  telegramMsgText: { color: '#D1D5DB', fontSize: 12 },
+  telegramActions: { flexDirection: 'row', gap: 10 },
+  telegramBtn: { flex: 1, height: 44, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  telegramBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+
+  // Notif warning
+  notifWarning: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#78350F30', borderColor: '#F59E0B60', borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 10 },
+  notifWarningText: { color: '#FDE68A', fontSize: 12, flex: 1 },
+
+  // Modals
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   pickerModal: { width: '100%', backgroundColor: '#111827', borderRadius: 22, padding: 22, borderWidth: 1, borderColor: '#374151' },
   pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   pickerTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
-  pickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 16 },
-  pickerWrap: { alignItems: 'center' },
-  pickerLabel: { color: '#6B7280', fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
-  pickerColumn: { height: 180, width: 72 },
-  pickerItem: { height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
-  pickerItemSelected: { backgroundColor: '#1E3A8A' },
-  pickerItemText: { color: '#9CA3AF', fontSize: 24, fontWeight: '600' },
-  pickerItemTextSelected: { color: '#FFFFFF', fontWeight: '900' },
-  pickerColon: { color: '#FFFFFF', fontSize: 32, fontWeight: '900', marginTop: 12 },
-  pickerPreview: { alignItems: 'center', marginBottom: 16 },
-  pickerPreviewTime: { color: '#3B82F6', fontSize: 40, fontWeight: '900', letterSpacing: 2 },
+  timePickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12 },
+  pickerColumnWrap: { alignItems: 'center' },
+  pickerColLabel: { color: '#6B7280', fontSize: 9, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
+  pickerScroll: { height: 200, width: 80 },
+  pickerCell: { height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+  pickerCellActive: { backgroundColor: '#1E3A8A' },
+  pickerCellText: { color: '#6B7280', fontSize: 24, fontWeight: '500' },
+  pickerCellTextActive: { color: '#FFFFFF', fontWeight: '900' },
+  pickerColon: { color: '#FFFFFF', fontSize: 32, fontWeight: '900', marginTop: 14 },
+  previewRow: { alignItems: 'center', marginBottom: 14 },
+  previewTime: { color: '#3B82F6', fontSize: 40, fontWeight: '900', letterSpacing: 2 },
   pickerActions: { flexDirection: 'row', gap: 12 },
   cancelBtn: { flex: 1, height: 48, backgroundColor: '#374151', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cancelBtnText: { color: '#D1D5DB', fontSize: 14, fontWeight: '700' },
   confirmBtn: { flex: 2, height: 48, backgroundColor: '#3B82F6', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   confirmBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
 
-  qrDesc: { color: '#9CA3AF', fontSize: 13, textAlign: 'center', marginBottom: 18, lineHeight: 18 },
-  qrCodeBox: { backgroundColor: '#FFFFFF', padding: 16, borderRadius: 14, marginBottom: 12, alignSelf: 'center' },
-  qrCodeText: { color: '#6B7280', fontSize: 12, fontFamily: 'monospace', textAlign: 'center', marginBottom: 16 },
+  qrModal: { width: '100%', backgroundColor: '#111827', borderRadius: 22, padding: 22, alignItems: 'center', borderWidth: 1, borderColor: '#374151' },
+  qrInstructions: { color: '#9CA3AF', fontSize: 13, textAlign: 'center', marginBottom: 18, lineHeight: 18 },
+  qrCodeBox: { backgroundColor: '#FFFFFF', padding: 20, borderRadius: 18, marginBottom: 14 },
+  qrKeyText: { color: '#6B7280', fontSize: 12, marginBottom: 18 },
 });

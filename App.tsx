@@ -7,6 +7,8 @@ import { AlarmState, AlarmSettings, UserStats, MissionType } from './src/types';
 import * as storageService from './src/services/storageService';
 import * as hardwareService from './src/services/hardwareService';
 import * as notificationService from './src/services/notificationService';
+import * as historyService from './src/services/historyService';
+import * as telegramService from './src/services/telegramService';
 
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { SunriseAlarmScreen } from './src/screens/SunriseAlarmScreen';
@@ -139,6 +141,29 @@ export default function App() {
       const updatedStats = await storageService.recordSuccessfulWakeup();
       setStats(updatedStats);
 
+      // Record daily wake entry for 7-day circadian graph
+      const now = new Date();
+      const actualHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const [targetH, targetM] = settings.targetWakeTime.split(':').map(Number);
+      const deltaMins = (now.getHours() * 60 + now.getMinutes()) - (targetH * 60 + targetM);
+
+      await historyService.recordWakeEntry({
+        date: now.toISOString().split('T')[0],
+        targetTime: settings.targetWakeTime,
+        actualTime: actualHHMM,
+        deltaMinutes: deltaMins,
+        completed: true,
+        missionsCount: settings.activeMissions.length,
+        streak: updatedStats.currentStreak,
+      });
+
+      // Send Telegram accountability success message
+      await telegramService.sendWakeupSuccess(
+        updatedStats.currentStreak,
+        actualHHMM,
+        settings.activeMissions.length
+      );
+
       // Schedule T+15 relapse check notification (15 min = 900s)
       await notificationService.scheduleRelapseCheck(900);
 
@@ -157,9 +182,19 @@ export default function App() {
 
     switch (activeMissionType) {
       case 'POSTURE_HOLD':
-        return <PostureHoldMission onComplete={handleMissionComplete} targetSeconds={45} />;
+        return (
+          <PostureHoldMission
+            onComplete={handleMissionComplete}
+            targetSeconds={settings.postureSeconds ?? 45}
+          />
+        );
       case 'STROOP_TEST':
-        return <StroopMission onComplete={handleMissionComplete} requiredStreak={7} />;
+        return (
+          <StroopMission
+            onComplete={handleMissionComplete}
+            requiredStreak={settings.stroopStreak ?? 7}
+          />
+        );
       case 'WATER_QR':
         return (
           <WaterQrMission

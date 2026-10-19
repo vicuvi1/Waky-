@@ -29,6 +29,8 @@ export interface AlarmSettings {
   activeMissions: MissionType[];
   volumeLevel: number; // 0.0 to 1.0
   vibrationIntensity: 'GENTLE' | 'BALANCED' | 'RELAPSE_MAX';
+  postureSeconds?: number;
+  stroopStreak?: number;
 }
 
 export interface UserStats {
