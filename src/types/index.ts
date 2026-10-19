@@ -5,9 +5,12 @@ export type AlarmState =
   | 'GRACE_COUNTDOWN'
   | 'MISSION'
   | 'AWAKE_CONFIRMED'
-  | 'RELAPSE_PENALTY';
+  | 'RELAPSE_PENALTY'
+  | 'BEDTIME_LOCKDOWN';
 
-export type MissionType = 'WATER_QR' | 'POSTURE_HOLD' | 'STROOP_TEST' | 'BED_PHOTO';
+export type MissionType = 'WATER_QR' | 'POSTURE_HOLD' | 'STROOP_TEST' | 'BED_PHOTO' | 'SQUAT_COUNTER';
+
+export type SoundProfile = 'GAMMA_40HZ' | 'PROGRESSIVE_CHIME' | 'EMERGENCY_KLAXON';
 
 export interface MissionConfig {
   id: MissionType;
@@ -31,6 +34,10 @@ export interface AlarmSettings {
   vibrationIntensity: 'GENTLE' | 'BALANCED' | 'RELAPSE_MAX';
   postureSeconds?: number;
   stroopStreak?: number;
+  targetSquats?: number;
+  soundProfile: SoundProfile;
+  partnerChatId?: string;
+  partnerAlertEnabled?: boolean;
 }
 
 export interface UserStats {

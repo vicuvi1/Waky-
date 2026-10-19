@@ -11,9 +11,15 @@ export const DEFAULT_SETTINGS: AlarmSettings = {
   graceDurationSeconds: 120, // 2-minute grace period
   sunriseDurationMinutes: 5,
   qrCodeSecret: 'WAKY_DESK_KEY',
-  activeMissions: ['POSTURE_HOLD', 'STROOP_TEST', 'WATER_QR'],
+  activeMissions: ['POSTURE_HOLD', 'STROOP_TEST', 'WATER_QR', 'SQUAT_COUNTER'],
   volumeLevel: 0.85,
   vibrationIntensity: 'BALANCED',
+  postureSeconds: 45,
+  stroopStreak: 7,
+  targetSquats: 10,
+  soundProfile: 'PROGRESSIVE_CHIME',
+  partnerChatId: '',
+  partnerAlertEnabled: false,
 };
 
 export const DEFAULT_STATS: UserStats = {

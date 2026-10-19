@@ -134,14 +134,17 @@ export async function sendWakeupSuccess(
 }
 
 /**
- * Send a relapse warning (for testing or 2nd-day check-in).
+ * Send a public forfeit / partner relapse alert.
  */
-export async function sendRelapseAlert(chatId?: string): Promise<boolean> {
+export async function sendRelapseAlert(currentTime?: string, chatId?: string): Promise<boolean> {
+  const timeStr = currentTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const msg = [
-    '🚨 *WAKY RELAPSE ALERT*',
+    '🚨 *WAKY RELAPSE ALERT: Victor went back to sleep!*',
     '',
-    'Victor did NOT confirm wakeup in time.',
-    'The anti-relapse siren fired. Streak at risk! 😤',
+    `⚠️ *TIME:* ${timeStr}`,
+    'The 2-minute anti-relapse grace timer expired with missions uncompleted.',
+    '',
+    '💥 *CALL OR SHAKE HIM RIGHT NOW TO WAKE HIM UP!* 📢',
   ].join('\n');
   return sendMessage(msg, chatId);
 }

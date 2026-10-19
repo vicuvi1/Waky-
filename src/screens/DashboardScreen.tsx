@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Modal,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Modal, TextInput,
 } from 'react-native';
 import {
   Sun, Moon, Flame, Smartphone, Brain, QrCode, Bed, Play,
   ShieldCheck, Clock, X, BellRing, MessageCircle, Send, ChevronRight,
-  TrendingUp, Settings, AlertCircle, CheckCircle2,
+  TrendingUp, Settings, AlertCircle, CheckCircle2, Activity, Volume2, ShieldAlert,
 } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Slider from '@react-native-community/slider';
@@ -23,6 +23,7 @@ interface Props {
   stats: UserStats;
   onUpdateSettings: (settings: AlarmSettings) => void;
   onTriggerTestAlarm: () => void;
+  onOpenBedtimeLockdown: () => void;
 }
 
 // ── Hours & Minutes for pickers ───────────────────────────────────────────
@@ -134,7 +135,7 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────
 export const DashboardScreen: React.FC<Props> = ({
-  settings, stats, onUpdateSettings, onTriggerTestAlarm,
+  settings, stats, onUpdateSettings, onTriggerTestAlarm, onOpenBedtimeLockdown,
 }) => {
   const [activeTab, setActiveTab] = useState<'HOME' | 'STATS' | 'SETTINGS'>('HOME');
   const [showWakePicker, setShowWakePicker] = useState(false);
@@ -272,6 +273,22 @@ export const DashboardScreen: React.FC<Props> = ({
         </View>
       </TouchableOpacity>
 
+      {/* Bedtime Lockdown Sanctuary Card */}
+      <TouchableOpacity
+        style={styles.bedtimeLockdownCard}
+        onPress={onOpenBedtimeLockdown}
+        activeOpacity={0.85}
+      >
+        <View style={styles.bedtimeLockdownIcon}>
+          <Moon size={18} color="#F97316" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.bedtimeLockdownTitle}>Bedtime Blue-Light Lockdown</Text>
+          <Text style={styles.bedtimeLockdownSub}>0% blue light · 4-7-8 breathing pacer for sleep</Text>
+        </View>
+        <ChevronRight size={18} color="#EA580C" />
+      </TouchableOpacity>
+
       {/* Stats Strip */}
       <View style={styles.statsRow}>
         {[
@@ -339,10 +356,11 @@ export const DashboardScreen: React.FC<Props> = ({
       {([
         { id: 'POSTURE_HOLD' as MissionType, icon: <Smartphone size={19} color="#10B981" />, name: 'Vertical Posture Hold', desc: 'Duration (seconds)', min: 15, max: 90, step: 5, key: 'postureSeconds' },
         { id: 'STROOP_TEST' as MissionType, icon: <Brain size={19} color="#8B5CF6" />, name: 'Stroop Cognitive Duel', desc: 'Correct streak required', min: 3, max: 15, step: 1, key: 'stroopStreak' },
+        { id: 'SQUAT_COUNTER' as MissionType, icon: <Activity size={19} color="#3B82F6" />, name: '10 Bedroom Squats', desc: 'Target squats (0 dB)', min: 5, max: 25, step: 1, key: 'targetSquats' },
         { id: 'WATER_QR' as MissionType, icon: <QrCode size={19} color="#3B82F6" />, name: 'Desk / Bottle QR Scan', desc: 'Always on (scan required)', min: null, max: null, step: null, key: null },
         { id: 'BED_PHOTO' as MissionType, icon: <Bed size={19} color="#F59E0B" />, name: '"Made Bed" Photo Proof', desc: 'Always on (photo required)', min: null, max: null, step: null, key: null },
       ] as const).map(m => {
-        const diffValue = m.key ? ((settings as any)[m.key] ?? (m.id === 'POSTURE_HOLD' ? 45 : 7)) : null;
+        const diffValue = m.key ? ((settings as any)[m.key] ?? (m.id === 'POSTURE_HOLD' ? 45 : m.id === 'SQUAT_COUNTER' ? 10 : 7)) : null;
         return (
           <View key={m.id} style={styles.missionSettingCard}>
             <View style={styles.missionSettingTop}>
@@ -357,7 +375,9 @@ export const DashboardScreen: React.FC<Props> = ({
             </View>
             {m.key && diffValue !== null && settings.activeMissions.includes(m.id) && (
               <View style={styles.difficultyRow}>
-                <Text style={styles.difficultyLabel}>{m.desc}: <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{diffValue}{m.id === 'POSTURE_HOLD' ? 's' : ' correct'}</Text></Text>
+                <Text style={styles.difficultyLabel}>
+                  {m.desc}: <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{diffValue}{m.id === 'POSTURE_HOLD' ? 's' : m.id === 'SQUAT_COUNTER' ? ' squats' : ' correct'}</Text>
+                </Text>
                 <Slider
                   style={{ width: '100%', height: 32 }}
                   minimumValue={m.min!}
@@ -374,6 +394,35 @@ export const DashboardScreen: React.FC<Props> = ({
           </View>
         );
       })}
+
+      {/* ── Wake-up Sound Profile ── */}
+      <Text style={[styles.sectionHeading, { marginTop: 20 }]}>WAKE-UP SOUNDSCAPE</Text>
+      <View style={styles.soundProfileContainer}>
+        {([
+          { id: 'GAMMA_40HZ', name: '40Hz Binaural Gamma', desc: 'Focus brainwave stimulation' },
+          { id: 'PROGRESSIVE_CHIME', name: 'Acoustic Harmonics', desc: 'Gentle rising crescendo' },
+          { id: 'EMERGENCY_KLAXON', name: 'Adrenaline Klaxon', desc: 'Heavy sleeper urgency horn' },
+        ] as const).map(s => {
+          const isActive = settings.soundProfile === s.id;
+          return (
+            <TouchableOpacity
+              key={s.id}
+              style={[styles.soundBtn, isActive && styles.soundBtnActive]}
+              onPress={() => {
+                try { Haptics.selectionAsync(); } catch (e) {}
+                onUpdateSettings({ ...settings, soundProfile: s.id });
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.soundDot, isActive && styles.soundDotActive]} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.soundTitle, isActive && styles.soundTitleActive]}>{s.name}</Text>
+                <Text style={styles.soundSub}>{s.desc}</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       {/* ── QR Code Generator ── */}
       <Text style={[styles.sectionHeading, { marginTop: 20 }]}>BEDROOM QR ANCHOR</Text>
@@ -425,6 +474,32 @@ export const DashboardScreen: React.FC<Props> = ({
             <TouchableOpacity style={[styles.telegramBtn, { backgroundColor: '#374151', flex: 1 }]} onPress={handleSendTestMessage}>
               <Text style={styles.telegramBtnText}>Send Test Message</Text>
             </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Public Forfeit / Partner Relapse Alert */}
+        <View style={styles.partnerForfeitBox}>
+          <View style={styles.partnerHeader}>
+            <ShieldAlert size={18} color="#EF4444" style={{ marginRight: 6 }} />
+            <Text style={styles.partnerTitle}>Social Forfeit: Friend / Group Alert</Text>
+            <Switch
+              value={settings.partnerAlertEnabled ?? false}
+              onValueChange={val => onUpdateSettings({ ...settings, partnerAlertEnabled: val })}
+              thumbColor={settings.partnerAlertEnabled ? '#EF4444' : '#9CA3AF'}
+              trackColor={{ false: '#374151', true: '#7F1D1D' }}
+            />
+          </View>
+          <Text style={styles.partnerSub}>
+            If you fail missions and trigger the Relapse Siren, Waky auto-messages this chat so someone calls you!
+          </Text>
+          {settings.partnerAlertEnabled && (
+            <TextInput
+              style={styles.partnerInput}
+              placeholder="Partner / Group Chat ID (e.g. -1001234567)"
+              placeholderTextColor="#6B7280"
+              value={settings.partnerChatId || ''}
+              onChangeText={val => onUpdateSettings({ ...settings, partnerChatId: val })}
+            />
           )}
         </View>
       </View>
@@ -624,4 +699,82 @@ const styles = StyleSheet.create({
   qrInstructions: { color: '#9CA3AF', fontSize: 13, textAlign: 'center', marginBottom: 18, lineHeight: 18 },
   qrCodeBox: { backgroundColor: '#FFFFFF', padding: 20, borderRadius: 18, marginBottom: 14 },
   qrKeyText: { color: '#6B7280', fontSize: 12, marginBottom: 18 },
+
+  // Bedtime lockdown card
+  bedtimeLockdownCard: {
+    backgroundColor: '#1A0800',
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#7C2D1260',
+    marginBottom: 14,
+  },
+  bedtimeLockdownIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#431407',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  bedtimeLockdownTitle: { color: '#F97316', fontSize: 14, fontWeight: '700' },
+  bedtimeLockdownSub: { color: '#EA580C', fontSize: 11, marginTop: 2 },
+
+  // Soundscape profiles
+  soundProfileContainer: { gap: 8, marginBottom: 16 },
+  soundBtn: {
+    backgroundColor: '#111827',
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#1F2937',
+  },
+  soundBtnActive: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#111C30',
+  },
+  soundDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#374151',
+    marginRight: 12,
+  },
+  soundDotActive: {
+    backgroundColor: '#3B82F6',
+  },
+  soundTitle: { color: '#9CA3AF', fontSize: 14, fontWeight: '700' },
+  soundTitleActive: { color: '#FFFFFF' },
+  soundSub: { color: '#6B7280', fontSize: 11, marginTop: 2 },
+
+  // Partner forfeit alert
+  partnerForfeitBox: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#1F2937',
+  },
+  partnerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  partnerTitle: { color: '#FCA5A5', fontSize: 13, fontWeight: '700', flex: 1 },
+  partnerSub: { color: '#9CA3AF', fontSize: 11, marginTop: 4, lineHeight: 16 },
+  partnerInput: {
+    height: 44,
+    backgroundColor: '#1F2937',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#EF444460',
+    color: '#FFFFFF',
+    paddingHorizontal: 12,
+    fontSize: 13,
+    marginTop: 10,
+  },
 });

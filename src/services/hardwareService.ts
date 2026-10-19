@@ -12,6 +12,9 @@ const SOUND_MAP = {
   chime: require('../../assets/sounds/chime.wav'),
   alarm: require('../../assets/sounds/alarm_pulse.wav'),
   relapse: require('../../assets/sounds/relapse_alert.wav'),
+  gamma_40hz: require('../../assets/sounds/gamma_40hz.wav'),
+  progressive_chime: require('../../assets/sounds/progressive_chime.wav'),
+  emergency_klaxon: require('../../assets/sounds/emergency_klaxon.wav'),
 };
 
 /**
@@ -50,7 +53,7 @@ export async function stopSound(): Promise<void> {
  * Play a specific alarm or chime sound with looping option
  */
 export async function playSound(
-  type: 'chime' | 'alarm' | 'relapse',
+  type: keyof typeof SOUND_MAP,
   loop: boolean = true,
   volume: number = 0.85
 ): Promise<void> {

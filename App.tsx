@@ -21,6 +21,8 @@ import { PostureHoldMission } from './src/screens/missions/PostureHoldMission';
 import { StroopMission } from './src/screens/missions/StroopMission';
 import { WaterQrMission } from './src/screens/missions/WaterQrMission';
 import { BedPhotoMission } from './src/screens/missions/BedPhotoMission';
+import { SquatCounterMission } from './src/screens/missions/SquatCounterMission';
+import { BedtimeLockdownScreen } from './src/screens/BedtimeLockdownScreen';
 
 // ─── Extended alarm state machine ──────────────────────────────────────────
 type FullAlarmState = AlarmState | 'RELAPSE_CHECK';
@@ -127,7 +129,11 @@ export default function App() {
     setAlarmState('MISSION');
   };
 
-  const handleExpireRelapse = () => {
+  const handleExpireRelapse = async () => {
+    // If user enabled partner forfeit alert, notify partner immediately
+    if (settings.partnerAlertEnabled) {
+      await telegramService.sendRelapseAlert(undefined, settings.partnerChatId || undefined);
+    }
     setAlarmState('RELAPSE_PENALTY');
   };
 
@@ -195,6 +201,13 @@ export default function App() {
             requiredStreak={settings.stroopStreak ?? 7}
           />
         );
+      case 'SQUAT_COUNTER':
+        return (
+          <SquatCounterMission
+            onComplete={handleMissionComplete}
+            targetSquats={settings.targetSquats ?? 10}
+          />
+        );
       case 'WATER_QR':
         return (
           <WaterQrMission
@@ -221,13 +234,22 @@ export default function App() {
             stats={stats}
             onUpdateSettings={handleUpdateSettings}
             onTriggerTestAlarm={handleTriggerTestAlarm}
+            onOpenBedtimeLockdown={() => setAlarmState('BEDTIME_LOCKDOWN')}
           />
         )}
 
         {alarmState === 'SUNRISE' && (
           <SunriseAlarmScreen
             targetWakeTime={settings.targetWakeTime}
+            soundProfile={settings.soundProfile}
             onDismissToGrace={handleDismissToGrace}
+          />
+        )}
+
+        {alarmState === 'BEDTIME_LOCKDOWN' && (
+          <BedtimeLockdownScreen
+            targetWakeTime={settings.targetWakeTime}
+            onExit={() => setAlarmState('IDLE')}
           />
         )}
 

@@ -3,20 +3,35 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native
 import { Sun, Bell, Volume2, ShieldAlert } from 'lucide-react-native';
 import * as hardwareService from '../services/hardwareService';
 
+import { SoundProfile } from '../types';
+
 interface Props {
   onDismissToGrace: () => void;
   targetWakeTime: string;
+  soundProfile?: SoundProfile;
 }
 
-export const SunriseAlarmScreen: React.FC<Props> = ({ onDismissToGrace, targetWakeTime }) => {
+export const SunriseAlarmScreen: React.FC<Props> = ({
+  onDismissToGrace,
+  targetWakeTime,
+  soundProfile = 'PROGRESSIVE_CHIME',
+}) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.4)).current;
 
   useEffect(() => {
+    // Map sound profile to asset key
+    const soundKey =
+      soundProfile === 'GAMMA_40HZ'
+        ? 'gamma_40hz'
+        : soundProfile === 'EMERGENCY_KLAXON'
+        ? 'emergency_klaxon'
+        : 'progressive_chime';
+
     // Maximize brightness and hardware alarms
     hardwareService.keepDeviceAwake();
     hardwareService.maximizeBrightness();
-    hardwareService.playSound('alarm', true, 0.9);
+    hardwareService.playSound(soundKey, true, 0.9);
     hardwareService.startHaptics('BALANCED');
 
     // Pulsing animation
