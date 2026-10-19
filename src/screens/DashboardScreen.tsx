@@ -154,14 +154,9 @@ export const DashboardScreen: React.FC<Props> = ({
   const [telegramMsg, setTelegramMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    historyService.loadHistory().then(setHistory);
-    notificationService.setupNotifications().then(granted => setNotifGranted(granted));
-    telegramService.getSavedChatId().then(id => setTelegramLinked(!!id));
-    telegramService.getBotUsername().then(setBotUsername);
-    if (settings.enabled) {
-      notificationService.scheduleWakeAlarm(settings.targetWakeTime);
-      notificationService.scheduleBedtimeWindDown(settings.targetBedtime);
-    }
+    historyService.loadHistory().then(setHistory).catch(() => {});
+    telegramService.getSavedChatId().then(id => setTelegramLinked(!!id)).catch(() => {});
+    telegramService.getBotUsername().then(setBotUsername).catch(() => {});
   }, []);
 
   // ── Telegram linking ──────────────────────────────────────────────────

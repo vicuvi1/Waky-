@@ -29,7 +29,56 @@ import { PushUpSportScreen } from './src/screens/PushUpSportScreen';
 // ─── Extended alarm state machine ──────────────────────────────────────────
 type FullAlarmState = AlarmState | 'RELAPSE_CHECK' | 'PUSH_UP_SPORT';
 
-export default function App() {
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[Waky Crash Captured]', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#090A0F', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: '#1A1C24', padding: 24, borderRadius: 16, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#EF4444' }}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#EF444420', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+              <StatusBar barStyle="light-content" backgroundColor="#090A0F" />
+            </View>
+            <Text style={{ color: '#EF4444', fontSize: 18, fontWeight: 'bold', marginBottom: 8, letterSpacing: 1 }}>WAKY RECOVERY</Text>
+            <Text style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', marginBottom: 20 }}>
+              {this.state.error?.message || 'A runtime error occurred.'}
+            </Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#3B82F6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+              onPress={() => this.setState({ hasError: false, error: null })}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 }}>CONTINUE TO DASHBOARD</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function MainApp() {
   const [alarmState, setAlarmState] = useState<FullAlarmState>('IDLE');
   const [settings, setSettings] = useState<AlarmSettings>(storageService.DEFAULT_SETTINGS);
   const [stats, setStats] = useState<UserStats>(storageService.DEFAULT_STATS);
@@ -37,24 +86,28 @@ export default function App() {
   const [isDryRun, setIsDryRun] = useState(false);
   const appState = useRef(AppState.currentState);
 
-  // ─── Load persisted data & setup hardware/notifications ───────────────────
+  // ─── Load persisted data & setup hardware/notifications safely ─────────────
   useEffect(() => {
     (async () => {
-      const [loadedSettings, loadedStats] = await Promise.all([
-        storageService.loadSettings(),
-        storageService.loadStats(),
-      ]);
-      setSettings(loadedSettings);
-      setStats(loadedStats);
+      try {
+        const [loadedSettings, loadedStats] = await Promise.all([
+          storageService.loadSettings().catch(() => storageService.DEFAULT_SETTINGS),
+          storageService.loadStats().catch(() => storageService.DEFAULT_STATS),
+        ]);
+        setSettings(loadedSettings);
+        setStats(loadedStats);
 
-      await hardwareService.setupAudioSession();
-      await notificationService.setupNotifications();
-      await telegramService.flushPendingMessages();
+        await hardwareService.setupAudioSession().catch(e => console.warn(e));
+        await notificationService.setupNotifications().catch(e => console.warn(e));
+        await telegramService.flushPendingMessages().catch(e => console.warn(e));
 
-      // Re-schedule alarms in case of app restart
-      if (loadedSettings.enabled) {
-        notificationService.scheduleWakeAlarm(loadedSettings.targetWakeTime);
-        notificationService.scheduleBedtimeWindDown(loadedSettings.targetBedtime);
+        // Re-schedule alarms in case of app restart
+        if (loadedSettings.enabled) {
+          notificationService.scheduleWakeAlarm(loadedSettings.targetWakeTime).catch(e => console.warn(e));
+          notificationService.scheduleBedtimeWindDown(loadedSettings.targetBedtime).catch(e => console.warn(e));
+        }
+      } catch (err) {
+        console.warn('[Waky] App mount initialization caught:', err);
       }
     })();
   }, []);
@@ -383,6 +436,14 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <MainApp />
+    </ErrorBoundary>
+  );
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -394,3 +455,4 @@ const styles = StyleSheet.create({
     backgroundColor: '#090A0F',
   },
 });
+

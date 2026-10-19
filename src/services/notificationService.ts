@@ -1,71 +1,73 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+// Configure foreground handler immediately at module load time
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
 /**
- * Request notification permissions and configure the handler.
+ * Request notification permissions and configure Android channels safely.
  * Must be called at app startup.
  */
 export async function setupNotifications(): Promise<boolean> {
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
 
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync({
-      ios: {
-        allowAlert: true,
-        allowSound: true,
-        allowBadge: true,
-        allowCriticalAlerts: true,
-      },
-    });
-    finalStatus = status;
-  }
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowSound: true,
+          allowBadge: true,
+          allowCriticalAlerts: true,
+        },
+      });
+      finalStatus = status;
+    }
 
-  if (finalStatus !== 'granted') {
-    console.warn('[Waky] Notification permissions not granted');
+    // Android notification channels for alarm-priority alerts
+    if (Platform.OS === 'android') {
+      try {
+        await Notifications.setNotificationChannelAsync('waky_alarm', {
+          name: 'Waky Alarms',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 500, 200, 500],
+          lightColor: '#3B82F6',
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          enableLights: true,
+        });
+
+        await Notifications.setNotificationChannelAsync('waky_winddown', {
+          name: 'Waky Wind-Down',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 200],
+          lightColor: '#818CF8',
+        });
+
+        await Notifications.setNotificationChannelAsync('waky_relapse_check', {
+          name: 'Waky Relapse Check',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 400, 200, 400, 200, 400],
+          lightColor: '#EF4444',
+        });
+      } catch (channelErr) {
+        console.warn('[Waky] Failed to configure Android notification channels:', channelErr);
+      }
+    }
+
+    return finalStatus === 'granted';
+  } catch (err) {
+    console.warn('[Waky] setupNotifications error:', err);
     return false;
   }
-
-  // Configure foreground handler
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
-
-  // Android notification channel for alarm-priority alerts
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('waky_alarm', {
-      name: 'Waky Alarms',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 500, 200, 500],
-      lightColor: '#3B82F6',
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      bypassDnd: true,
-      enableLights: true,
-    });
-
-    await Notifications.setNotificationChannelAsync('waky_winddown', {
-      name: 'Waky Wind-Down',
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 200],
-      lightColor: '#818CF8',
-    });
-
-    await Notifications.setNotificationChannelAsync('waky_relapse_check', {
-      name: 'Waky Relapse Check',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 400, 200, 400, 200, 400],
-      lightColor: '#EF4444',
-      bypassDnd: true,
-    });
-  }
-
-  return true;
 }
 
 /**
