@@ -29,7 +29,8 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
-        "android.permission.ACCESS_NOTIFICATION_POLICY"
+        "android.permission.ACCESS_NOTIFICATION_POLICY",
+        "android.permission.RECORD_AUDIO"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -48,12 +49,29 @@
         {
           "icon": "./assets/icon.png",
           "color": "#3B82F6",
-          "sounds": ["./assets/sounds/chime.wav"],
+          "sounds": [
+            "./assets/sounds/chime.wav"
+          ],
           "androidMode": "default",
           "androidCollapsedTitle": "Waky Wake-Up",
           "iosDisplayInForeground": true
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false,
+            "extraProguardRules": "-dontwarn **\n-keep class expo.modules.** { *; }"
+          }
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3d0d4546-573f-4215-b9f5-232ac31b299f"
+      }
+    }
   }
 }
