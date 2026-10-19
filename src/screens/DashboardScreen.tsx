@@ -326,38 +326,82 @@ export const DashboardScreen: React.FC<Props> = ({
     </>
   );
 
-  const renderStats = () => (
-    <>
-      <Text style={styles.sectionHeading}>WEEKLY CIRCADIAN ANALYSIS</Text>
-      <CircadianGraph data={last7} targetTime={settings.targetWakeTime} />
+  const renderStats = () => {
+    const statsSummary = historyService.computeWakeStatistics(history, stats.relapsesAvoided);
+    const sortedHistory = [...history].reverse();
 
-      <View style={styles.statsDetailCard}>
-        <Text style={styles.statsDetailTitle}>YOUR STATS</Text>
-        {[
-          { label: 'Current Streak', value: `${stats.currentStreak} days`, color: '#EF4444' },
-          { label: 'Best Streak', value: `${stats.bestStreak} days`, color: '#FBBF24' },
-          { label: 'Total Wakeups', value: `${stats.totalWakeups}`, color: '#60A5FA' },
-          { label: 'Relapses Avoided', value: `${stats.relapsesAvoided}`, color: '#10B981' },
-          { label: 'Avg Wake Variance', value: `±${avgVar} min`, color: '#8B5CF6' },
-        ].map(item => (
-          <View key={item.label} style={styles.statsDetailRow}>
-            <Text style={styles.statsDetailLabel}>{item.label}</Text>
-            <Text style={[styles.statsDetailValue, { color: item.color }]}>{item.value}</Text>
+    return (
+      <>
+        {/* Tier & On-Time Rate Banner */}
+        <View style={styles.tierHeroCard}>
+          <View style={styles.tierTop}>
+            <View style={styles.tierBadge}>
+              <Text style={styles.tierBadgeText}>{statsSummary.grade} TIER</Text>
+            </View>
+            <Text style={styles.tierScoreText}>{statsSummary.onTimeRate}%</Text>
           </View>
-        ))}
-      </View>
+          <Text style={styles.tierTitle}>{statsSummary.gradeTitle}</Text>
+          <Text style={styles.tierSub}>
+            {statsSummary.onTimeRate >= 85
+              ? '🎯 Outstanding! Your biological clock is locked in sync with your targets.'
+              : '⚡ Consistency in progress. Keep completing in-bedroom missions!'}
+          </Text>
 
-      <View style={styles.varianceInfoCard}>
-        <TrendingUp size={18} color="#8B5CF6" style={{ marginRight: 8 }} />
-        <Text style={styles.varianceInfoText}>
-          <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>±{avgVar} min</Text> average variance.
-          {avgVar <= 5 ? ' 🎯 Elite consistency! Practically zero sleep inertia.' :
-           avgVar <= 15 ? ' ✅ Good. Under 15min is optimal for circadian health.' :
-           ' ⚠️ High variance causes sleep inertia. Aim for under 15 min.'}
-        </Text>
-      </View>
-    </>
-  );
+          {/* Quick Metrics Bar */}
+          <View style={styles.tierMetricsRow}>
+            <View style={styles.tierMetricItem}>
+              <Text style={styles.tierMetricVal}>{statsSummary.onTimeRate}%</Text>
+              <Text style={styles.tierMetricLbl}>ON-TIME RATE</Text>
+            </View>
+            <View style={styles.tierMetricItem}>
+              <Text style={styles.tierMetricVal}>±{statsSummary.avgVarianceMinutes}m</Text>
+              <Text style={styles.tierMetricLbl}>AVG VARIANCE</Text>
+            </View>
+            <View style={styles.tierMetricItem}>
+              <Text style={styles.tierMetricVal}>{stats.relapsesAvoided}</Text>
+              <Text style={styles.tierMetricLbl}>SAVED FROM SNOOZE</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Weekly Circadian Analysis Graph */}
+        <Text style={styles.sectionHeading}>WEEKLY CIRCADIAN ANALYSIS</Text>
+        <CircadianGraph data={last7} targetTime={settings.targetWakeTime} />
+
+        {/* Detailed History Log Table */}
+        <Text style={[styles.sectionHeading, { marginTop: 18 }]}>RECENT WAKE-UP HISTORY</Text>
+        {sortedHistory.length === 0 ? (
+          <View style={styles.emptyHistoryCard}>
+            <Text style={styles.emptyHistoryText}>
+              No wake-ups recorded yet. Tomorrow morning at {settings.targetWakeTime} will log day #1!
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.historyListCard}>
+            {sortedHistory.slice(0, 10).map((entry, idx) => {
+              const isOnTime = entry.deltaMinutes <= 5;
+              const isEarly = entry.deltaMinutes < 0;
+              return (
+                <View key={entry.date + idx} style={[styles.historyRow, idx > 0 && styles.historyRowBorder]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.historyDate}>{entry.date}</Text>
+                    <Text style={styles.historyTimes}>
+                      Target: {entry.targetTime} • Actual: <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>{entry.actualTime}</Text>
+                    </Text>
+                  </View>
+                  <View style={[styles.historyBadge, isEarly ? styles.historyBadgeEarly : isOnTime ? styles.historyBadgeOnTime : styles.historyBadgeLate]}>
+                    <Text style={[styles.historyBadgeText, isEarly ? { color: '#60A5FA' } : isOnTime ? { color: '#10B981' } : { color: '#F59E0B' }]}>
+                      {isEarly ? `EARLY ${Math.abs(entry.deltaMinutes)}m` : isOnTime ? `ON TIME +${entry.deltaMinutes}m` : `+${entry.deltaMinutes}m LATE`}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </>
+    );
+  };
 
   const renderSettings = () => (
     <>
@@ -934,5 +978,140 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
+  },
+
+  // Tier & Stats Card Styles
+  tierHeroCard: {
+    backgroundColor: '#1E1B4B',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: '#4F46E5',
+    marginBottom: 16,
+  },
+  tierTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  tierBadge: {
+    backgroundColor: '#312E81',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#6366F1',
+  },
+  tierBadgeText: {
+    color: '#A5B4FC',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  tierScoreText: {
+    color: '#10B981',
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  tierTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  tierSub: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  tierMetricsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#0F172A',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 14,
+    justifyContent: 'space-between',
+  },
+  tierMetricItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  tierMetricVal: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  tierMetricLbl: {
+    color: '#94A3B8',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+
+  // History list card
+  emptyHistoryCard: {
+    backgroundColor: '#111827',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    marginBottom: 16,
+  },
+  emptyHistoryText: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  historyListCard: {
+    backgroundColor: '#111827',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#1F2937',
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+  },
+  historyRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: '#1F2937',
+  },
+  historyDate: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  historyTimes: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  historyBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  historyBadgeEarly: {
+    backgroundColor: '#1E3A8A40',
+  },
+  historyBadgeOnTime: {
+    backgroundColor: '#064E3B40',
+  },
+  historyBadgeLate: {
+    backgroundColor: '#78350F40',
+  },
+  historyBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });

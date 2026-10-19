@@ -201,6 +201,70 @@ export async function sendRelapseAlert(currentTime?: string, chatId?: string): P
 }
 
 /**
+ * Send an audio voice note to Telegram bot @wakyyyy_bot
+ */
+export async function sendVoiceNote(
+  uri: string,
+  caption?: string,
+  chatId?: string
+): Promise<boolean> {
+  try {
+    const id = chatId ?? await getSavedChatId();
+    if (!id) {
+      console.warn('[Waky Telegram] No chat_id for sendVoice');
+      return false;
+    }
+
+    const formData = new FormData();
+    formData.append('chat_id', id);
+    if (caption) formData.append('caption', caption);
+
+    // Format file attachment for fetch in React Native
+    const filename = uri.split('/').pop() || 'morning_intention.m4a';
+    formData.append('voice', {
+      uri,
+      name: filename,
+      type: 'audio/m4a',
+    } as any);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const res = await fetch(`${BASE_URL}/sendVoice`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    const json = await res.json() as { ok: boolean };
+    return json.ok;
+  } catch (err) {
+    console.warn('[Waky Telegram] sendVoiceNote error:', err);
+    // Fallback: send text notification if voice upload fails
+    if (caption) {
+      await sendMessage(`🎙️ *Morning Voice Note Recorded:*\n\n${caption}`, chatId);
+    }
+    return false;
+  }
+}
+
+/**
+ * Send morning vocal intention entry to bot
+ */
+export async function sendMorningIntention(
+  intentionText: string,
+  voiceUri?: string,
+  chatId?: string
+): Promise<boolean> {
+  const caption = `🌅 *VICTOR'S MORNING INTENTION:*\n\n"${intentionText}"\n\n_Recorded live upon wake-up via Waky._`;
+  if (voiceUri) {
+    return sendVoiceNote(voiceUri, caption, chatId);
+  }
+  return sendMessage(caption, chatId);
+}
+
+/**
  * Get the bot's username (used to show the "Message @bot to link" instruction).
  */
 export async function getBotUsername(): Promise<string | null> {

@@ -20,6 +20,14 @@ export const SunriseAlarmScreen: React.FC<Props> = ({
 }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.4)).current;
+  const waveBars = useRef([
+    new Animated.Value(14),
+    new Animated.Value(28),
+    new Animated.Value(42),
+    new Animated.Value(22),
+    new Animated.Value(36),
+    new Animated.Value(18),
+  ]).current;
 
   useEffect(() => {
     // Map sound profile to asset key
@@ -67,6 +75,24 @@ export const SunriseAlarmScreen: React.FC<Props> = ({
       ])
     ).start();
 
+    // Equalizer wave bar animations
+    waveBars.forEach((anim, i) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, {
+            toValue: 24 + ((i * 7) % 20),
+            duration: 300 + i * 90,
+            useNativeDriver: false,
+          }),
+          Animated.timing(anim, {
+            toValue: 8 + ((i * 4) % 10),
+            duration: 300 + i * 90,
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
+    });
+
     return () => {
       // Do not release wake yet since Grace Timer follows immediately
     };
@@ -97,6 +123,18 @@ export const SunriseAlarmScreen: React.FC<Props> = ({
         <Text style={styles.timeLabel}>ALARM TIME</Text>
         <Text style={styles.currentTime}>{timeString}</Text>
         <Text style={styles.targetSub}>Target: {targetWakeTime} AM</Text>
+      </View>
+
+      {/* Cyber Waveform Sound Indicator */}
+      <View style={styles.waveformContainer}>
+        <View style={styles.barsRow}>
+          {waveBars.map((bar, i) => (
+            <Animated.View key={i} style={[styles.waveBar, { height: bar }]} />
+          ))}
+        </View>
+        <Text style={styles.soundProfileBadgeText}>
+          {soundProfile === 'GAMMA_40HZ' ? '⚡ 40Hz GAMMA PROTOCOL' : soundProfile === 'EMERGENCY_KLAXON' ? '🚨 EMERGENCY KLAXON' : '🎵 PROGRESSIVE BINAURAL CHIME'}
+        </Text>
       </View>
 
       <Animated.View style={[styles.centerRing, { transform: [{ scale: pulseAnim }] }]}>
@@ -190,6 +228,29 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontSize: 14,
     fontWeight: '600',
+  },
+  waveformContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+    zIndex: 10,
+  },
+  barsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 48,
+    gap: 6,
+    marginBottom: 6,
+  },
+  waveBar: {
+    width: 6,
+    backgroundColor: '#F59E0B',
+    borderRadius: 3,
+  },
+  soundProfileBadgeText: {
+    color: '#FDE68A',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   centerRing: {
     width: 250,

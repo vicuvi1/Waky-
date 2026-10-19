@@ -62,3 +62,64 @@ export function avgVarianceMinutes(history: WakeEntry[]): number {
   if (completed.length === 0) return 0;
   return Math.round(completed.reduce((sum, e) => sum + Math.abs(e.deltaMinutes), 0) / completed.length);
 }
+
+export interface WakeStatistics {
+  onTimeRate: number;        // 0 - 100%
+  avgVarianceMinutes: number;// average absolute deviation
+  grade: 'S+' | 'A' | 'B' | 'C';
+  gradeTitle: string;
+  totalTracked: number;
+  earlyCount: number;
+  delayedCount: number;
+  relapsesAvoided: number;
+}
+
+/**
+ * Compute rich wake statistics & consistency grade.
+ */
+export function computeWakeStatistics(history: WakeEntry[], relapsesAvoided: number = 0): WakeStatistics {
+  if (history.length === 0) {
+    return {
+      onTimeRate: 100,
+      avgVarianceMinutes: 0,
+      grade: 'S+',
+      gradeTitle: 'Circadian Vanguard',
+      totalTracked: 0,
+      earlyCount: 0,
+      delayedCount: 0,
+      relapsesAvoided,
+    };
+  }
+
+  const completed = history.filter(e => e.completed);
+  const onTime = completed.filter(e => e.deltaMinutes <= 5);
+  const onTimeRate = completed.length > 0 ? Math.round((onTime.length / completed.length) * 100) : 100;
+  const avgVar = avgVarianceMinutes(history);
+
+  let grade: 'S+' | 'A' | 'B' | 'C' = 'B';
+  let gradeTitle = 'Solid Consistency';
+  if (onTimeRate >= 90 && avgVar <= 5) {
+    grade = 'S+';
+    gradeTitle = 'Circadian Titan';
+  } else if (onTimeRate >= 80) {
+    grade = 'A';
+    gradeTitle = 'Optimal Sleep Hygiene';
+  } else if (onTimeRate >= 65) {
+    grade = 'B';
+    gradeTitle = 'Consistent Improver';
+  } else {
+    grade = 'C';
+    gradeTitle = 'Resetting Circadian Rhythm';
+  }
+
+  return {
+    onTimeRate,
+    avgVarianceMinutes: avgVar,
+    grade,
+    gradeTitle,
+    totalTracked: history.length,
+    earlyCount: completed.filter(e => e.deltaMinutes < 0).length,
+    delayedCount: completed.filter(e => e.deltaMinutes > 5).length,
+    relapsesAvoided,
+  };
+}
