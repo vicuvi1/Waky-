@@ -169,4 +169,30 @@ export async function stopAllHardwareAlerts(): Promise<void> {
   stopHaptics();
   await restoreBrightness();
   releaseDeviceWake();
+  clearTorchUsage();
+}
+
+// ─── S23 Ultra Flashlight Thermal Guard ────────────────────────────────────
+let torchTimeout: ReturnType<typeof setTimeout> | null = null;
+const MAX_TORCH_CONTINUOUS_MS = 180000; // 3 minutes maximum safe continuous on
+
+export function registerTorchUsage(onCutoff: () => void): void {
+  if (torchTimeout) clearTimeout(torchTimeout);
+  torchTimeout = setTimeout(() => {
+    onCutoff();
+  }, MAX_TORCH_CONTINUOUS_MS);
+}
+
+export function clearTorchUsage(): void {
+  if (torchTimeout) {
+    clearTimeout(torchTimeout);
+    torchTimeout = null;
+  }
+}
+
+/**
+ * Play quick 3-second audio test
+ */
+export async function testAlarmAudio(soundKey: keyof typeof SOUND_MAP = 'progressive_chime'): Promise<void> {
+  await playSound(soundKey, false, 1.0);
 }

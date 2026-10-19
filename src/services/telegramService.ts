@@ -86,8 +86,11 @@ export async function discoverChatId(): Promise<string | null> {
   }
 }
 
+const PENDING_MESSAGES_KEY = '@waky_pending_messages';
+
 /**
- * Send a raw text message to the user's Telegram chat.
+ * Send a raw text message to the user's Telegram chat with a 3500ms timeout
+ * and automatic offline queue fallback.
  */
 export async function sendMessage(text: string, chatId?: string): Promise<boolean> {
   try {
@@ -97,9 +100,13 @@ export async function sendMessage(text: string, chatId?: string): Promise<boolea
       return false;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
     const res = await fetch(`${BASE_URL}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         chat_id: id,
         text,
@@ -107,16 +114,60 @@ export async function sendMessage(text: string, chatId?: string): Promise<boolea
         disable_notification: false,
       }),
     });
+    clearTimeout(timeoutId);
 
     const json = await res.json() as { ok: boolean };
     if (!json.ok) {
       console.warn('[Waky Telegram] sendMessage failed:', json);
+      await queueMessage(text, id);
       return false;
     }
     return true;
   } catch (err) {
-    console.warn('[Waky Telegram] Network error:', err);
+    console.warn('[Waky Telegram] Network timeout/offline — queuing for later dispatch:', err);
+    await queueMessage(text, chatId);
     return false;
+  }
+}
+
+/**
+ * Queue message to storage for later delivery when internet reconnects
+ */
+export async function queueMessage(text: string, chatId?: string): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_MESSAGES_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    list.push({ text, chatId, timestamp: Date.now() });
+    await AsyncStorage.setItem(PENDING_MESSAGES_KEY, JSON.stringify(list));
+  } catch (e) {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Flush all offline queued messages upon reconnection
+ */
+export async function flushPendingMessages(): Promise<number> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_MESSAGES_KEY);
+    if (!raw) return 0;
+    const list: Array<{ text: string; chatId?: string }> = JSON.parse(raw);
+    if (!list.length) return 0;
+
+    let sent = 0;
+    const remaining: typeof list = [];
+    for (const item of list) {
+      const ok = await sendMessage(item.text, item.chatId);
+      if (ok) {
+        sent++;
+      } else {
+        remaining.push(item);
+      }
+    }
+    await AsyncStorage.setItem(PENDING_MESSAGES_KEY, JSON.stringify(remaining));
+    return sent;
+  } catch {
+    return 0;
   }
 }
 

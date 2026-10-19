@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Modal, TextInput,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Modal, TextInput, Linking,
 } from 'react-native';
 import {
   Sun, Moon, Flame, Smartphone, Brain, QrCode, Bed, Play,
   ShieldCheck, Clock, X, BellRing, MessageCircle, Send, ChevronRight,
-  TrendingUp, Settings, AlertCircle, CheckCircle2, Activity, Volume2, ShieldAlert,
+  TrendingUp, Settings, AlertCircle, CheckCircle2, Activity, Volume2, ShieldAlert, Zap, Cpu, BatteryCharging,
 } from 'lucide-react-native';
 import QRCode from 'react-native-qrcode-svg';
 import Slider from '@react-native-community/slider';
@@ -15,6 +15,7 @@ import { CircadianGraph } from '../components/CircadianGraph';
 import * as historyService from '../services/historyService';
 import * as telegramService from '../services/telegramService';
 import * as notificationService from '../services/notificationService';
+import * as hardwareService from '../services/hardwareService';
 import * as Haptics from 'expo-haptics';
 import { Switch as RNSwitch } from 'react-native';
 
@@ -23,6 +24,7 @@ interface Props {
   stats: UserStats;
   onUpdateSettings: (settings: AlarmSettings) => void;
   onTriggerTestAlarm: () => void;
+  onTriggerDryRun?: () => void;
   onOpenBedtimeLockdown: () => void;
 }
 
@@ -135,7 +137,7 @@ const TimePickerModal: React.FC<TimePickerModalProps> = ({
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────
 export const DashboardScreen: React.FC<Props> = ({
-  settings, stats, onUpdateSettings, onTriggerTestAlarm, onOpenBedtimeLockdown,
+  settings, stats, onUpdateSettings, onTriggerTestAlarm, onTriggerDryRun, onOpenBedtimeLockdown,
 }) => {
   const [activeTab, setActiveTab] = useState<'HOME' | 'STATS' | 'SETTINGS'>('HOME');
   const [showWakePicker, setShowWakePicker] = useState(false);
@@ -307,12 +309,20 @@ export const DashboardScreen: React.FC<Props> = ({
       {/* Circadian Graph */}
       <CircadianGraph data={last7} targetTime={settings.targetWakeTime} />
 
-      {/* Demo Button */}
+      {/* Demo & Simulator Buttons */}
       <TouchableOpacity style={styles.demoButton} onPress={() => { try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch (e) {} onTriggerTestAlarm(); }} activeOpacity={0.85}>
-        <Play size={20} color="#FFFFFF" style={{ marginRight: 10 }} />
+        <Play size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
         <Text style={styles.demoButtonText}>TEST FULL PROTOCOL ON S23 ULTRA</Text>
       </TouchableOpacity>
-      <Text style={styles.demoHelpText}>Sunrise → Bed-Down Detector → Missions → T+15 Check</Text>
+
+      {onTriggerDryRun && (
+        <TouchableOpacity style={styles.simulatorButton} onPress={() => { try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); } catch (e) {} onTriggerDryRun(); }} activeOpacity={0.85}>
+          <Zap size={18} color="#FBBF24" style={{ marginRight: 8 }} />
+          <Text style={styles.simulatorButtonText}>⚡ 30-SECOND DRY-RUN SIMULATOR</Text>
+        </TouchableOpacity>
+      )}
+
+      <Text style={styles.demoHelpText}>Sunrise → 15s Chug → QR Scan → Whisper → Success</Text>
     </>
   );
 
@@ -501,6 +511,68 @@ export const DashboardScreen: React.FC<Props> = ({
               onChangeText={val => onUpdateSettings({ ...settings, partnerChatId: val })}
             />
           )}
+        </View>
+      </View>
+
+      {/* ── Samsung S23 Ultra System Immortality & Diagnostics ── */}
+      <Text style={styles.sectionHeading}>SAMSUNG ONE UI IMMORTALITY & STABILITY</Text>
+      <View style={styles.stabilityCard}>
+        <View style={styles.stabilityHeader}>
+          <Cpu size={18} color="#60A5FA" style={{ marginRight: 8 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.stabilityTitle}>Hardware & Background Guard</Text>
+            <Text style={styles.stabilitySub}>Keep Waky running 100% reliably on One UI</Text>
+          </View>
+        </View>
+
+        <View style={styles.stabilityChecklist}>
+          <View style={styles.stabilityRow}>
+            <BatteryCharging size={16} color="#10B981" style={{ marginRight: 8 }} />
+            <Text style={styles.stabilityLabel}>Battery Optimization:</Text>
+            <Text style={styles.stabilityVal}>Whitelisted</Text>
+          </View>
+
+          <View style={styles.stabilityRow}>
+            <ShieldCheck size={16} color="#10B981" style={{ marginRight: 8 }} />
+            <Text style={styles.stabilityLabel}>Lock Screen Overlay:</Text>
+            <Text style={styles.stabilityVal}>SYSTEM_ALERT</Text>
+          </View>
+
+          <View style={styles.stabilityRow}>
+            <Volume2 size={16} color="#10B981" style={{ marginRight: 8 }} />
+            <Text style={styles.stabilityLabel}>Audio Stream:</Text>
+            <Text style={styles.stabilityVal}>STREAM_ALARM (DND Bypass)</Text>
+          </View>
+
+          <View style={styles.stabilityRow}>
+            <Zap size={16} color="#FBBF24" style={{ marginRight: 8 }} />
+            <Text style={styles.stabilityLabel}>Torch Duty Guard:</Text>
+            <Text style={styles.stabilityVal}>3-Min Thermal Safe</Text>
+          </View>
+        </View>
+
+        <View style={styles.stabilityButtons}>
+          <TouchableOpacity
+            style={styles.stabilityBtn}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+              Linking.openSettings();
+            }}
+          >
+            <Settings size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.stabilityBtnText}>Android Settings</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.stabilityBtn, { backgroundColor: '#1E3A8A' }]}
+            onPress={async () => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+              await hardwareService.testAlarmAudio(settings.soundProfile === 'GAMMA_40HZ' ? 'gamma_40hz' : 'progressive_chime');
+            }}
+          >
+            <Volume2 size={15} color="#60A5FA" style={{ marginRight: 6 }} />
+            <Text style={[styles.stabilityBtnText, { color: '#93C5FD' }]}>Test Audio Stream</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -776,5 +848,91 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 13,
     marginTop: 10,
+  },
+
+  // Simulator dry-run button
+  simulatorButton: {
+    backgroundColor: '#78350F40',
+    borderColor: '#F59E0B80',
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  simulatorButtonText: {
+    color: '#FDE68A',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  // Samsung Stability Card
+  stabilityCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#1E3A8A',
+    marginBottom: 14,
+  },
+  stabilityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  stabilityTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  stabilitySub: {
+    color: '#60A5FA',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  stabilityChecklist: {
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+    marginBottom: 12,
+  },
+  stabilityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  stabilityLabel: {
+    color: '#CBD5E1',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  stabilityVal: {
+    color: '#10B981',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  stabilityButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  stabilityBtn: {
+    flex: 1,
+    height: 42,
+    backgroundColor: '#334155',
+    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  stabilityBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

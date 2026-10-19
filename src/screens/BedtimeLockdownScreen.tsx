@@ -22,9 +22,32 @@ export const BedtimeLockdownScreen: React.FC<Props> = ({
   const [secondsInPhase, setSecondsInPhase] = useState(4);
   const [cyclesCompleted, setCyclesCompleted] = useState(0);
   const [anchorText, setAnchorText] = useState(dopamineAnchor);
+  const [isSleepSaverActive, setIsSleepSaverActive] = useState(false);
+  const [pixelShift, setPixelShift] = useState({ x: 0, y: 0 });
+  const [currentTimeStr, setCurrentTimeStr] = useState('');
 
   const breathScale = useRef(new Animated.Value(1)).current;
   const isRunningRef = useRef(true);
+
+  // Periodic pixel-shift for AMOLED burn-in protection on S23 Ultra
+  useEffect(() => {
+    if (!isSleepSaverActive) return;
+    const interval = setInterval(() => {
+      const now = new Date();
+      setCurrentTimeStr(
+        `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+      );
+      setPixelShift({
+        x: Math.floor(Math.random() * 16) - 8,
+        y: Math.floor(Math.random() * 16) - 8,
+      });
+    }, 60000);
+    const now = new Date();
+    setCurrentTimeStr(
+      `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    );
+    return () => clearInterval(interval);
+  }, [isSleepSaverActive]);
 
   // 4-7-8 breathing loop
   useEffect(() => {
@@ -77,6 +100,39 @@ export const BedtimeLockdownScreen: React.FC<Props> = ({
       isRunningRef.current = false;
     };
   }, []);
+
+  if (isSleepSaverActive) {
+    return (
+      <TouchableOpacity
+        style={styles.sleepSaverContainer}
+        activeOpacity={1}
+        onPress={() => {
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+          setIsSleepSaverActive(false);
+        }}
+      >
+        <View
+          style={[
+            styles.sleepSaverContent,
+            { transform: [{ translateX: pixelShift.x }, { translateY: pixelShift.y }] },
+          ]}
+        >
+          <Text style={styles.sleepSaverTime}>{currentTimeStr}</Text>
+          <Text style={styles.sleepSaverAlarm}>⏰ WAKY ARMED: {targetWakeTime} AM</Text>
+          {!!anchorText && (
+            <Text style={styles.sleepSaverAnchor}>🎯 "{anchorText}"</Text>
+          )}
+          <Text style={styles.sleepSaverTip}>S23 Ultra AMOLED Pixels 100% Off • Tap screen to wake</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.sleepSaverExit}
+          onPress={onExit}
+        >
+          <Text style={styles.sleepSaverExitText}>Exit Wind-Down</Text>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -148,21 +204,38 @@ export const BedtimeLockdownScreen: React.FC<Props> = ({
         </Text>
       </View>
 
-      {/* Lock Screen & Exit Button */}
-      <TouchableOpacity
-        style={styles.lockButton}
-        onPress={() => {
-          if (onSaveDopamineAnchor && anchorText.trim()) {
-            onSaveDopamineAnchor(anchorText.trim());
-          }
-          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
-          onExit();
-        }}
-        activeOpacity={0.85}
-      >
-        <CheckCircle2 size={20} color="#000000" style={{ marginRight: 8 }} />
-        <Text style={styles.lockButtonText}>LOCK SCREEN & SLEEP</Text>
-      </TouchableOpacity>
+      {/* Buttons */}
+      <View style={{ width: '100%' }}>
+        <TouchableOpacity
+          style={styles.sleepSaverButton}
+          onPress={() => {
+            if (onSaveDopamineAnchor && anchorText.trim()) {
+              onSaveDopamineAnchor(anchorText.trim());
+            }
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+            setIsSleepSaverActive(true);
+          }}
+          activeOpacity={0.85}
+        >
+          <Moon size={18} color="#F97316" style={{ marginRight: 8 }} />
+          <Text style={styles.sleepSaverButtonText}>ENTER AMOLED DEEP SLEEP (0% DRAIN)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.lockButton}
+          onPress={() => {
+            if (onSaveDopamineAnchor && anchorText.trim()) {
+              onSaveDopamineAnchor(anchorText.trim());
+            }
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+            onExit();
+          }}
+          activeOpacity={0.85}
+        >
+          <CheckCircle2 size={18} color="#000000" style={{ marginRight: 8 }} />
+          <Text style={styles.lockButtonText}>RETURN TO DASHBOARD</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -345,5 +418,79 @@ const styles = StyleSheet.create({
     color: '#9A3412',
     fontSize: 10,
     marginTop: 4,
+  },
+  sleepSaverButton: {
+    width: '100%',
+    height: 52,
+    backgroundColor: '#1E0D03',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#EA580C',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  sleepSaverButtonText: {
+    color: '#FB923C',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  // AMOLED Pure Black Screen Styles
+  sleepSaverContainer: {
+    flex: 1,
+    backgroundColor: '#000000', // 100% true black = AMOLED pixels physically powered off
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 30,
+  },
+  sleepSaverContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sleepSaverTime: {
+    color: '#3B0E08', // Dim red to avoid eye strain & protect night vision
+    fontSize: 72,
+    fontWeight: '900',
+    letterSpacing: 4,
+  },
+  sleepSaverAlarm: {
+    color: '#7F1D1D',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginTop: 12,
+  },
+  sleepSaverAnchor: {
+    color: '#991B1B',
+    fontSize: 15,
+    fontWeight: '700',
+    fontStyle: 'italic',
+    marginTop: 16,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  sleepSaverTip: {
+    color: '#260B08',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 24,
+    letterSpacing: 0.5,
+  },
+  sleepSaverExit: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+    backgroundColor: '#110503',
+    borderWidth: 1,
+    borderColor: '#3B0E08',
+    marginBottom: 20,
+  },
+  sleepSaverExitText: {
+    color: '#7F1D1D',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

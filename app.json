@@ -26,7 +26,10 @@
         "android.permission.USE_EXACT_ALARM",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.USE_FULL_SCREEN_INTENT",
-        "android.permission.FOREGROUND_SERVICE"
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        "android.permission.ACCESS_NOTIFICATION_POLICY"
       ],
       "predictiveBackGestureEnabled": false
     },

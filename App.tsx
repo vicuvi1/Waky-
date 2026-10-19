@@ -33,6 +33,7 @@ export default function App() {
   const [settings, setSettings] = useState<AlarmSettings>(storageService.DEFAULT_SETTINGS);
   const [stats, setStats] = useState<UserStats>(storageService.DEFAULT_STATS);
   const [currentMissionIndex, setCurrentMissionIndex] = useState(0);
+  const [isDryRun, setIsDryRun] = useState(false);
   const appState = useRef(AppState.currentState);
 
   // ─── Load persisted data & setup hardware/notifications ───────────────────
@@ -47,6 +48,7 @@ export default function App() {
 
       await hardwareService.setupAudioSession();
       await notificationService.setupNotifications();
+      await telegramService.flushPendingMessages();
 
       // Re-schedule alarms in case of app restart
       if (loadedSettings.enabled) {
@@ -91,6 +93,9 @@ export default function App() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', nextState => {
       if (appState.current?.match(/inactive|background/) && nextState === 'active') {
+        // Flush any queued offline telegram messages
+        telegramService.flushPendingMessages();
+
         Notifications.getLastNotificationResponseAsync().then(response => {
           if (!response) return;
           const data = response.notification.request.content.data as Record<string, unknown>;
@@ -131,6 +136,13 @@ export default function App() {
   // ─── Alarm Flow Handlers ─────────────────────────────────────────────────
 
   const handleTriggerTestAlarm = () => {
+    setIsDryRun(false);
+    setCurrentMissionIndex(0);
+    setAlarmState('SUNRISE');
+  };
+
+  const handleTriggerDryRun = () => {
+    setIsDryRun(true);
     setCurrentMissionIndex(0);
     setAlarmState('SUNRISE');
   };
@@ -194,6 +206,7 @@ export default function App() {
 
   const handleFinishFromAwake = () => {
     hardwareService.stopAllHardwareAlerts();
+    setIsDryRun(false);
     setAlarmState('IDLE');
   };
 
@@ -206,21 +219,21 @@ export default function App() {
         return (
           <PostureHoldMission
             onComplete={handleMissionComplete}
-            targetSeconds={settings.postureSeconds ?? 45}
+            targetSeconds={isDryRun ? 5 : (settings.postureSeconds ?? 45)}
           />
         );
       case 'STROOP_TEST':
         return (
           <StroopMission
             onComplete={handleMissionComplete}
-            requiredStreak={settings.stroopStreak ?? 7}
+            requiredStreak={isDryRun ? 3 : (settings.stroopStreak ?? 7)}
           />
         );
       case 'SQUAT_COUNTER':
         return (
           <SquatCounterMission
             onComplete={handleMissionComplete}
-            targetSquats={settings.targetSquats ?? 10}
+            targetSquats={isDryRun ? 3 : (settings.targetSquats ?? 10)}
           />
         );
       case 'WHISPER_AFFIRMATION':
@@ -256,6 +269,7 @@ export default function App() {
             stats={stats}
             onUpdateSettings={handleUpdateSettings}
             onTriggerTestAlarm={handleTriggerTestAlarm}
+            onTriggerDryRun={handleTriggerDryRun}
             onOpenBedtimeLockdown={() => setAlarmState('BEDTIME_LOCKDOWN')}
           />
         )}
@@ -280,7 +294,7 @@ export default function App() {
 
         {alarmState === 'GRACE_COUNTDOWN' && (
           <GraceCountdownScreen
-            initialSeconds={settings.graceDurationSeconds}
+            initialSeconds={isDryRun ? 8 : settings.graceDurationSeconds}
             dopamineAnchor={settings.dopamineAnchor}
             onStartMissions={handleStartMissions}
             onExpireRelapse={handleExpireRelapse}

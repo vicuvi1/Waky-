@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { QrCode, CheckCircle2, ShieldAlert, Sparkles, Droplets, ArrowRight } from 'lucide-react-native';
+import { QrCode, CheckCircle2, ShieldAlert, Sparkles, Droplets, ArrowRight, Zap } from 'lucide-react-native';
+import * as hardwareService from '../../services/hardwareService';
 
 interface Props {
   onComplete: () => void;
@@ -20,6 +21,19 @@ export const WaterQrMission: React.FC<Props> = ({
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [scannedData, setScannedData] = useState<string | null>(null);
+  const [torchActive, setTorchActive] = useState(enableTorch);
+
+  // ── S23 Ultra Torch Thermal Auto-Cutoff Guard ────────────────────────────
+  useEffect(() => {
+    if (torchActive) {
+      hardwareService.registerTorchUsage(() => {
+        setTorchActive(false);
+      });
+    } else {
+      hardwareService.clearTorchUsage();
+    }
+    return () => hardwareService.clearTorchUsage();
+  }, [torchActive]);
 
   const waveAnim = useRef(new Animated.Value(1)).current;
 
@@ -138,13 +152,26 @@ export const WaterQrMission: React.FC<Props> = ({
               <CameraView
                 style={StyleSheet.absoluteFill}
                 facing="back"
-                enableTorch={enableTorch}
+                enableTorch={torchActive}
                 barcodeScannerSettings={{
                   barcodeTypes: ['qr'],
                 }}
                 onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
               >
                 <View style={styles.overlay}>
+                  <TouchableOpacity
+                    style={[styles.torchToggle, torchActive && styles.torchToggleActive]}
+                    onPress={() => {
+                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+                      setTorchActive(!torchActive);
+                    }}
+                  >
+                    <Zap size={16} color={torchActive ? '#FBBF24' : '#9CA3AF'} style={{ marginRight: 4 }} />
+                    <Text style={[styles.torchToggleText, torchActive && { color: '#FBBF24' }]}>
+                      {torchActive ? 'TORCH ON' : 'TORCH OFF'}
+                    </Text>
+                  </TouchableOpacity>
+
                   <View style={[styles.targetBox, scanned && styles.targetBoxSuccess]}>
                     <View style={[styles.corner, styles.tl]} />
                     <View style={[styles.corner, styles.tr]} />
@@ -307,6 +334,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  torchToggle: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(17, 24, 39, 0.85)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  torchToggleActive: {
+    backgroundColor: '#78350F80',
+    borderColor: '#F59E0B',
+  },
+  torchToggleText: {
+    color: '#9CA3AF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   targetBox: {
     width: 200,
