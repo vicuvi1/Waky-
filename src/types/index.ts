@@ -8,7 +8,7 @@ export type AlarmState =
   | 'RELAPSE_PENALTY'
   | 'BEDTIME_LOCKDOWN';
 
-export type MissionType = 'WATER_QR' | 'POSTURE_HOLD' | 'STROOP_TEST' | 'BED_PHOTO' | 'SQUAT_COUNTER';
+export type MissionType = 'WATER_QR' | 'POSTURE_HOLD' | 'STROOP_TEST' | 'BED_PHOTO' | 'SQUAT_COUNTER' | 'WHISPER_AFFIRMATION';
 
 export type SoundProfile = 'GAMMA_40HZ' | 'PROGRESSIVE_CHIME' | 'EMERGENCY_KLAXON';
 
@@ -38,6 +38,9 @@ export interface AlarmSettings {
   soundProfile: SoundProfile;
   partnerChatId?: string;
   partnerAlertEnabled?: boolean;
+  dopamineAnchor?: string;
+  torchEnabled?: boolean;
+  whisperPhrase?: string;
 }
 
 export interface UserStats {

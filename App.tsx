@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, SafeAreaView, StatusBar, AppState } from 'react-native';
+import { StyleSheet, View, SafeAreaView, StatusBar, AppState, BackHandler } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 
@@ -22,6 +22,7 @@ import { StroopMission } from './src/screens/missions/StroopMission';
 import { WaterQrMission } from './src/screens/missions/WaterQrMission';
 import { BedPhotoMission } from './src/screens/missions/BedPhotoMission';
 import { SquatCounterMission } from './src/screens/missions/SquatCounterMission';
+import { WhisperMission } from './src/screens/missions/WhisperMission';
 import { BedtimeLockdownScreen } from './src/screens/BedtimeLockdownScreen';
 
 // ─── Extended alarm state machine ──────────────────────────────────────────
@@ -105,6 +106,20 @@ export default function App() {
     });
 
     return () => sub.remove();
+  }, [alarmState]);
+
+  // ─── Anti-Cheat: Hardware Back Button Trap ───────────────────────────────
+  useEffect(() => {
+    const onBackPress = () => {
+      // Prevent user from backing out during active alarm, grace window, or missions
+      if (alarmState !== 'IDLE' && alarmState !== 'AWAKE_CONFIRMED') {
+        return true; // Trap back press
+      }
+      return false;
+    };
+
+    const backSubscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backSubscription.remove();
   }, [alarmState]);
 
   // ─── Settings Update ──────────────────────────────────────────────────────
@@ -208,6 +223,13 @@ export default function App() {
             targetSquats={settings.targetSquats ?? 10}
           />
         );
+      case 'WHISPER_AFFIRMATION':
+        return (
+          <WhisperMission
+            onComplete={handleMissionComplete}
+            whisperPhrase={settings.whisperPhrase}
+          />
+        );
       case 'WATER_QR':
         return (
           <WaterQrMission
@@ -242,6 +264,7 @@ export default function App() {
           <SunriseAlarmScreen
             targetWakeTime={settings.targetWakeTime}
             soundProfile={settings.soundProfile}
+            dopamineAnchor={settings.dopamineAnchor}
             onDismissToGrace={handleDismissToGrace}
           />
         )}
@@ -249,6 +272,8 @@ export default function App() {
         {alarmState === 'BEDTIME_LOCKDOWN' && (
           <BedtimeLockdownScreen
             targetWakeTime={settings.targetWakeTime}
+            dopamineAnchor={settings.dopamineAnchor}
+            onSaveDopamineAnchor={val => handleUpdateSettings({ ...settings, dopamineAnchor: val })}
             onExit={() => setAlarmState('IDLE')}
           />
         )}
@@ -256,6 +281,7 @@ export default function App() {
         {alarmState === 'GRACE_COUNTDOWN' && (
           <GraceCountdownScreen
             initialSeconds={settings.graceDurationSeconds}
+            dopamineAnchor={settings.dopamineAnchor}
             onStartMissions={handleStartMissions}
             onExpireRelapse={handleExpireRelapse}
           />

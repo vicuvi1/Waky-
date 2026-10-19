@@ -20,6 +20,9 @@ export const DEFAULT_SETTINGS: AlarmSettings = {
   soundProfile: 'PROGRESSIVE_CHIME',
   partnerChatId: '',
   partnerAlertEnabled: false,
+  dopamineAnchor: 'Crush my goals and make today count!',
+  torchEnabled: true,
+  whisperPhrase: 'I am standing and ready for today',
 };
 
 export const DEFAULT_STATS: UserStats = {

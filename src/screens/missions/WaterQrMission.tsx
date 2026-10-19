@@ -1,18 +1,56 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { QrCode, CheckCircle2, ShieldAlert, Sparkles } from 'lucide-react-native';
+import { QrCode, CheckCircle2, ShieldAlert, Sparkles, Droplets, ArrowRight } from 'lucide-react-native';
 
 interface Props {
   onComplete: () => void;
   expectedSecret?: string;
+  enableTorch?: boolean;
 }
 
-export const WaterQrMission: React.FC<Props> = ({ onComplete, expectedSecret = 'WAKY_DESK_KEY' }) => {
+export const WaterQrMission: React.FC<Props> = ({
+  onComplete,
+  expectedSecret = 'WAKY_DESK_KEY',
+  enableTorch = false,
+}) => {
+  const [step, setStep] = useState<'CHUG_WATER' | 'SCAN_QR'>('CHUG_WATER');
+  const [chugSeconds, setChugSeconds] = useState(15);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [scannedData, setScannedData] = useState<string | null>(null);
+
+  const waveAnim = useRef(new Animated.Value(1)).current;
+
+  // ── Chug countdown ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (step !== 'CHUG_WATER') return;
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(waveAnim, { toValue: 1.15, duration: 800, useNativeDriver: true }),
+        Animated.timing(waveAnim, { toValue: 1.0, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+
+    const interval = setInterval(() => {
+      setChugSeconds(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
+          setStep('SCAN_QR');
+          return 0;
+        }
+        if (prev % 5 === 0) {
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [step]);
 
   const handleBarcodeScanned = ({ data }: { data: string }) => {
     if (scanned) return;
@@ -31,76 +69,116 @@ export const WaterQrMission: React.FC<Props> = ({ onComplete, expectedSecret = '
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.tag}>IN-ROOM MISSION 3 / 4</Text>
-        <Text style={styles.title}>Desk / Bottle QR Scan</Text>
-        <Text style={styles.subtitle}>
-          Feet on the floor! Walk over to your desk or bedroom door and scan your room QR code.
-        </Text>
-      </View>
-
-      {/* Camera Viewfinder Area */}
-      <View style={styles.cameraFrame}>
-        {!permission ? (
-          <View style={styles.centerNotice}>
-            <Text style={styles.noticeText}>Loading camera...</Text>
-          </View>
-        ) : !permission.granted ? (
-          <View style={styles.centerNotice}>
-            <ShieldAlert size={44} color="#F59E0B" />
-            <Text style={[styles.noticeText, { marginTop: 12 }]}>
-              Camera permission is required to scan your bedroom QR anchor.
+      {/* ── STEP 1: COLD WATER CHUG ────────────────────────────────────────── */}
+      {step === 'CHUG_WATER' ? (
+        <>
+          <View style={styles.header}>
+            <Text style={styles.tag}>STEP 1 OF 2 · HYDRATION SHOCK</Text>
+            <Text style={styles.title}>Drink Cold Water</Text>
+            <Text style={styles.subtitle}>
+              Unscrew your bottle and drink 3 big cold gulps. Blood volume is low and brain waves are sluggish after 8 hours.
             </Text>
-            <TouchableOpacity style={styles.grantButton} onPress={requestPermission}>
-              <Text style={styles.grantButtonText}>Enable Camera</Text>
-            </TouchableOpacity>
           </View>
-        ) : (
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            facing="back"
-            barcodeScannerSettings={{
-              barcodeTypes: ['qr'],
+
+          <View style={styles.chugCenter}>
+            <Animated.View style={[styles.chugCircle, { transform: [{ scale: waveAnim }] }]}>
+              <Droplets size={54} color="#38BDF8" />
+              <Text style={styles.chugCountdown}>{chugSeconds}s</Text>
+              <Text style={styles.chugSub}>DRINKING WINDOW</Text>
+            </Animated.View>
+          </View>
+
+          <View style={styles.tipBox}>
+            <Sparkles size={18} color="#38BDF8" style={{ marginRight: 8 }} />
+            <Text style={styles.tipText}>
+              Cold water entering the stomach triggers the mammalian gastrointestinal reflex, spiking sympathetic alertness in seconds.
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.chugDoneButton}
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
+              setStep('SCAN_QR');
             }}
-            onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+            activeOpacity={0.85}
           >
-            <View style={styles.overlay}>
-              <View style={[styles.targetBox, scanned && styles.targetBoxSuccess]}>
-                <View style={[styles.corner, styles.tl]} />
-                <View style={[styles.corner, styles.tr]} />
-                <View style={[styles.corner, styles.bl]} />
-                <View style={[styles.corner, styles.br]} />
-                <QrCode size={40} color={scanned ? '#10B981' : '#3B82F6'} />
+            <Text style={styles.chugDoneText}>DONE DRINKING — SCAN QR</Text>
+            <ArrowRight size={20} color="#000000" style={{ marginLeft: 8 }} />
+          </TouchableOpacity>
+        </>
+      ) : (
+        /* ── STEP 2: QR SCAN ─────────────────────────────────────────────── */
+        <>
+          <View style={styles.header}>
+            <Text style={styles.tag}>STEP 2 OF 2 · IN-ROOM ANCHOR</Text>
+            <Text style={styles.title}>Scan Bottle / Desk QR</Text>
+            <Text style={styles.subtitle}>
+              Now point your camera at the QR code on your bottle cap or bedroom desk.
+            </Text>
+          </View>
+
+          {/* Camera Viewfinder Area */}
+          <View style={styles.cameraFrame}>
+            {!permission ? (
+              <View style={styles.centerNotice}>
+                <Text style={styles.noticeText}>Loading camera...</Text>
               </View>
-              <Text style={styles.aimPrompt}>
-                {scanned ? 'QR Code Verified!' : 'Aim at your desk QR code'}
-              </Text>
-            </View>
-          </CameraView>
-        )}
-      </View>
+            ) : !permission.granted ? (
+              <View style={styles.centerNotice}>
+                <ShieldAlert size={44} color="#F59E0B" />
+                <Text style={[styles.noticeText, { marginTop: 12 }]}>
+                  Camera permission is required to scan your bedroom QR anchor.
+                </Text>
+                <TouchableOpacity style={styles.grantButton} onPress={requestPermission}>
+                  <Text style={styles.grantButtonText}>Enable Camera</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                enableTorch={enableTorch}
+                barcodeScannerSettings={{
+                  barcodeTypes: ['qr'],
+                }}
+                onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+              >
+                <View style={styles.overlay}>
+                  <View style={[styles.targetBox, scanned && styles.targetBoxSuccess]}>
+                    <View style={[styles.corner, styles.tl]} />
+                    <View style={[styles.corner, styles.tr]} />
+                    <View style={[styles.corner, styles.bl]} />
+                    <View style={[styles.corner, styles.br]} />
+                    <QrCode size={40} color={scanned ? '#10B981' : '#3B82F6'} />
+                  </View>
+                  <Text style={styles.aimPrompt}>
+                    {scanned ? 'QR Code Verified!' : 'Aim at your desk / bottle QR code'}
+                  </Text>
+                </View>
+              </CameraView>
+            )}
+          </View>
 
-      {/* In-Room Anchor Tip */}
-      <View style={styles.tipBox}>
-        <Sparkles size={18} color="#60A5FA" style={{ marginRight: 8 }} />
-        <Text style={styles.tipText}>
-          Keep this QR code on your desk, wardrobe, or water bottle across your bedroom. This breaks the bed's physical grip.
-        </Text>
-      </View>
+          <View style={styles.tipBox}>
+            <Sparkles size={18} color="#60A5FA" style={{ marginRight: 8 }} />
+            <Text style={styles.tipText}>
+              Hydrated + feet on the floor across the room. You've officially broken the bed's physical grip!
+            </Text>
+          </View>
 
-      {/* Bypass / Test Button */}
-      <TouchableOpacity
-        style={styles.bypassButton}
-        onPress={() => {
-          try {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          } catch (e) {}
-          onComplete();
-        }}
-      >
-        <CheckCircle2 size={16} color="#6B7280" style={{ marginRight: 6 }} />
-        <Text style={styles.bypassText}>Skip / Simulate Scan</Text>
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.bypassButton}
+            onPress={() => {
+              try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
+              onComplete();
+            }}
+          >
+            <CheckCircle2 size={16} color="#6B7280" style={{ marginRight: 6 }} />
+            <Text style={styles.bypassText}>Skip / Simulate Scan</Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 };
@@ -117,8 +195,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tag: {
-    color: '#3B82F6',
-    fontSize: 12,
+    color: '#38BDF8',
+    fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1.5,
     marginBottom: 6,
@@ -126,16 +204,71 @@ const styles = StyleSheet.create({
   title: {
     color: '#FFFFFF',
     fontSize: 26,
-    fontWeight: 'bold',
+    fontWeight: '900',
     textAlign: 'center',
   },
   subtitle: {
     color: '#9CA3AF',
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center',
     marginTop: 8,
-    lineHeight: 20,
+    lineHeight: 18,
   },
+
+  // Chug phase
+  chugCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chugCircle: {
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: '#082F49',
+    borderWidth: 4,
+    borderColor: '#38BDF8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#38BDF8',
+    shadowOpacity: 0.6,
+    shadowRadius: 25,
+    elevation: 10,
+  },
+  chugCountdown: {
+    color: '#FFFFFF',
+    fontSize: 54,
+    fontWeight: '900',
+    marginTop: 6,
+  },
+  chugSub: {
+    color: '#BAE6FD',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginTop: 4,
+  },
+  chugDoneButton: {
+    width: '100%',
+    height: 60,
+    backgroundColor: '#38BDF8',
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    shadowColor: '#38BDF8',
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  chugDoneText: {
+    color: '#000000',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  // Scan phase
   cameraFrame: {
     height: 320,
     borderRadius: 24,
@@ -213,14 +346,14 @@ const styles = StyleSheet.create({
   tipBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E3A8A25',
-    borderColor: '#3B82F660',
+    backgroundColor: '#0C4A6E25',
+    borderColor: '#38BDF860',
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
   },
   tipText: {
-    color: '#93C5FD',
+    color: '#BAE6FD',
     fontSize: 12,
     flex: 1,
     lineHeight: 16,

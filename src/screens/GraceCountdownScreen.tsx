@@ -2,10 +2,11 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { Accelerometer } from 'expo-sensors';
 import * as Haptics from 'expo-haptics';
-import { AlertTriangle, HandMetal, Timer, Flame, ArrowRight, ShieldCheck, ShieldAlert } from 'lucide-react-native';
+import { AlertTriangle, HandMetal, Timer, Flame, ArrowRight, ShieldCheck, ShieldAlert, Target } from 'lucide-react-native';
 
 interface Props {
   initialSeconds?: number;
+  dopamineAnchor?: string;
   onStartMissions: () => void;
   onExpireRelapse: () => void;
 }
@@ -17,6 +18,7 @@ const isPhoneFlat = (x: number, y: number, z: number): boolean => {
 
 export const GraceCountdownScreen: React.FC<Props> = ({
   initialSeconds = 120,
+  dopamineAnchor,
   onStartMissions,
   onExpireRelapse,
 }) => {
@@ -120,6 +122,17 @@ export const GraceCountdownScreen: React.FC<Props> = ({
         </Text>
       </View>
 
+      {/* ── Night-Before Dopamine Anchor ── */}
+      {!!dopamineAnchor && (
+        <View style={styles.anchorCard}>
+          <Target size={18} color="#F59E0B" style={{ marginRight: 8, marginTop: 2 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.anchorLabel}>PROMISED LAST NIGHT:</Text>
+            <Text style={styles.anchorText}>"{dopamineAnchor}"</Text>
+          </View>
+        </View>
+      )}
+
       {/* ── Table-Down Inertia Warning Banner ── */}
       {isFlat && (
         <Animated.View
@@ -212,6 +225,20 @@ const styles = StyleSheet.create({
   badgeText: { color: '#F87171', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   title: { color: '#FFFFFF', fontSize: 24, fontWeight: '900', textAlign: 'center' },
   subtitle: { color: '#9CA3AF', fontSize: 13, textAlign: 'center', marginTop: 6, lineHeight: 18 },
+
+  // Night-Before Dopamine Anchor
+  anchorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E1B4B',
+    borderColor: '#6366F1',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 8,
+  },
+  anchorLabel: { color: '#A5B4FC', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  anchorText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', marginTop: 2 },
 
   // Flat warning banner
   flatWarning: {

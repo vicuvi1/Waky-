@@ -1,19 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { Moon, Wind, CheckCircle2, ShieldCheck, Heart } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, TextInput } from 'react-native';
+import { Moon, Wind, CheckCircle2, ShieldCheck, Heart, Target } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 
 interface Props {
   onExit: () => void;
   targetWakeTime: string;
+  dopamineAnchor?: string;
+  onSaveDopamineAnchor?: (val: string) => void;
 }
 
 type BreathPhase = 'INHALE' | 'HOLD' | 'EXHALE';
 
-export const BedtimeLockdownScreen: React.FC<Props> = ({ onExit, targetWakeTime }) => {
+export const BedtimeLockdownScreen: React.FC<Props> = ({
+  onExit,
+  targetWakeTime,
+  dopamineAnchor = '',
+  onSaveDopamineAnchor,
+}) => {
   const [phase, setPhase] = useState<BreathPhase>('INHALE');
   const [secondsInPhase, setSecondsInPhase] = useState(4);
   const [cyclesCompleted, setCyclesCompleted] = useState(0);
+  const [anchorText, setAnchorText] = useState(dopamineAnchor);
 
   const breathScale = useRef(new Animated.Value(1)).current;
   const isRunningRef = useRef(true);
@@ -117,6 +125,22 @@ export const BedtimeLockdownScreen: React.FC<Props> = ({ onExit, targetWakeTime 
         </View>
       </View>
 
+      {/* Night-Before Dopamine Anchor */}
+      <View style={styles.dopamineCard}>
+        <View style={styles.dopamineHeader}>
+          <Target size={16} color="#FB923C" style={{ marginRight: 6 }} />
+          <Text style={styles.dopamineTitle}>YOUR #1 PRIORITY TOMORROW MORNING:</Text>
+        </View>
+        <TextInput
+          style={styles.dopamineInput}
+          placeholder="e.g. Finish the launch, hit morning gym, crush my goals..."
+          placeholderTextColor="#7C2D12"
+          value={anchorText}
+          onChangeText={setAnchorText}
+        />
+        <Text style={styles.dopamineSub}>Waky will remind your sleepy self of this promise at 06:30.</Text>
+      </View>
+
       <View style={styles.affirmationBox}>
         <Heart size={16} color="#F97316" style={{ marginRight: 8 }} />
         <Text style={styles.affirmationText}>
@@ -128,6 +152,9 @@ export const BedtimeLockdownScreen: React.FC<Props> = ({ onExit, targetWakeTime 
       <TouchableOpacity
         style={styles.lockButton}
         onPress={() => {
+          if (onSaveDopamineAnchor && anchorText.trim()) {
+            onSaveDopamineAnchor(anchorText.trim());
+          }
           try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (e) {}
           onExit();
         }}
@@ -282,5 +309,41 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  dopamineCard: {
+    width: '100%',
+    backgroundColor: '#1C0B02',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#EA580C',
+    marginVertical: 4,
+  },
+  dopamineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  dopamineTitle: {
+    color: '#FB923C',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  dopamineInput: {
+    height: 44,
+    backgroundColor: '#2A0E03',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#7C2D12',
+    color: '#FFFFFF',
+    paddingHorizontal: 12,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  dopamineSub: {
+    color: '#9A3412',
+    fontSize: 10,
+    marginTop: 4,
   },
 });

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { Sun, Bell, Volume2, ShieldAlert } from 'lucide-react-native';
+import { Sun, Bell, Volume2, ShieldAlert, Target } from 'lucide-react-native';
 import * as hardwareService from '../services/hardwareService';
 
 import { SoundProfile } from '../types';
@@ -9,12 +9,14 @@ interface Props {
   onDismissToGrace: () => void;
   targetWakeTime: string;
   soundProfile?: SoundProfile;
+  dopamineAnchor?: string;
 }
 
 export const SunriseAlarmScreen: React.FC<Props> = ({
   onDismissToGrace,
   targetWakeTime,
   soundProfile = 'PROGRESSIVE_CHIME',
+  dopamineAnchor,
 }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.4)).current;
@@ -102,6 +104,16 @@ export const SunriseAlarmScreen: React.FC<Props> = ({
         <Text style={styles.wakeHeading}>Time to Rise</Text>
         <Text style={styles.wakeSub}>Melanopsin light therapy at 100% brightness</Text>
       </Animated.View>
+
+      {dopamineAnchor ? (
+        <View style={styles.dopamineBanner}>
+          <Target size={18} color="#FBBF24" style={{ marginRight: 8 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.dopamineLabel}>YOUR NIGHT-BEFORE PROMISE:</Text>
+            <Text style={styles.dopamineText}>"{dopamineAnchor}"</Text>
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.warningBox}>
         <ShieldAlert size={18} color="#F59E0B" style={{ marginRight: 8 }} />
@@ -243,5 +255,28 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  dopamineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#78350F40',
+    borderColor: '#FBBF24',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 12,
+    zIndex: 10,
+    width: '100%',
+  },
+  dopamineLabel: {
+    color: '#FBBF24',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  dopamineText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
