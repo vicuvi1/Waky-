@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, SafeAreaView, StatusBar, AppState, BackHandler } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, AppState, BackHandler } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 
@@ -58,7 +58,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         <SafeAreaView style={{ flex: 1, backgroundColor: '#090A0F', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <View style={{ backgroundColor: '#1A1C24', padding: 24, borderRadius: 16, width: '100%', alignItems: 'center', borderWidth: 1, borderColor: '#EF4444' }}>
             <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#EF444420', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
-              <StatusBar barStyle="light-content" backgroundColor="#090A0F" />
+              <StatusBar barStyle="light-content" />
             </View>
             <Text style={{ color: '#EF4444', fontSize: 18, fontWeight: 'bold', marginBottom: 8, letterSpacing: 1 }}>WAKY RECOVERY</Text>
             <Text style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', marginBottom: 20 }}>
