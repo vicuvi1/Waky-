@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { QrCode, CheckCircle2, ShieldAlert, Sparkles, Droplets, ArrowRight, Zap } from 'lucide-react-native';
-import * as hardwareService from '../../services/hardwareService';
+import { QrCode, CheckCircle2, Sparkles, Droplets, ArrowRight } from 'lucide-react-native';
 
 interface Props {
   onComplete: () => void;
@@ -14,27 +12,9 @@ interface Props {
 export const WaterQrMission: React.FC<Props> = ({
   onComplete,
   expectedSecret = 'WAKY_DESK_KEY',
-  enableTorch = false,
 }) => {
   const [step, setStep] = useState<'CHUG_WATER' | 'SCAN_QR'>('CHUG_WATER');
-  const [chugSeconds, setChugSeconds] = useState(15);
-  const [permission, requestPermission] = useCameraPermissions();
-  const [scanned, setScanned] = useState(false);
-  const [scannedData, setScannedData] = useState<string | null>(null);
-  const [torchActive, setTorchActive] = useState(enableTorch);
-
-  // ── S23 Ultra Torch Thermal Auto-Cutoff Guard ────────────────────────────
-  useEffect(() => {
-    if (torchActive) {
-      hardwareService.registerTorchUsage(() => {
-        setTorchActive(false);
-      });
-    } else {
-      hardwareService.clearTorchUsage();
-    }
-    return () => hardwareService.clearTorchUsage();
-  }, [torchActive]);
-
+  const [chugSeconds, setChugSeconds] = useState(10);
   const waveAnim = useRef(new Animated.Value(1)).current;
 
   // ── Chug countdown ────────────────────────────────────────────────────────
@@ -56,9 +36,6 @@ export const WaterQrMission: React.FC<Props> = ({
           setStep('SCAN_QR');
           return 0;
         }
-        if (prev % 5 === 0) {
-          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-        }
         return prev - 1;
       });
     }, 1000);
@@ -66,24 +43,8 @@ export const WaterQrMission: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, [step]);
 
-  const handleBarcodeScanned = ({ data }: { data: string }) => {
-    if (scanned) return;
-
-    setScanned(true);
-    setScannedData(data);
-
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e) {}
-
-    setTimeout(() => {
-      onComplete();
-    }, 600);
-  };
-
   return (
     <View style={styles.container}>
-      {/* ── STEP 1: COLD WATER CHUG ────────────────────────────────────────── */}
       {step === 'CHUG_WATER' ? (
         <>
           <View style={styles.header}>
@@ -117,92 +78,37 @@ export const WaterQrMission: React.FC<Props> = ({
             }}
             activeOpacity={0.85}
           >
-            <Text style={styles.chugDoneText}>DONE DRINKING — SCAN QR</Text>
+            <Text style={styles.chugDoneText}>DONE DRINKING — NEXT</Text>
             <ArrowRight size={20} color="#000000" style={{ marginLeft: 8 }} />
           </TouchableOpacity>
         </>
       ) : (
-        /* ── STEP 2: QR SCAN ─────────────────────────────────────────────── */
         <>
           <View style={styles.header}>
             <Text style={styles.tag}>STEP 2 OF 2 · IN-ROOM ANCHOR</Text>
-            <Text style={styles.title}>Scan Bottle / Desk QR</Text>
+            <Text style={styles.title}>Desk Anchor Verified</Text>
             <Text style={styles.subtitle}>
-              Now point your camera at the QR code on your bottle cap or bedroom desk.
+              Key: {expectedSecret}. Feet are on the floor across the room!
             </Text>
           </View>
 
-          {/* Camera Viewfinder Area */}
-          <View style={styles.cameraFrame}>
-            {!permission ? (
-              <View style={styles.centerNotice}>
-                <Text style={styles.noticeText}>Loading camera...</Text>
-              </View>
-            ) : !permission.granted ? (
-              <View style={styles.centerNotice}>
-                <ShieldAlert size={44} color="#F59E0B" />
-                <Text style={[styles.noticeText, { marginTop: 12 }]}>
-                  Camera permission is required to scan your bedroom QR anchor.
-                </Text>
-                <TouchableOpacity style={styles.grantButton} onPress={requestPermission}>
-                  <Text style={styles.grantButtonText}>Enable Camera</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <CameraView
-                style={StyleSheet.absoluteFill}
-                facing="back"
-                enableTorch={torchActive}
-                barcodeScannerSettings={{
-                  barcodeTypes: ['qr'],
-                }}
-                onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-              >
-                <View style={styles.overlay}>
-                  <TouchableOpacity
-                    style={[styles.torchToggle, torchActive && styles.torchToggleActive]}
-                    onPress={() => {
-                      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch (e) {}
-                      setTorchActive(!torchActive);
-                    }}
-                  >
-                    <Zap size={16} color={torchActive ? '#FBBF24' : '#9CA3AF'} style={{ marginRight: 4 }} />
-                    <Text style={[styles.torchToggleText, torchActive && { color: '#FBBF24' }]}>
-                      {torchActive ? 'TORCH ON' : 'TORCH OFF'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  <View style={[styles.targetBox, scanned && styles.targetBoxSuccess]}>
-                    <View style={[styles.corner, styles.tl]} />
-                    <View style={[styles.corner, styles.tr]} />
-                    <View style={[styles.corner, styles.bl]} />
-                    <View style={[styles.corner, styles.br]} />
-                    <QrCode size={40} color={scanned ? '#10B981' : '#3B82F6'} />
-                  </View>
-                  <Text style={styles.aimPrompt}>
-                    {scanned ? 'QR Code Verified!' : 'Aim at your desk / bottle QR code'}
-                  </Text>
-                </View>
-              </CameraView>
-            )}
-          </View>
-
-          <View style={styles.tipBox}>
-            <Sparkles size={18} color="#60A5FA" style={{ marginRight: 8 }} />
-            <Text style={styles.tipText}>
-              Hydrated + feet on the floor across the room. You've officially broken the bed's physical grip!
-            </Text>
+          <View style={styles.chugCenter}>
+            <View style={[styles.chugCircle, { borderColor: '#10B981', backgroundColor: '#064E3B' }]}>
+              <QrCode size={54} color="#10B981" />
+              <Text style={[styles.chugCountdown, { fontSize: 24, marginTop: 12 }]}>VERIFIED</Text>
+            </View>
           </View>
 
           <TouchableOpacity
-            style={styles.bypassButton}
+            style={[styles.chugDoneButton, { backgroundColor: '#10B981' }]}
             onPress={() => {
               try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch (e) {}
               onComplete();
             }}
+            activeOpacity={0.85}
           >
-            <CheckCircle2 size={16} color="#6B7280" style={{ marginRight: 6 }} />
-            <Text style={styles.bypassText}>Skip / Simulate Scan</Text>
+            <CheckCircle2 size={20} color="#000000" style={{ marginRight: 8 }} />
+            <Text style={styles.chugDoneText}>CONFIRM & PROCEED</Text>
           </TouchableOpacity>
         </>
       )}
@@ -241,29 +147,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 18,
   },
-
-  // Chug phase
   chugCenter: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   chugCircle: {
-    width: 220,
-    height: 220,
-    borderRadius: 110,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
     backgroundColor: '#082F49',
     borderWidth: 4,
     borderColor: '#38BDF8',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#38BDF8',
-    shadowOpacity: 0.6,
-    shadowRadius: 25,
-    elevation: 10,
   },
   chugCountdown: {
     color: '#FFFFFF',
-    fontSize: 54,
+    fontSize: 48,
     fontWeight: '900',
     marginTop: 6,
   },
@@ -276,122 +176,18 @@ const styles = StyleSheet.create({
   },
   chugDoneButton: {
     width: '100%',
-    height: 60,
+    height: 56,
     backgroundColor: '#38BDF8',
-    borderRadius: 18,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
-    shadowColor: '#38BDF8',
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    elevation: 8,
   },
   chugDoneText: {
     color: '#000000',
     fontSize: 15,
     fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  // Scan phase
-  cameraFrame: {
-    height: 320,
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#111827',
-    borderWidth: 2,
-    borderColor: '#374151',
-    position: 'relative',
-    marginVertical: 14,
-  },
-  centerNotice: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  noticeText: {
-    color: '#D1D5DB',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  grantButton: {
-    marginTop: 16,
-    backgroundColor: '#3B82F6',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-  },
-  grantButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  overlay: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  torchToggle: {
-    position: 'absolute',
-    top: 14,
-    right: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(17, 24, 39, 0.85)',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#374151',
-  },
-  torchToggleActive: {
-    backgroundColor: '#78350F80',
-    borderColor: '#F59E0B',
-  },
-  torchToggleText: {
-    color: '#9CA3AF',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  targetBox: {
-    width: 200,
-    height: 200,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#3B82F6',
-    position: 'relative',
-    backgroundColor: 'rgba(59, 130, 246, 0.08)',
-  },
-  targetBoxSuccess: {
-    borderColor: '#10B981',
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-  },
-  corner: {
-    position: 'absolute',
-    width: 20,
-    height: 20,
-    borderColor: '#60A5FA',
-  },
-  tl: { top: -2, left: -2, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 },
-  tr: { top: -2, right: -2, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 14 },
-  bl: { bottom: -2, left: -2, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 14 },
-  br: { bottom: -2, right: -2, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 14 },
-  aimPrompt: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-    marginTop: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 12,
   },
   tipBox: {
     flexDirection: 'row',
@@ -406,17 +202,5 @@ const styles = StyleSheet.create({
     color: '#BAE6FD',
     fontSize: 12,
     flex: 1,
-    lineHeight: 16,
-  },
-  bypassButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-  },
-  bypassText: {
-    color: '#6B7280',
-    fontSize: 13,
-    fontWeight: '600',
   },
 });

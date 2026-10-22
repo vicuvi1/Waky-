@@ -8,8 +8,7 @@ import {
   TrendingUp, Settings, AlertCircle, CheckCircle2, Activity, Volume2, ShieldAlert, Zap, Cpu, BatteryCharging,
   Dumbbell, Minus, Plus,
 } from 'lucide-react-native';
-import QRCode from 'react-native-qrcode-svg';
-import Slider from '@react-native-community/slider';
+
 
 import { AlarmSettings, UserStats, MissionType } from '../types';
 import { CircadianGraph } from '../components/CircadianGraph';
@@ -469,17 +468,21 @@ export const DashboardScreen: React.FC<Props> = ({
                 <Text style={styles.difficultyLabel}>
                   {m.desc}: <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{diffValue}{m.id === 'POSTURE_HOLD' ? 's' : m.id === 'SQUAT_COUNTER' ? ' squats' : ' correct'}</Text>
                 </Text>
-                <Slider
-                  style={{ width: '100%', height: 32 }}
-                  minimumValue={m.min!}
-                  maximumValue={m.max!}
-                  step={m.step!}
-                  value={diffValue}
-                  minimumTrackTintColor="#3B82F6"
-                  maximumTrackTintColor="#374151"
-                  thumbTintColor="#3B82F6"
-                  onValueChange={(val: number) => onUpdateSettings({ ...settings, [m.key!]: val })}
-                />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#1F2937', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
+                    onPress={() => onUpdateSettings({ ...settings, [m.key!]: Math.max(m.min!, diffValue - (m.step || 1)) })}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 }}>-</Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: '#3B82F6', fontWeight: 'bold', fontSize: 16, minWidth: 40, textAlign: 'center' }}>{diffValue}</Text>
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#1F2937', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
+                    onPress={() => onUpdateSettings({ ...settings, [m.key!]: Math.min(m.max!, diffValue + (m.step || 1)) })}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 }}>+</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
@@ -714,13 +717,8 @@ export const DashboardScreen: React.FC<Props> = ({
               <TouchableOpacity onPress={() => setShowQrModal(false)}><X size={22} color="#9CA3AF" /></TouchableOpacity>
             </View>
             <Text style={styles.qrInstructions}>Screenshot this, print it, and stick it on your desk, wardrobe, or water bottle.</Text>
-            <View style={styles.qrCodeBox}>
-              <QRCode
-                value={settings.qrCodeSecret}
-                size={220}
-                color="#000000"
-                backgroundColor="#FFFFFF"
-              />
+            <View style={[styles.qrCodeBox, { padding: 24, justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ color: '#3B82F6', fontSize: 24, fontWeight: 'bold', letterSpacing: 2 }}>{settings.qrCodeSecret}</Text>
             </View>
             <Text style={styles.qrKeyText}>Key: <Text style={{ fontFamily: 'monospace', color: '#60A5FA' }}>{settings.qrCodeSecret}</Text></Text>
             <TouchableOpacity style={styles.confirmBtn} onPress={() => setShowQrModal(false)}>

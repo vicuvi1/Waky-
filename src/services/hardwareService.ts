@@ -1,9 +1,7 @@
-import * as Brightness from 'expo-brightness';
 import * as Haptics from 'expo-haptics';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Audio } from 'expo-av';
 
-let originalBrightness: number | null = null;
 let activeSound: Audio.Sound | null = null;
 let hapticInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -60,7 +58,7 @@ export async function playSound(
   try {
     await stopSound();
     await setupAudioSession();
-    
+
     const { sound } = await Audio.Sound.createAsync(
       SOUND_MAP[type],
       {
@@ -109,35 +107,10 @@ export function stopHaptics(): void {
 }
 
 /**
- * Ramp up screen brightness to 100% for light therapy
+ * Screen brightness helpers (safe fallbacks)
  */
-export async function maximizeBrightness(): Promise<void> {
-  try {
-    const { status } = await Brightness.requestPermissionsAsync();
-    if (status === 'granted') {
-      if (originalBrightness === null) {
-        originalBrightness = await Brightness.getBrightnessAsync();
-      }
-      await Brightness.setBrightnessAsync(1.0);
-    }
-  } catch (e) {
-    console.warn('Brightness control not supported or denied:', e);
-  }
-}
-
-/**
- * Restore screen brightness to original setting
- */
-export async function restoreBrightness(): Promise<void> {
-  try {
-    if (originalBrightness !== null) {
-      await Brightness.setBrightnessAsync(originalBrightness);
-      originalBrightness = null;
-    }
-  } catch (e) {
-    // Ignore error
-  }
-}
+export async function maximizeBrightness(): Promise<void> {}
+export async function restoreBrightness(): Promise<void> {}
 
 /**
  * Prevent device from locking or turning off display
@@ -162,19 +135,18 @@ export function releaseDeviceWake(): void {
 }
 
 /**
- * Full stop of all hardware alerting (audio, haptics, restore screen, release sleep lock)
+ * Full stop of all hardware alerting
  */
 export async function stopAllHardwareAlerts(): Promise<void> {
   await stopSound();
   stopHaptics();
-  await restoreBrightness();
   releaseDeviceWake();
   clearTorchUsage();
 }
 
-// ─── S23 Ultra Flashlight Thermal Guard ────────────────────────────────────
+// ─── Torch / Flashlight Guard ──────────────────────────────────────────────
 let torchTimeout: ReturnType<typeof setTimeout> | null = null;
-const MAX_TORCH_CONTINUOUS_MS = 180000; // 3 minutes maximum safe continuous on
+const MAX_TORCH_CONTINUOUS_MS = 180000;
 
 export function registerTorchUsage(onCutoff: () => void): void {
   if (torchTimeout) clearTimeout(torchTimeout);
