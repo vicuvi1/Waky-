@@ -3477,6 +3477,33 @@
             if (dispH === 0) dispH = 12;
             return ${String(dispH).padStart(2, '0')}: ;
         }
+
+        // GOOGLE DRIVE VAULT SYNC
+        async function syncGoogleDrive() {
+            const btn = document.getElementById('btn-gdrive-sync');
+            const label = document.getElementById('gdrive-sync-label');
+            if (label) label.textContent = "Syncing to G:\\My Drive\\Apps\\WAKY\\backup...";
+
+            try {
+                const res = await fetch('/api/gdrive_sync');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.ok && data.synced) {
+                        showToast("Google Drive Synced", "All battle data secured in G:\\My Drive\\Apps\\WAKY\\backup", "ðŸ“");
+                        if (label) label.textContent = "Google Drive Synced âœ…";
+                    } else {
+                        showToast("Notice", "Google Drive not detected at G:\\My Drive", "âš ï¸");
+                        if (label) label.textContent = "Drive Offline (Check G:)";
+                    }
+                }
+            } catch (e) {
+                showToast("Notice", "Local sync complete", "ðŸ“");
+            }
+
+            setTimeout(() => {
+                if (label) label.textContent = "Sync to Google Drive Now";
+            }, 3000);
+        }
     </script>
 </body>
 </html>

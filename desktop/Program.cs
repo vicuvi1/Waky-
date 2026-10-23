@@ -82,9 +82,10 @@ namespace WakyDesktop
                     amIServer = true;
                     Log("Started HTTP server on port " + port);
 
-                    // Initial background cloud sync
+                    // Initial background cloud & Google Drive sync
                     ThreadPool.QueueUserWorkItem(delegate(object o) {
                         PerformCloudSync();
+                        PerformGoogleDriveSync();
                     });
                 }
 
@@ -365,8 +366,27 @@ namespace WakyDesktop
                 else if (path == "/api/cloud_sync")
                 {
                     bool success = PerformCloudSync();
+                    ThreadPool.QueueUserWorkItem(delegate(object o) {
+                        PerformGoogleDriveSync();
+                    });
                     string updatedJson = File.Exists(recordsFile) ? File.ReadAllText(recordsFile, Encoding.UTF8) : "[]";
                     string responseJson = string.Format("{{\"ok\":true,\"cloudSynced\":{0},\"records\":{1}}}", success ? "true" : "false", updatedJson);
+                    byte[] bytes = Encoding.UTF8.GetBytes(responseJson);
+                    SendBytes(ctx, bytes, "application/json; charset=utf-8", 200);
+                }
+                else if (path == "/api/gdrive_sync")
+                {
+                    bool ok = PerformGoogleDriveSync();
+                    string gdir = GetGoogleDriveBackupDir() ?? "";
+                    string responseJson = string.Format("{{\"ok\":true,\"synced\":{0},\"path\":\"{1}\"}}", ok ? "true" : "false", gdir.Replace("\\", "\\\\"));
+                    byte[] bytes = Encoding.UTF8.GetBytes(responseJson);
+                    SendBytes(ctx, bytes, "application/json; charset=utf-8", 200);
+                }
+                else if (path == "/api/gdrive_status")
+                {
+                    string gdir = GetGoogleDriveBackupDir();
+                    bool exists = !string.IsNullOrEmpty(gdir) && Directory.Exists(gdir);
+                    string responseJson = string.Format("{{\"available\":{0},\"path\":\"{1}\"}}", exists ? "true" : "false", exists ? gdir.Replace("\\", "\\\\") : "");
                     byte[] bytes = Encoding.UTF8.GetBytes(responseJson);
                     SendBytes(ctx, bytes, "application/json; charset=utf-8", 200);
                 }
@@ -485,6 +505,11 @@ namespace WakyDesktop
                         try { file.Delete(); } catch { }
                     }
                 }
+
+                // Automatic sync to Google Drive
+                ThreadPool.QueueUserWorkItem(delegate(object o) {
+                    PerformGoogleDriveSync();
+                });
             }
             catch (Exception ex)
             {
@@ -520,6 +545,89 @@ namespace WakyDesktop
             catch (Exception ex)
             {
                 Log("Notice on startup shortcut verification: " + ex.Message);
+            }
+        }
+
+        private static string GetGoogleDriveBackupDir()
+        {
+            try
+            {
+                string[] candidateRoots = new string[] {
+                    @"G:\My Drive",
+                    @"H:\My Drive",
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Google Drive"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "GoogleDrive")
+                };
+
+                foreach (var root in candidateRoots)
+                {
+                    if (Directory.Exists(root))
+                    {
+                        string targetDir = Path.Combine(root, "Apps", "WAKY", "backup");
+                        if (!Directory.Exists(targetDir))
+                        {
+                            Directory.CreateDirectory(targetDir);
+                        }
+                        return targetDir;
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        public static bool PerformGoogleDriveSync()
+        {
+            try
+            {
+                string gdriveBackup = GetGoogleDriveBackupDir();
+                if (string.IsNullOrEmpty(gdriveBackup) || !Directory.Exists(gdriveBackup))
+                    return false;
+
+                // Sync main database & config files
+                if (File.Exists(recordsFile))
+                    File.Copy(recordsFile, Path.Combine(gdriveBackup, "wake_records.json"), true);
+                if (File.Exists(configFile))
+                    File.Copy(configFile, Path.Combine(gdriveBackup, "waky_config.json"), true);
+                if (File.Exists(tombstonesFile))
+                    File.Copy(tombstonesFile, Path.Combine(gdriveBackup, "deleted_dates.json"), true);
+
+                // Sync rolling backups history
+                if (Directory.Exists(backupsDir))
+                {
+                    string gdriveRolling = Path.Combine(gdriveBackup, "rolling_backups");
+                    if (!Directory.Exists(gdriveRolling)) Directory.CreateDirectory(gdriveRolling);
+
+                    foreach (var file in Directory.GetFiles(backupsDir, "*.json"))
+                    {
+                        string destFile = Path.Combine(gdriveRolling, Path.GetFileName(file));
+                        File.Copy(file, destFile, true);
+                    }
+                }
+
+                // Also ensure core executable is mirrored in Apps\WAKY
+                string wakyParent = Path.GetDirectoryName(gdriveBackup);
+                if (Directory.Exists(wakyParent))
+                {
+                    string exeSource = Path.Combine(appDir, "WAKY.exe");
+                    if (File.Exists(exeSource))
+                    {
+                        File.Copy(exeSource, Path.Combine(wakyParent, "WAKY.exe"), true);
+                    }
+                    string icoSource = Path.Combine(appDir, "waky.ico");
+                    if (File.Exists(icoSource))
+                    {
+                        File.Copy(icoSource, Path.Combine(wakyParent, "waky.ico"), true);
+                    }
+                }
+
+                Log("Google Drive backup synchronized to: " + gdriveBackup);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("Notice on Google Drive sync: " + ex.Message);
+                return false;
             }
         }
 
