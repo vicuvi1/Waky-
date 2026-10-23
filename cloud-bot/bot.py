@@ -145,7 +145,7 @@ def load_memory():
         save_memory(mem)
         return mem
     try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
+        with open(DATA_FILE, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
             return data
     except Exception as e:
@@ -157,7 +157,7 @@ def save_memory(mem):
     try:
         os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
         tmp = f"{DATA_FILE}.tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
+        with open(tmp, "w", encoding="utf-8-sig") as f:
             json.dump(mem, f, indent=2, ensure_ascii=False)
         os.replace(tmp, DATA_FILE)
     except Exception as e:
