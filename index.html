@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1279,6 +1279,308 @@
             border: 1px solid rgba(220, 38, 38, 0.5) !important;
             background: linear-gradient(180deg, rgba(35, 10, 10, 0.95), rgba(18, 10, 15, 0.98)) !important;
         }
+    
+        /* ELITE SOVEREIGN TOP COMMAND BAR */
+        .top-command-bar {
+            width: 100%;
+            height: 62px;
+            background: linear-gradient(180deg, rgba(14, 18, 28, 0.95) 0%, rgba(8, 10, 18, 0.92) 100%);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            border-bottom: 1px solid rgba(234, 179, 8, 0.28);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65), inset 0 -1px 0 rgba(234, 179, 8, 0.15);
+        }
+
+        .brand-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            user-select: none;
+        }
+
+        .brand-crown-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(234, 179, 8, 0.5), inset 0 0 10px rgba(254, 240, 138, 0.2);
+            border: 1.5px solid rgba(254, 240, 138, 0.5);
+            background: #0B0E17;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .brand-crown-img:hover {
+            transform: scale(1.06) rotate(-2deg);
+        }
+
+        .brand-title {
+            font-family: var(--font-royal);
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            color: #FFFFFF;
+            line-height: 1.1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .brand-lambda {
+            color: var(--spartan-gold);
+            text-shadow: 0 0 16px rgba(250, 204, 21, 0.7);
+        }
+        .desktop-badge {
+            background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(180, 83, 9, 0.15));
+            border: 1px solid rgba(234, 179, 8, 0.45);
+            color: var(--spartan-gold);
+            font-size: 9.5px;
+            font-weight: 800;
+            letter-spacing: 1.2px;
+            padding: 4px 9px;
+            border-radius: 6px;
+            box-shadow: 0 0 12px rgba(234, 179, 8, 0.2);
+        }
+
+        .clock-alarm-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(11, 15, 25, 0.85);
+            border: 1px solid rgba(234, 179, 8, 0.3);
+            border-radius: 12px;
+            padding: 6px 14px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+        }
+        .current-clock {
+            font-family: var(--font-mono);
+            font-size: 20px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #FFFFFF;
+            letter-spacing: 1px;
+            text-shadow: 0 0 14px rgba(250, 204, 21, 0.35);
+        }
+        .target-alarm-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(202, 138, 4, 0.15));
+            border: 1px solid rgba(234, 179, 8, 0.6);
+            color: var(--spartan-gold);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            padding: 5px 11px;
+            border-radius: 7px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .target-alarm-pill:hover {
+            transform: translateY(-1px);
+            background: rgba(234, 179, 8, 0.3);
+            box-shadow: 0 0 14px rgba(234, 179, 8, 0.4);
+        }
+        .curfew-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(18, 22, 34, 0.85);
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            color: #FBBF24;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            padding: 5px 11px;
+            border-radius: 7px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .curfew-pill:hover {
+            transform: translateY(-1px);
+            border-color: #F59E0B;
+            background: rgba(245, 158, 11, 0.2);
+            box-shadow: 0 0 14px rgba(245, 158, 11, 0.3);
+        }
+
+        .system-status-area {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-toolbar-luxury {
+            height: 34px;
+            padding: 0 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(18, 24, 38, 0.7);
+            color: var(--text-primary);
+        }
+        .btn-toolbar-luxury:hover {
+            transform: translateY(-1px);
+            border-color: var(--spartan-gold);
+            color: #FFF;
+            box-shadow: 0 0 15px rgba(234, 179, 8, 0.3);
+        }
+
+        /* EPIC WAR COMMAND RECORD BUTTON */
+        .btn-record-proof {
+            width: 100%;
+            height: 64px;
+            background: linear-gradient(135deg, #DC2626 0%, #B91C1C 40%, #7F1D1D 100%);
+            border: 2px solid #FACC15;
+            border-radius: 14px;
+            color: #FFFFFF;
+            font-family: var(--font-royal);
+            font-size: 16.5px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 35px rgba(220, 38, 38, 0.6), 0 8px 24px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .btn-record-proof:hover {
+            transform: translateY(-2px) scale(1.008);
+            box-shadow: 0 0 45px rgba(250, 204, 21, 0.6), 0 12px 28px rgba(0, 0, 0, 0.8), inset 0 1px 0 #FFF;
+            border-color: #FEF08A;
+        }
+        .btn-record-proof:active {
+            transform: translateY(1px) scale(0.995);
+        }
+
+        /* DIRECTIVES HIGH-TECH BATTLE CARDS */
+        .prime-directives-card {
+            background: linear-gradient(180deg, rgba(20, 25, 40, 0.95), rgba(12, 16, 26, 0.98));
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            border-radius: 14px;
+            padding: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+        .directive-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(10, 14, 24, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-left: 3px solid var(--spartan-gold);
+            border-radius: 9px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .directive-row:hover {
+            background: rgba(18, 24, 38, 0.9);
+            border-color: rgba(234, 179, 8, 0.4);
+            transform: translateX(2px);
+        }
+        .directive-num-badge {
+            font-family: var(--font-royal);
+            font-size: 12px;
+            font-weight: 900;
+            color: var(--spartan-gold);
+            background: rgba(234, 179, 8, 0.15);
+            border: 1px solid rgba(234, 179, 8, 0.3);
+            border-radius: 5px;
+            padding: 2px 7px;
+            letter-spacing: 1px;
+            user-select: none;
+        }
+        .directive-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--spartan-gold);
+        }
+        .directive-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #FFFFFF;
+            font-family: var(--font-main);
+            font-size: 13.5px;
+            font-weight: 600;
+            outline: none;
+        }
+        .directive-input:focus {
+            color: var(--spartan-gold);
+        }
+
+        /* RETICLE HOLO-CHAMBER */
+        .camera-viewport-card {
+            background: radial-gradient(circle at center, rgba(18, 24, 40, 0.95) 0%, #060910 100%);
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            border-radius: 14px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 0 40px rgba(0, 0, 0, 0.8);
+        }
+        .cam-standby-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(20, 26, 42, 0.9) 0%, rgba(6, 8, 14, 0.98) 100%);
+            background-image: radial-gradient(rgba(234, 179, 8, 0.12) 1px, transparent 0);
+            background-size: 24px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            z-index: 5;
+            transition: opacity 0.3s ease;
+        }
+        .standby-radar-ring {
+            position: absolute;
+            width: 210px;
+            height: 210px;
+            border: 1.5px dashed rgba(234, 179, 8, 0.45);
+            border-radius: 50%;
+            animation: rotate-radar 16s linear infinite;
+            pointer-events: none;
+        }
+        .btn-activate-cam {
+            background: linear-gradient(135deg, rgba(234, 179, 8, 0.25), rgba(180, 83, 9, 0.2));
+            border: 1.5px solid var(--spartan-gold);
+            color: #FFFFFF;
+            font-family: var(--font-royal);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            padding: 9px 22px;
+            border-radius: 9px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 2;
+            box-shadow: 0 0 20px rgba(234, 179, 8, 0.35);
+        }
+        .btn-activate-cam:hover {
+            background: linear-gradient(135deg, var(--spartan-gold), #CA8A04);
+            color: #000;
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 0 30px rgba(250, 204, 21, 0.6);
+        }
+
     </style>
 </head>
 <body>
@@ -3383,7 +3685,7 @@
                 const streakBonus = Math.min(20, (streak / 14) * 20);
                 consistencyScore = Math.min(100, Math.round(onTimeRatio * 80 + streakBonus));
             }
-            document.getElementById('consistency-score-num').textContent = consistencyScore + '%'; const circlePath = document.getElementById('consistency-circle-path'); if (circlePath) circlePath.setAttribute('stroke-dasharray', ${consistencyScore}, 100);
+            document.getElementById('consistency-score-num').textContent = consistencyScore + '%'; const circlePath = document.getElementById('consistency-circle-path'); if (circlePath) circlePath.setAttribute('stroke-dasharray', consistencyScore + ', 100');
             const ratingBadge = document.getElementById('consistency-rating-badge');
             if (consistencyScore >= 90) {
                 ratingBadge.textContent = "👑 SOVEREIGN LEVEL";
@@ -3494,7 +3796,7 @@
 
         // BRAIN REBOOT MILESTONES & TEASER ENGINE
                 async function promptDeleteRecord(dateStr) {
-            if (!confirm(Delete wake record for ?)) return;
+            if (!confirm("Delete wake record for ?")) return;
             try {
                 await fetch('/api/records/delete', {
                     method: 'POST',
@@ -4181,10 +4483,10 @@
             if (isManual) {
                 const val = Math.max(0, parseInt(inputDays.value, 10) || 0);
                 localStorage.setItem('waky_streak_override', val.toString());
-                showToast("Streak Days Adjusted", Manual override set to  DAYS, "ðŸ‘‘");
+                showToast("Streak Days Adjusted", "Manual override set to  DAYS", "ðŸ‘‘");
             } else {
                 localStorage.removeItem('waky_streak_override');
-                showToast("Streak Mode: Auto", Calculated dynamically from battle history, "âš”ï¸");
+                showToast("Streak Mode: Auto", "Calculated dynamically from battle history", "âš”ï¸");
             }
 
             closeStreakModal();
@@ -4241,7 +4543,7 @@
             renderDashboard();
             renderHistoryLists();
             checkTodayStatus();
-            showToast("Record Updated", Battle on  saved and synced!, "âœï¸");
+            showToast("Record Updated", "Battle on  saved and synced!", "âœï¸");
         }
 
         function deleteCurrentEditedRecord() {
@@ -4252,7 +4554,7 @@
 
         // DELETE RECORD
         async function deleteRecord(date) {
-            if (!confirm(Are you sure you want to delete the dawn battle record for ? This will adjust your streak and stats.)) {
+            if (!confirm("Are you sure you want to delete the dawn battle record for ? This will adjust your streak and stats.")) {
                 return;
             }
 
@@ -4272,7 +4574,7 @@
             renderDashboard();
             renderHistoryLists();
             checkTodayStatus();
-            showToast("Record Deleted", Battle record for  removed., "ðŸ—‘ï¸");
+            showToast("Record Deleted", "Battle record for  removed.", "ðŸ—‘ï¸");
         }
 
         function deleteTodayRecord() {
@@ -4341,7 +4643,7 @@
             renderDashboard();
             renderHistoryLists();
             checkTodayStatus();
-            showToast("Battle Recorded", Dawn victory for  added!, "âž•");
+            showToast("Battle Recorded", "Dawn victory for  added!", "âž•");
         }
 
         // CLEAR ALL RECORDS (RESET)
@@ -4363,7 +4665,7 @@
             renderDashboard();
             renderHistoryLists();
             checkTodayStatus();
-            showToast("Citadel Reset", "All records cleared. Fresh start active!", "âš”ï¸");
+            showToast("Citadel Reset", "\"All records cleared. Fresh start active!\"", "âš”ï¸");
         }
 
         // TIME UTILITIES
@@ -4378,7 +4680,7 @@
             let m = parts.length > 1 ? parseInt(parts[1], 10) : 0;
             if (isPm && h < 12) h += 12;
             if (isAm && h === 12) h = 0;
-            return ${String(h).padStart(2, '0')}:;
+            return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
         }
 
         function formatToDisplayTime(t24) {
@@ -4389,7 +4691,7 @@
             let ampm = h >= 12 ? "PM" : "AM";
             let dispH = h % 12;
             if (dispH === 0) dispH = 12;
-            return ${String(dispH).padStart(2, '0')}: ;
+            return String(dispH).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ' ' + ampm;
         }
 
         // GOOGLE DRIVE VAULT SYNC
@@ -4403,15 +4705,15 @@
                 if (res.ok) {
                     const data = await res.json();
                     if (data.ok && data.synced) {
-                        showToast("Google Drive Synced", "All battle data secured in G:\\My Drive\\Apps\\WAKY\\backup", "ðŸ“");
+                        showToast("Google Drive Synced", "\"All battle data secured in G:\\My Drive\\Apps\\WAKY\\backup\"", "ðŸ“");
                         if (label) label.textContent = "Google Drive Synced âœ…";
                     } else {
-                        showToast("Notice", "Google Drive not detected at G:\\My Drive", "âš ï¸");
+                        showToast("Notice", "\"Google Drive not detected at G:\\My Drive\"", "âš ï¸");
                         if (label) label.textContent = "Drive Offline (Check G:)";
                     }
                 }
             } catch (e) {
-                showToast("Notice", "Local sync complete", "ðŸ“");
+                showToast("Notice", "\"Local sync complete\"", "ðŸ“");
             }
 
             setTimeout(() => {
