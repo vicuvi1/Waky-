@@ -25,9 +25,22 @@ namespace WakyDesktop
         private static readonly string remoteHost = "ubuntu@92.5.93.119";
         private static readonly string remoteMemoryPath = "/opt/waky-bot/waky_memory.json";
 
+        private static void Log(string msg)
+        {
+            try
+            {
+                string logFile = Path.Combine(appDir, "waky.log");
+                File.AppendAllText(logFile, string.Format("[{0}] {1}\r\n", DateTime.Now, msg));
+            }
+            catch { }
+        }
+
         [STAThread]
         static void Main()
         {
+            AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) {
+                Log("CRITICAL UNHANDLED EXCEPTION: " + (e.ExceptionObject != null ? e.ExceptionObject.ToString() : "null"));
+            };
             bool amIServer = false;
             try
             {
@@ -35,6 +48,7 @@ namespace WakyDesktop
                 {
                     appDir = AppDomain.CurrentDomain.BaseDirectory;
                 }
+                Log("Starting WAKY Desktop app...");
                 proofsDir = Path.Combine(appDir, "proofs");
                 recordsFile = Path.Combine(appDir, "wake_records.json");
                 configFile = Path.Combine(appDir, "waky_config.json");
@@ -51,10 +65,12 @@ namespace WakyDesktop
                 }
 
                 bool isPortOpen = IsPortInUse(port);
+                Log("Port " + port + " in use: " + isPortOpen);
                 if (!isPortOpen)
                 {
                     StartHttpServer();
                     amIServer = true;
+                    Log("Started HTTP server on port " + port);
 
                     // Initial background cloud sync
                     ThreadPool.QueueUserWorkItem(delegate(object o) {
@@ -63,24 +79,32 @@ namespace WakyDesktop
                 }
 
                 // Launch Chrome or Edge in App Mode
+                Log("Launching browser app...");
                 LaunchBrowserApp();
 
                 if (amIServer)
                 {
+                    Log("Entering server loop...");
                     lastHeartbeat = DateTime.Now;
                     while (true)
                     {
                         Thread.Sleep(3000);
-                        // Stay active as long as app sends heartbeats within 10 minutes
-                        if ((DateTime.Now - lastHeartbeat).TotalMinutes > 10)
+                        // Stay active as long as app sends heartbeats within 30 minutes
+                        if ((DateTime.Now - lastHeartbeat).TotalMinutes > 30)
                         {
+                            Log("Server loop timeout (30m without heartbeat), exiting.");
                             break;
                         }
                     }
                 }
+                else
+                {
+                    Log("Already running in another instance, client exited.");
+                }
             }
             catch (Exception ex)
             {
+                Log("FATAL ERROR: " + ex.ToString());
                 MessageBox.Show("Could not launch WAKY: " + ex.Message, "WAKY Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
@@ -89,6 +113,7 @@ namespace WakyDesktop
                 {
                     try { listener.Stop(); } catch { }
                 }
+                Log("WAKY session finished.");
             }
         }
 
@@ -132,7 +157,7 @@ namespace WakyDesktop
 
             if (browserExe != null)
             {
-                string args = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=520,920 --no-first-run --no-default-browser-check", appUrl, profileDir);
+                string args = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1440,920 --start-maximized --no-first-run --no-default-browser-check", appUrl, profileDir);
                 ProcessStartInfo psi = new ProcessStartInfo(browserExe, args);
                 psi.UseShellExecute = true;
                 Process.Start(psi);
