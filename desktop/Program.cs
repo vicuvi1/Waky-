@@ -18,6 +18,7 @@ namespace WakyDesktop
         private static string recordsFile;
         private static string configFile;
         private static string tombstonesFile;
+        private static string backupsDir;
         private static HttpListener listener;
         private static int port = 48999;
         private static DateTime lastHeartbeat = DateTime.Now;
@@ -54,18 +55,24 @@ namespace WakyDesktop
                 recordsFile = Path.Combine(appDir, "wake_records.json");
                 configFile = Path.Combine(appDir, "waky_config.json");
                 tombstonesFile = Path.Combine(appDir, "deleted_dates.json");
+                backupsDir = Path.Combine(appDir, "backups");
 
                 string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 sshKeyPath = Path.Combine(userProfile, ".ssh", "hermes-vm.key");
 
                 if (!Directory.Exists(proofsDir)) Directory.CreateDirectory(proofsDir);
-                if (!File.Exists(recordsFile)) File.WriteAllText(recordsFile, "[]", Encoding.UTF8);
-                if (!File.Exists(tombstonesFile)) File.WriteAllText(tombstonesFile, "[]", Encoding.UTF8);
+                if (!Directory.Exists(backupsDir)) Directory.CreateDirectory(backupsDir);
+                if (!File.Exists(recordsFile)) SaveFileAtomic(recordsFile, "[]");
+                if (!File.Exists(tombstonesFile)) SaveFileAtomic(tombstonesFile, "[]");
                 if (!File.Exists(configFile))
                 {
                     string defConfig = "{\"targetTime\":\"07:00\",\"tgToken\":\"8814364854:AAE3HpffTsEX3x6xnl74Fx0Lff6OxOxeTeA\",\"tgChatId\":\"1900611848\",\"botUsername\":\"wakyyyy_bot\",\"paired\":true}";
-                    File.WriteAllText(configFile, defConfig, Encoding.UTF8);
+                    SaveFileAtomic(configFile, defConfig);
                 }
+
+                // Long-term reliability: Ensure startup shortcut & rolling backup
+                EnsureStartupShortcut();
+                PerformDailyRollingBackup();
 
                 bool isPortOpen = IsPortInUse(port);
                 Log("Port " + port + " in use: " + isPortOpen);
@@ -435,6 +442,87 @@ namespace WakyDesktop
             return false;
         }
 
+        private static void SaveFileAtomic(string filePath, string content)
+        {
+            try
+            {
+                string tmpPath = filePath + ".tmp";
+                File.WriteAllText(tmpPath, content, Encoding.UTF8);
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+                File.Move(tmpPath, filePath);
+            }
+            catch
+            {
+                try { File.WriteAllText(filePath, content, Encoding.UTF8); } catch { }
+            }
+        }
+
+        private static void PerformDailyRollingBackup()
+        {
+            try
+            {
+                if (!Directory.Exists(backupsDir)) Directory.CreateDirectory(backupsDir);
+                if (File.Exists(recordsFile))
+                {
+                    string dateStr = DateTime.Now.ToString("yyyy-MM-dd");
+                    string backupFile = Path.Combine(backupsDir, string.Format("wake_records_backup_{0}.json", dateStr));
+                    if (!File.Exists(backupFile))
+                    {
+                        File.Copy(recordsFile, backupFile, true);
+                        Log("Created daily rolling backup: " + backupFile);
+                    }
+                }
+
+                // Clean up backups older than 14 days
+                var dirInfo = new DirectoryInfo(backupsDir);
+                foreach (var file in dirInfo.GetFiles("wake_records_backup_*.json"))
+                {
+                    if ((DateTime.Now - file.CreationTime).TotalDays > 14)
+                    {
+                        try { file.Delete(); } catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("Notice on daily backup: " + ex.Message);
+            }
+        }
+
+        private static void EnsureStartupShortcut()
+        {
+            try
+            {
+                string startupFolder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                if (Directory.Exists(startupFolder))
+                {
+                    string lnkPath = Path.Combine(startupFolder, "WAKY.lnk");
+                    string exePath = Path.Combine(appDir, "WAKY.exe");
+                    string icoPath = Path.Combine(appDir, "waky.ico");
+
+                    Type shellType = Type.GetTypeFromProgID("WScript.Shell");
+                    if (shellType != null)
+                    {
+                        dynamic shell = Activator.CreateInstance(shellType);
+                        dynamic shortcut = shell.CreateShortcut(lnkPath);
+                        shortcut.TargetPath = exePath;
+                        shortcut.WorkingDirectory = appDir;
+                        shortcut.IconLocation = icoPath + ",0";
+                        shortcut.Description = "WAKY - Spartan Dawn Wake-Up Protocol";
+                        shortcut.Save();
+                        Log("Windows startup shortcut verified at: " + lnkPath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("Notice on startup shortcut verification: " + ex.Message);
+            }
+        }
+
         private static HashSet<string> LoadTombstones()
         {
             var set = new HashSet<string>();
@@ -463,7 +551,7 @@ namespace WakyDesktop
             {
                 var serializer = new JavaScriptSerializer();
                 var list = new List<string>(set);
-                File.WriteAllText(tombstonesFile, serializer.Serialize(list), Encoding.UTF8);
+                SaveFileAtomic(tombstonesFile, serializer.Serialize(list));
             }
             catch { }
         }
@@ -508,7 +596,8 @@ namespace WakyDesktop
                 }
                 SaveTombstones(tombstones);
 
-                File.WriteAllText(recordsFile, body, Encoding.UTF8);
+                SaveFileAtomic(recordsFile, body);
+                PerformDailyRollingBackup();
 
                 ThreadPool.QueueUserWorkItem(delegate(object o) {
                     PerformCloudSync();
@@ -517,7 +606,7 @@ namespace WakyDesktop
             catch (Exception ex)
             {
                 Log("Error in SaveRecordsAuthoritative: " + ex.Message);
-                File.WriteAllText(recordsFile, body, Encoding.UTF8);
+                SaveFileAtomic(recordsFile, body);
             }
         }
 
