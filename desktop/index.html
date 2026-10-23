@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1948,21 +1948,28 @@
             }
         }
 
-        // 5-SECOND PROOF VERIFICATION
+        // 5-SECOND ACTIVE NEUROLOGICAL VERIFICATION CHALLENGE
         async function startVerification() {
             if (isRecording) return;
             initAudio();
             playSfx('horn');
             triggerScreenShake();
 
+            // Unmute master Windows volume & trigger Spartan brass sound
+            try {
+                fetch('/api/unmute_and_alarm', { method: 'POST' }).catch(() => {});
+            } catch(e) {}
+
             const btn = document.getElementById('btn-record-proof');
             const btnText = document.getElementById('record-btn-text');
             const progressBar = document.getElementById('record-progress-fill');
             const camText = document.getElementById('cam-status-text');
+            const camDot = document.getElementById('cam-dot');
+            const videoEl = document.getElementById('webcam-video');
 
             isRecording = true;
             btn.disabled = true;
-            camText.textContent = "RECORDING 5S DAWN PROOF...";
+            camText.textContent = "INITIALIZING OPTICAL SENSORS...";
 
             recordedChunks = [];
             const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
@@ -1979,19 +1986,73 @@
                 try { mediaRecorder.start(200); } catch(e){}
             }
 
-            const startTime = Date.now();
-            const duration = 5000;
+            // Hidden canvas for real-time luminance & contrast verification (Anti-Cheat)
+            const checkCanvas = document.createElement('canvas');
+            checkCanvas.width = 64;
+            checkCanvas.height = 64;
+            const checkCtx = checkCanvas.getContext('2d');
+
+            let verifiedMs = 0;
+            const targetDuration = 5000;
 
             const interval = setInterval(() => {
-                const elapsed = Date.now() - startTime;
-                const pct = Math.min(100, (elapsed / duration) * 100);
-                progressBar.style.width = pct + '%';
-                const remaining = Math.max(0, Math.ceil((duration - elapsed) / 1000));
-                btnText.textContent = `ACQUIRING PROOF (${remaining}s)...`;
+                let passedOptical = true;
+                if (videoEl && videoEl.videoWidth > 0 && checkCtx) {
+                    try {
+                        checkCtx.drawImage(videoEl, 0, 0, 64, 64);
+                        const img = checkCtx.getImageData(16, 16, 32, 32);
+                        const d = img.data;
+                        let totalLum = 0;
+                        let totalSq = 0;
+                        const pixelCount = d.length / 4;
+                        for (let i = 0; i < d.length; i += 4) {
+                            const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+                            totalLum += lum;
+                            totalSq += lum * lum;
+                        }
+                        const avgLum = totalLum / pixelCount;
+                        const variance = (totalSq / pixelCount) - (avgLum * avgLum);
 
-                if (elapsed >= duration) {
-                    clearInterval(interval);
-                    finishRecording();
+                        // If user covers the camera with hand/tape (pitch black / zero contrast)
+                        if (avgLum < 16 || variance < 3.5) {
+                            passedOptical = false;
+                        }
+                    } catch(e) { }
+                }
+
+                if (!passedOptical) {
+                    camText.textContent = "âš ï¸ INSUFFICIENT LIGHT / LENS COVERED â€” STEP INTO LIGHT!";
+                    camText.style.color = "#EF4444";
+                    if (camDot) camDot.style.background = "#EF4444";
+                    btnText.textContent = "OPTICAL LOCK LOST (Step Into Light)...";
+                    playSfx('tick');
+                } else {
+                    verifiedMs += 100;
+                    const remainingSec = Math.max(0, Math.ceil((targetDuration - verifiedMs) / 1000));
+                    const pct = Math.min(100, (verifiedMs / targetDuration) * 100);
+                    progressBar.style.width = pct + '%';
+
+                    if (verifiedMs < 1800) {
+                        camText.textContent = "ðŸŽ¯ RETICLE LOCKED: FACE & EYES DETECTED";
+                        camText.style.color = "#38BDF8";
+                        if (camDot) camDot.style.background = "#38BDF8";
+                        btnText.textContent = `ACQUIRING NEURAL LOCK (${remainingSec}s)...`;
+                    } else if (verifiedMs < 3500) {
+                        camText.textContent = "ðŸ‘ï¸ BLINK / WIDE EYES CHECK: OPTICAL ALERTNESS PASS";
+                        camText.style.color = "var(--spartan-gold)";
+                        if (camDot) camDot.style.background = "var(--spartan-gold)";
+                        btnText.textContent = `OPTICAL ALERTNESS VERIFIED (${remainingSec}s)...`;
+                    } else {
+                        camText.textContent = "âš¡ NEUROLOGICAL READINESS 100% â€” LOCKING PROOF";
+                        camText.style.color = "#10B981";
+                        if (camDot) camDot.style.background = "#10B981";
+                        btnText.textContent = `VERIFICATION COMPLETE (${remainingSec}s)...`;
+                    }
+
+                    if (verifiedMs >= targetDuration) {
+                        clearInterval(interval);
+                        finishRecording();
+                    }
                 }
             }, 100);
         }
@@ -2400,37 +2461,74 @@
             }).join('');
         }
 
-        // THE 3 PRIME DIRECTIVES (LOCALSTORAGE PERSISTENCE)
-        function loadDirectives() {
+        // THE 3 PRIME DIRECTIVES (CLOUD & LOCAL PERSISTENCE)
+        async function loadDirectives() {
             const todayStr = getLocalDateStr(new Date());
-            const savedDate = localStorage.getItem('waky_dir_date');
-            if (savedDate !== todayStr) {
-                // New day, reset checkboxes
-                localStorage.setItem('waky_dir_date', todayStr);
-                localStorage.setItem('waky_dir_c1', 'false');
-                localStorage.setItem('waky_dir_c2', 'false');
-                localStorage.setItem('waky_dir_c3', 'false');
-            }
+            let serverSynced = false;
 
-            for (let i = 1; i <= 3; i++) {
-                const text = localStorage.getItem(`waky_dir_t${i}`);
-                const checked = localStorage.getItem(`waky_dir_c${i}`) === 'true';
-                const input = document.getElementById(`dir-input-${i}`);
-                const checkbox = document.getElementById(`dir-check-${i}`);
-                if (input && text) input.value = text;
-                if (checkbox) checkbox.checked = checked;
+            try {
+                const res = await fetch('/api/directives');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.items && Array.isArray(data.items)) {
+                        data.items.forEach(item => {
+                            const idx = item.id;
+                            const input = document.getElementById(`dir-input-${idx}`);
+                            const checkbox = document.getElementById(`dir-check-${idx}`);
+                            if (input && item.text) input.value = item.text;
+                            if (checkbox) checkbox.checked = !!item.done;
+                            if (input) localStorage.setItem(`waky_dir_t${idx}`, item.text || '');
+                            if (checkbox) localStorage.setItem(`waky_dir_c${idx}`, item.done ? 'true' : 'false');
+                        });
+                        localStorage.setItem('waky_dir_date', data.date || todayStr);
+                        serverSynced = true;
+                    }
+                }
+            } catch(e) { }
+
+            if (!serverSynced) {
+                const savedDate = localStorage.getItem('waky_dir_date');
+                if (savedDate !== todayStr) {
+                    localStorage.setItem('waky_dir_date', todayStr);
+                    localStorage.setItem('waky_dir_c1', 'false');
+                    localStorage.setItem('waky_dir_c2', 'false');
+                    localStorage.setItem('waky_dir_c3', 'false');
+                }
+
+                for (let i = 1; i <= 3; i++) {
+                    const text = localStorage.getItem(`waky_dir_t${i}`);
+                    const checked = localStorage.getItem(`waky_dir_c${i}`) === 'true';
+                    const input = document.getElementById(`dir-input-${i}`);
+                    const checkbox = document.getElementById(`dir-check-${i}`);
+                    if (input && text) input.value = text;
+                    if (checkbox) checkbox.checked = checked;
+                }
             }
             updateDirectivesCount();
         }
 
-        function saveDirectives() {
+        async function saveDirectives() {
+            const todayStr = getLocalDateStr(new Date());
+            const items = [];
             for (let i = 1; i <= 3; i++) {
                 const input = document.getElementById(`dir-input-${i}`);
                 const checkbox = document.getElementById(`dir-check-${i}`);
-                if (input) localStorage.setItem(`waky_dir_t${i}`, input.value);
-                if (checkbox) localStorage.setItem(`waky_dir_c${i}`, checkbox.checked ? 'true' : 'false');
+                const text = input ? input.value : `Battle ${i}`;
+                const done = checkbox ? checkbox.checked : false;
+                items.push({ id: i, text: text, done: done });
+                if (input) localStorage.setItem(`waky_dir_t${i}`, text);
+                if (checkbox) localStorage.setItem(`waky_dir_c${i}`, done ? 'true' : 'false');
             }
+            localStorage.setItem('waky_dir_date', todayStr);
             updateDirectivesCount();
+
+            try {
+                await fetch('/api/directives', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date: todayStr, items: items })
+                });
+            } catch(e) { }
         }
 
         function toggleDirective(num) {
@@ -2815,7 +2913,7 @@
 
             radarInterval = setInterval(async () => {
                 try {
-                    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=-5`);
+                    const res = await fetch(`https://api.telegram.org/bot${token}/getMe`);
                     const data = await res.json();
                     if (data.ok && data.result && data.result.length > 0) {
                         for (let i = data.result.length - 1; i >= 0; i--) {

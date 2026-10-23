@@ -18,6 +18,7 @@ namespace WakyDesktop
         private static string recordsFile;
         private static string configFile;
         private static string tombstonesFile;
+        private static string directivesFile;
         private static string backupsDir;
         private static HttpListener listener;
         private static int port = 48999;
@@ -26,6 +27,31 @@ namespace WakyDesktop
         private static string sshKeyPath;
         private static readonly string remoteHost = "ubuntu@92.5.93.119";
         private static readonly string remoteMemoryPath = "/opt/waky-bot/waky_memory.json";
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+        private const byte VK_VOLUME_UP = 0xAF;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
+
+        public static void UnmuteAndBoostVolume()
+        {
+            try
+            {
+                for (int i = 0; i < 25; i++)
+                {
+                    keybd_event(VK_VOLUME_UP, 0, 0, UIntPtr.Zero);
+                    keybd_event(VK_VOLUME_UP, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    Thread.Sleep(5);
+                }
+                ThreadPool.QueueUserWorkItem(delegate(object o) {
+                    try { System.Media.SystemSounds.Exclamation.Play(); } catch { }
+                });
+            }
+            catch (Exception ex)
+            {
+                Log("Error in UnmuteAndBoostVolume: " + ex.Message);
+            }
+        }
 
         private static void Log(string msg)
         {
@@ -55,6 +81,7 @@ namespace WakyDesktop
                 recordsFile = Path.Combine(appDir, "wake_records.json");
                 configFile = Path.Combine(appDir, "waky_config.json");
                 tombstonesFile = Path.Combine(appDir, "deleted_dates.json");
+                directivesFile = Path.Combine(appDir, "directives.json");
                 backupsDir = Path.Combine(appDir, "backups");
 
                 string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -64,6 +91,12 @@ namespace WakyDesktop
                 if (!Directory.Exists(backupsDir)) Directory.CreateDirectory(backupsDir);
                 if (!File.Exists(recordsFile)) SaveFileAtomic(recordsFile, "[]");
                 if (!File.Exists(tombstonesFile)) SaveFileAtomic(tombstonesFile, "[]");
+                if (!File.Exists(directivesFile))
+                {
+                    string todayStr = DateTime.UtcNow.AddHours(3).ToString("yyyy-MM-dd");
+                    string defDirs = string.Format("{{\"date\":\"{0}\",\"items\":[{{\"id\":1,\"text\":\"Deep Work 90m Focus Block\",\"done\":false}},{{\"id\":2,\"text\":\"Physical Agoge (45m Training)\",\"done\":false}},{{\"id\":3,\"text\":\"Kingdom Project Execution\",\"done\":false}}]}}", todayStr);
+                    SaveFileAtomic(directivesFile, defDirs);
+                }
                 if (!File.Exists(configFile))
                 {
                     string defConfig = "{\"targetTime\":\"07:00\",\"tgToken\":\"8814364854:AAE3HpffTsEX3x6xnl74Fx0Lff6OxOxeTeA\",\"tgChatId\":\"1900611848\",\"botUsername\":\"wakyyyy_bot\",\"paired\":true}";
@@ -390,6 +423,31 @@ namespace WakyDesktop
                     byte[] bytes = Encoding.UTF8.GetBytes(responseJson);
                     SendBytes(ctx, bytes, "application/json; charset=utf-8", 200);
                 }
+                else if (path == "/api/unmute_and_alarm" && ctx.Request.HttpMethod == "POST")
+                {
+                    UnmuteAndBoostVolume();
+                    byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true,\"volume\":\"boosted\"}");
+                    SendBytes(ctx, bytes, "application/json", 200);
+                }
+                else if (path == "/api/directives" && ctx.Request.HttpMethod == "GET")
+                {
+                    string json = File.Exists(directivesFile) ? File.ReadAllText(directivesFile, Encoding.UTF8) : "{}";
+                    byte[] bytes = Encoding.UTF8.GetBytes(json);
+                    SendBytes(ctx, bytes, "application/json; charset=utf-8", 200);
+                }
+                else if (path == "/api/directives" && ctx.Request.HttpMethod == "POST")
+                {
+                    using (var reader = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
+                    {
+                        string body = reader.ReadToEnd();
+                        SaveFileAtomic(directivesFile, body);
+                        ThreadPool.QueueUserWorkItem(delegate(object o) {
+                            PerformCloudSync();
+                        });
+                    }
+                    byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true}");
+                    SendBytes(ctx, bytes, "application/json", 200);
+                }
                 else
                 {
                     SendBytes(ctx, Encoding.UTF8.GetBytes("Not Found"), "text/plain", 404);
@@ -591,6 +649,8 @@ namespace WakyDesktop
                     File.Copy(configFile, Path.Combine(gdriveBackup, "waky_config.json"), true);
                 if (File.Exists(tombstonesFile))
                     File.Copy(tombstonesFile, Path.Combine(gdriveBackup, "deleted_dates.json"), true);
+                if (File.Exists(directivesFile))
+                    File.Copy(directivesFile, Path.Combine(gdriveBackup, "directives.json"), true);
 
                 // Sync rolling backups history
                 if (Directory.Exists(backupsDir))
@@ -934,6 +994,36 @@ namespace WakyDesktop
                     }
                 }
                 cloudObj["total_on_time"] = onTimeCount;
+
+                // Sync 3 Prime Directives between Desktop and Cloud
+                try
+                {
+                    if (File.Exists(directivesFile))
+                    {
+                        string localDirJson = File.ReadAllText(directivesFile, Encoding.UTF8);
+                        var localDirs = serializer.Deserialize<Dictionary<string, object>>(localDirJson);
+                        if (cloudObj.ContainsKey("directives") && cloudObj["directives"] is Dictionary<string, object>)
+                        {
+                            var cloudDirs = (Dictionary<string, object>)cloudObj["directives"];
+                            string localDate = localDirs != null && localDirs.ContainsKey("date") && localDirs["date"] != null ? localDirs["date"].ToString() : "";
+                            string cloudDate = cloudDirs.ContainsKey("date") && cloudDirs["date"] != null ? cloudDirs["date"].ToString() : "";
+                            if (localDate == cloudDate)
+                            {
+                                localDirs["items"] = cloudDirs["items"];
+                                SaveFileAtomic(directivesFile, serializer.Serialize(localDirs));
+                            }
+                            else if (!string.IsNullOrEmpty(localDate))
+                            {
+                                cloudObj["directives"] = localDirs;
+                            }
+                        }
+                        else if (localDirs != null)
+                        {
+                            cloudObj["directives"] = localDirs;
+                        }
+                    }
+                }
+                catch { }
 
                 File.WriteAllText(cloudMemPath, serializer.Serialize(cloudObj), Encoding.UTF8);
             }
