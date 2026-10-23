@@ -1,0 +1,2630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAKY: Spartan King's Citadel</title>
+    <link rel="icon" type="image/x-icon" href="/waky.ico">
+    <style>
+        :root {
+            --bg-dark: #07080B;
+            --card-bg: #12141D;
+            --card-border: #232736;
+            --spartan-gold: #EAB308;
+            --spartan-gold-glow: rgba(234, 179, 8, 0.45);
+            --spartan-bronze: #C59B27;
+            --spartan-crimson: #A81A1A;
+            --crimson-dark: #780D0D;
+            --accent-green: #059669;
+            --accent-green-glow: rgba(5, 150, 105, 0.4);
+            --text-primary: #F8FAFC;
+            --text-secondary: #CBD5E1;
+            --text-muted: #64748B;
+            --glass-bg: rgba(18, 20, 29, 0.92);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            padding-bottom: 24px;
+        }
+
+        /* Screen Shake */
+        @keyframes screen-shake-anim {
+            0%, 100% { transform: translate(0, 0); }
+            20% { transform: translate(-5px, 4px) rotate(-0.5deg); }
+            40% { transform: translate(5px, -4px) rotate(0.5deg); }
+            60% { transform: translate(-4px, 2px); }
+            80% { transform: translate(4px, -1px); }
+        }
+        .screen-shake {
+            animation: screen-shake-anim 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        }
+
+        /* Embers Canvas */
+        #ember-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            padding: 12px 14px;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* TOP AUDIO BANNER */
+        .audio-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(18, 20, 29, 0.9);
+            border: 1px solid rgba(197, 155, 39, 0.35);
+            border-radius: 30px;
+            padding: 8px 14px;
+            backdrop-filter: blur(6px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn-anthem-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: none;
+            border: none;
+            color: var(--spartan-gold);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            cursor: pointer;
+            outline: none;
+        }
+        .btn-anthem-toggle:hover { color: #fff; }
+
+        .anthem-playing .anthem-icon {
+            animation: pulse-glow 1s infinite alternate;
+        }
+
+        .volume-slider {
+            width: 70px;
+            height: 4px;
+            accent-color: var(--spartan-gold);
+            cursor: pointer;
+        }
+
+        /* HEADER */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 2px;
+        }
+
+        .header-lambda {
+            font-size: 32px;
+            color: var(--spartan-gold);
+            font-weight: 900;
+            animation: pulse-glow 2s infinite ease-in-out;
+            text-shadow: 0 0 16px rgba(234, 179, 8, 0.5);
+        }
+
+        .header-title {
+            font-size: 26px;
+            font-weight: 900;
+            letter-spacing: 6px;
+            color: #FFFFFF;
+            text-transform: uppercase;
+        }
+
+        .header-tagline {
+            text-align: center;
+            font-size: 10px;
+            color: var(--spartan-bronze);
+            font-weight: 800;
+            letter-spacing: 1.6px;
+            text-transform: uppercase;
+            margin-top: -4px;
+            margin-bottom: 4px;
+        }
+
+        /* NAVIGATION TABS */
+        .nav-tabs {
+            display: flex;
+            background: #10121A;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+        }
+
+        .nav-tab-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 4px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .nav-tab-btn:hover {
+            color: var(--text-secondary);
+        }
+
+        .nav-tab-btn.active {
+            background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(197, 155, 39, 0.1));
+            color: var(--spartan-gold);
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            box-shadow: 0 2px 10px rgba(234, 179, 8, 0.15);
+        }
+
+        /* TAB PANES */
+        .tab-pane {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .tab-pane.active {
+            display: flex;
+        }
+
+        /* CARD BASE */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        .card:hover {
+            border-color: rgba(197, 155, 39, 0.4);
+        }
+
+        /* STREAK & WARRIOR RANK CARD */
+        .streak-card {
+            border: 1px solid rgba(197, 155, 39, 0.45);
+            background: linear-gradient(180deg, #171A26, var(--card-bg));
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(234, 179, 8, 0.2);
+        }
+
+        .streak-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .streak-label {
+            font-size: 11px;
+            color: var(--spartan-bronze);
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .streak-number {
+            font-size: 44px;
+            font-weight: 900;
+            color: var(--spartan-gold);
+            line-height: 1.1;
+            margin-top: 2px;
+            text-shadow: 0 0 18px rgba(234, 179, 8, 0.4);
+        }
+
+        .streak-status-badge {
+            background: rgba(5, 150, 105, 0.15);
+            border: 1px solid var(--accent-green);
+            color: #34D399;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            box-shadow: 0 0 10px rgba(5, 150, 105, 0.25);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .rank-info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-top: 12px;
+            font-weight: 700;
+        }
+
+        .rank-title {
+            color: #FFFFFF;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .next-milestone {
+            color: var(--spartan-bronze);
+            font-size: 11px;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: #0B0D13;
+            border-radius: 6px;
+            margin-top: 6px;
+            overflow: hidden;
+            border: 1px solid #1C202E;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--spartan-bronze), var(--spartan-gold));
+            border-radius: 6px;
+            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 0 12px rgba(234, 179, 8, 0.6);
+        }
+
+        /* CLOCK & TARGET STRIP */
+        .clock-strip {
+            background: linear-gradient(135deg, rgba(34, 25, 12, 0.85), rgba(17, 24, 39, 0.85));
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            border-radius: 12px;
+            padding: 10px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .current-clock {
+            font-size: 20px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #FFFFFF;
+            letter-spacing: 1px;
+        }
+
+        .target-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(234, 179, 8, 0.15);
+            border: 1px solid var(--spartan-gold);
+            color: var(--spartan-gold);
+            font-size: 11px;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+        }
+
+        /* WEBCAM HUD RETICLE */
+        .camera-viewport {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+        }
+
+        .camera-viewport.recording {
+            border-color: var(--spartan-crimson);
+            box-shadow: 0 0 25px rgba(168, 26, 26, 0.6);
+        }
+
+        .camera-viewport.conquered {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 25px rgba(5, 150, 105, 0.5);
+        }
+
+        #webcam-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        /* CYBER HUD CORNERS */
+        .hud-corner {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-color: var(--spartan-gold);
+            pointer-events: none;
+            z-index: 4;
+        }
+        .hud-tl { top: 10px; left: 10px; border-top: 2px solid var(--spartan-gold); border-left: 2px solid var(--spartan-gold); }
+        .hud-tr { top: 10px; right: 10px; border-top: 2px solid var(--spartan-gold); border-right: 2px solid var(--spartan-gold); }
+        .hud-bl { bottom: 10px; left: 10px; border-bottom: 2px solid var(--spartan-gold); border-left: 2px solid var(--spartan-gold); }
+        .hud-br { bottom: 10px; right: 10px; border-bottom: 2px solid var(--spartan-gold); border-right: 2px solid var(--spartan-gold); }
+
+        /* SCANNER LASER */
+        .scanner-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #EAB308, #EF4444, #EAB308, transparent);
+            box-shadow: 0 0 12px #EAB308;
+            top: 0;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 6;
+        }
+
+        .camera-viewport.recording .scanner-line {
+            opacity: 1;
+            animation: scan-sweep 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes scan-sweep {
+            0% { top: 5%; }
+            100% { top: 92%; }
+        }
+
+        .hud-face-target {
+            width: 140px;
+            height: 170px;
+            border: 2px dashed rgba(234, 179, 8, 0.4);
+            border-radius: 70px;
+            position: absolute;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 12px;
+        }
+
+        .hud-face-label {
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--spartan-gold);
+            background: rgba(0, 0, 0, 0.65);
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .cam-pill {
+            position: absolute;
+            top: 14px;
+            left: 32px;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 5;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10B981;
+            display: inline-block;
+        }
+        .live-dot.rec {
+            background: #EF4444;
+            animation: blink 0.8s infinite;
+        }
+
+        /* 3-2-1 OVERLAY */
+        .countdown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(7, 8, 11, 0.82);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        .countdown-number {
+            font-size: 76px;
+            font-weight: 900;
+            color: var(--spartan-gold);
+            text-shadow: 0 0 30px var(--spartan-gold-glow);
+            animation: pop-in 0.4s ease-out;
+        }
+
+        .countdown-prompt {
+            font-size: 12px;
+            font-weight: 800;
+            color: #FFFFFF;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        /* PROGRESS TIMER */
+        .record-progress-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .record-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--spartan-crimson), var(--spartan-gold));
+            transition: width 0.08s linear;
+        }
+
+        /* BUTTONS */
+        .btn-war-record {
+            width: 100%;
+            background: linear-gradient(135deg, var(--spartan-crimson), var(--crimson-dark));
+            border: 1px solid var(--spartan-gold);
+            color: #FFFFFF;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 900;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 4px 22px rgba(168, 26, 26, 0.55);
+            transition: all 0.15s ease-out;
+            margin-top: 12px;
+        }
+
+        .btn-war-record:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 28px rgba(168, 26, 26, 0.7);
+        }
+
+        .btn-war-record:active {
+            transform: scale(0.98);
+        }
+
+        /* CONQUERED BANNER */
+        .conquered-banner {
+            background: linear-gradient(135deg, rgba(5, 150, 105, 0.18), rgba(4, 120, 87, 0.3));
+            border: 1px solid var(--accent-green);
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            display: none;
+            margin-top: 12px;
+            box-shadow: 0 0 20px rgba(5, 150, 105, 0.3);
+        }
+
+        .conquered-title {
+            font-size: 15px;
+            font-weight: 900;
+            color: #34D399;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        /* THE KING'S PRIME DIRECTIVE CARD */
+        .directive-card {
+            background: linear-gradient(135deg, rgba(34, 25, 12, 0.95), rgba(17, 24, 39, 0.95));
+            border: 1px solid rgba(234, 179, 8, 0.5);
+            border-left: 4px solid var(--spartan-gold);
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .directive-title {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--spartan-gold);
+            letter-spacing: 0.8px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .directive-quote {
+            font-size: 12px;
+            color: #FFFFFF;
+            font-style: italic;
+            line-height: 1.5;
+        }
+
+        /* RANK TIERS CARDS (KING'S THRONE TAB) */
+        .tier-card {
+            background: #151824;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+
+        .tier-card.active {
+            border-color: var(--spartan-gold);
+            background: linear-gradient(135deg, rgba(34, 25, 12, 0.6), #151824);
+            box-shadow: 0 4px 16px rgba(234, 179, 8, 0.15);
+        }
+
+        .tier-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tier-name {
+            font-size: 13px;
+            font-weight: 900;
+            color: #FFFFFF;
+        }
+
+        .tier-badge {
+            font-size: 9px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tier-badge.unlocked {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+            border: 1px solid #22c55e;
+        }
+
+        .tier-badge.locked {
+            background: rgba(100, 116, 139, 0.2);
+            color: #94a3b8;
+            border: 1px solid #475569;
+        }
+
+        .tier-desc {
+            font-size: 11px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* KPI STATS GRID */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .stat-val {
+            font-size: 22px;
+            font-weight: 900;
+            color: #FFFFFF;
+            font-variant-numeric: tabular-nums;
+            margin-top: 4px;
+        }
+        .stat-val.gold { color: var(--spartan-gold); }
+        .stat-val.green { color: #34D399; }
+
+        .stat-label {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* 7-DAY CHART */
+        .chart-container {
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 95px;
+            padding-top: 16px;
+            border-bottom: 1px solid var(--card-border);
+            gap: 6px;
+        }
+
+        .chart-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            justify-content: flex-end;
+        }
+
+        .chart-bar {
+            width: 100%;
+            max-width: 22px;
+            border-radius: 4px 4px 0 0;
+            background: var(--card-border);
+            min-height: 4px;
+            transition: height 0.4s ease;
+        }
+
+        .chart-bar.conquered {
+            background: linear-gradient(180deg, #34D399, var(--accent-green));
+            box-shadow: 0 0 10px rgba(5, 150, 105, 0.4);
+        }
+
+        .chart-bar.late {
+            background: linear-gradient(180deg, var(--spartan-gold), #D97706);
+        }
+
+        .chart-bar.today {
+            border: 1px solid #FFF;
+        }
+
+        .chart-day {
+            font-size: 9px;
+            font-weight: 800;
+            color: var(--text-muted);
+            margin-top: 6px;
+            text-transform: uppercase;
+        }
+
+        /* HISTORY LOG */
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 240px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .history-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-badge {
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+        .badge-early {
+            background: rgba(5, 150, 105, 0.2);
+            color: #34D399;
+            border: 1px solid rgba(5, 150, 105, 0.4);
+        }
+        .badge-late {
+            background: rgba(234, 179, 8, 0.2);
+            color: var(--spartan-gold);
+            border: 1px solid rgba(234, 179, 8, 0.4);
+        }
+
+        /* TELEGRAM STRIP */
+        .tg-strip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(37, 99, 235, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #93C5FD;
+        }
+
+        /* SETTINGS INPUTS */
+        .form-group {
+            margin-bottom: 12px;
+        }
+        .form-label {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text-muted);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            display: block;
+        }
+        .form-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: #FFF;
+            font-size: 13px;
+            font-weight: 600;
+            outline: none;
+        }
+        .form-input:focus {
+            border-color: var(--spartan-gold);
+        }
+
+        .btn-action {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-action:hover {
+            border-color: var(--spartan-gold);
+            color: #FFF;
+        }
+
+        /* ANIMATIONS */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.8; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.03); }
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        @keyframes pop-in {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+        /* BRAIN & BODY REBOOT TIMELINE */
+        .timeline-container {
+            position: relative;
+            padding-left: 28px;
+            margin-top: 14px;
+        }
+
+        .timeline-line {
+            position: absolute;
+            left: 11px;
+            top: 12px;
+            bottom: 24px;
+            width: 2px;
+            background: linear-gradient(to bottom, #38bdf8, #EAB308, #22c55e, #475569);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 18px;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-node {
+            position: absolute;
+            left: -28px;
+            top: 4px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #171A26;
+            border: 2px solid #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 800;
+            z-index: 2;
+            transition: all 0.3s ease;
+        }
+
+        .timeline-item.active .timeline-node {
+            background: #38bdf8;
+            color: #000;
+            border-color: #fff;
+            box-shadow: 0 0 14px #38bdf8;
+            animation: pulse-glow 1.5s infinite;
+        }
+
+        .timeline-item.conquered .timeline-node {
+            background: #22c55e;
+            color: #000;
+            border-color: #86efac;
+        }
+
+        .timeline-card {
+            background: #151824;
+            border: 1px solid #272B38;
+            border-radius: 12px;
+            padding: 14px;
+            transition: all 0.25s ease;
+        }
+
+        .timeline-item.active .timeline-card {
+            border-color: #38bdf8;
+            background: linear-gradient(135deg, rgba(20, 38, 58, 0.95), rgba(18, 22, 34, 0.95));
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+            transform: scale(1.01);
+        }
+
+        .timeline-item.conquered .timeline-card {
+            border-color: rgba(34, 197, 94, 0.4);
+            background: rgba(18, 26, 22, 0.7);
+        }
+
+        .timeline-days-badge {
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .timeline-fact-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+            font-size: 11.5px;
+            line-height: 1.45;
+            color: var(--text-secondary);
+        }
+
+        .timeline-fact-icon {
+            font-size: 16px;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        /* CONSISTENCY HEATMAP & GAUGE */
+        .consistency-gauge-card {
+            background: linear-gradient(135deg, rgba(34, 25, 12, 0.95), rgba(17, 24, 39, 0.95));
+            border: 1px solid rgba(234, 179, 8, 0.5);
+            border-radius: 14px;
+            padding: 16px;
+            text-align: center;
+            position: relative;
+        }
+
+        .consistency-pct-big {
+            font-size: 46px;
+            font-weight: 900;
+            color: #34D399;
+            text-shadow: 0 0 20px rgba(52, 211, 153, 0.4);
+            line-height: 1;
+            margin: 6px 0;
+        }
+
+        .heatmap-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .heatmap-cell {
+            aspect-ratio: 1;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--text-muted);
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .heatmap-cell:hover {
+            transform: scale(1.1);
+            z-index: 5;
+        }
+        .heatmap-cell.early {
+            background: rgba(16, 185, 129, 0.3);
+            border-color: #10B981;
+            color: #34D399;
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+        }
+        .heatmap-cell.ontime {
+            background: rgba(59, 130, 246, 0.3);
+            border-color: #3B82F6;
+            color: #93C5FD;
+        }
+        .heatmap-cell.late {
+            background: rgba(245, 158, 11, 0.25);
+            border-color: #F59E0B;
+            color: #FBBF24;
+        }
+        .heatmap-cell.today-cell {
+            border: 2px solid #FFF;
+        }
+
+        /* MILESTONE TEASER BANNER */
+        .milestone-teaser {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(30, 41, 59, 0.4));
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            border-radius: 12px;
+            padding: 12px 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .milestone-teaser:hover {
+            border-color: #38bdf8;
+            box-shadow: 0 4px 16px rgba(56, 189, 248, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="ember-canvas"></canvas>
+
+    <div class="container">
+        <!-- TOP AUDIO BANNER -->
+        <div class="audio-banner">
+            <button class="btn-anthem-toggle" id="btn-anthem-toggle" onclick="toggleWarAnthem()">
+                <span class="anthem-icon" id="anthem-icon">⚔️</span>
+                <span id="anthem-label">SPARTAN WAR ANTHEM: OFF</span>
+            </button>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 10px; color: var(--spartan-bronze); font-weight: 700;">VOL</span>
+                <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="0.4" oninput="setAnthemVolume(this.value)">
+            </div>
+        </div>
+
+        <!-- HEADER -->
+        <div class="header">
+            <span class="header-lambda">👑</span>
+            <div class="header-title">WAKY</div>
+            <span class="header-lambda">Λ</span>
+        </div>
+        <div class="header-tagline">The Spartan King's Dawn Citadel</div>
+
+        <!-- STREAK & WARRIOR-TO-KING PROGRESSION CARD -->
+        <div class="card streak-card">
+            <div class="streak-header">
+                <div>
+                    <div class="streak-label">Active Sovereign Streak</div>
+                    <div class="streak-number" id="streak-number">0 <span style="font-size: 16px; color: var(--spartan-bronze);">DAYS</span></div>
+                </div>
+                <div class="streak-status-badge" id="streak-badge">
+                    <span>🛡️</span>
+                    <span id="streak-badge-text">SHIELD ACTIVE</span>
+                </div>
+            </div>
+
+            <div class="rank-info-row">
+                <span class="rank-title" id="rank-title">⚔️ Level 1: The Agoge Warrior</span>
+                <span class="next-milestone" id="next-milestone">Next: Day 3</span>
+            </div>
+
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="rank-progress-fill" style="width: 10%;"></div>
+            </div>
+        </div>
+
+        <!-- NAVIGATION TABS -->
+        <div class="nav-tabs">
+            <button class="nav-tab-btn active" id="tab-btn-warrior" onclick="switchTab('warrior')">
+                <span>⚔️</span>
+                <span>Warrior</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-milestones" onclick="switchTab('milestones')">
+                <span>🧠</span>
+                <span>Milestones</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-reports" onclick="switchTab('reports')">
+                <span>📊</span>
+                <span>Consistency</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-throne" onclick="switchTab('throne')">
+                <span>👑</span>
+                <span>Throne</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-logs" onclick="switchTab('logs')">
+                <span>📜</span>
+                <span>Logs</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-fortress" onclick="switchTab('fortress')">
+                <span>⚙️</span>
+                <span>Fortress</span>
+            </button>
+        </div>
+
+        <!-- TAB 1: WARRIOR PROTOCOL & WEBCAM -->
+        <div class="tab-pane active" id="pane-warrior">
+            <!-- NEXT BRAIN MILESTONE TEASER BANNER -->
+            <div class="milestone-teaser" onclick="switchTab('milestones')">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 24px;">🧠</span>
+                    <div>
+                        <div style="font-size: 9px; font-weight: 800; color: #38BDF8; letter-spacing: 0.8px; text-transform: uppercase;">
+                            Next Biological Transformation
+                        </div>
+                        <div style="font-size: 13px; font-weight: 900; color: #FFFFFF;" id="teaser-milestone-title">
+                            Day 3: Habit Circuit Forming
+                        </div>
+                        <div style="font-size: 10.5px; color: var(--text-secondary);" id="teaser-milestone-sub">
+                            Dopamine baseline reset & morning inertia clears • 3 days to go
+                        </div>
+                    </div>
+                </div>
+                <div style="font-size: 14px; color: #38BDF8; font-weight: 900;">➔</div>
+            </div>
+            <!-- CLOCK & TARGET -->
+            <div class="clock-strip">
+                <div>
+                    <div style="font-size: 9px; font-weight: 800; color: var(--spartan-bronze); text-transform: uppercase; letter-spacing: 1px;">Current Citadel Time</div>
+                    <div class="current-clock" id="live-clock">--:--:--</div>
+                </div>
+                <div class="target-badge" onclick="switchTab('fortress')" title="Adjust Target Time">
+                    <span>🎯 TARGET</span>
+                    <span id="target-time-display">07:00 AM</span>
+                    <span style="font-size: 10px;">✏️</span>
+                </div>
+            </div>
+
+            <!-- WEBCAM VERIFICATION HUD -->
+            <div class="card" id="webcam-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--spartan-bronze); text-transform: uppercase;">
+                        ⚔️ Proof of Sovereign Wakefulness
+                    </span>
+                    <span style="font-size: 10px; font-weight: 700; color: #38BDF8;" id="camera-fps-label">30 FPS HUD</span>
+                </div>
+
+                <div class="camera-viewport" id="cam-viewport">
+                    <!-- HUD CORNERS -->
+                    <div class="hud-corner hud-tl"></div>
+                    <div class="hud-corner hud-tr"></div>
+                    <div class="hud-corner hud-bl"></div>
+                    <div class="hud-corner hud-br"></div>
+
+                    <!-- SCANNER LINE -->
+                    <div class="scanner-line"></div>
+
+                    <!-- CAM PILL -->
+                    <div class="cam-pill">
+                        <span class="live-dot" id="cam-dot"></span>
+                        <span id="cam-status-text">INITIALIZING WEBCAM</span>
+                    </div>
+
+                    <video id="webcam-video" autoplay playsinline muted></video>
+
+                    <!-- HUD TARGET -->
+                    <div class="hud-face-target" id="hud-face-target">
+                        <div class="hud-face-label">Crown Align • 5s Proof</div>
+                    </div>
+
+                    <!-- 3-2-1 OVERLAY -->
+                    <div class="countdown-overlay" id="countdown-overlay" style="display: none;">
+                        <div class="countdown-number" id="countdown-num">3</div>
+                        <div class="countdown-prompt" id="countdown-prompt">WARRIOR READY...</div>
+                    </div>
+                </div>
+
+                <!-- PROGRESS BAR -->
+                <div class="record-progress-container" id="record-progress-cont">
+                    <div class="record-progress-bar" id="record-progress-bar"></div>
+                </div>
+
+                <!-- ACTION BUTTON -->
+                <div id="action-btn-row">
+                    <button class="btn-war-record" id="start-proof-btn" onclick="startWakeProofProtocol()">
+                        <span>📹</span>
+                        <span id="btn-text">PROVE WAKEFULNESS (5s RECORD)</span>
+                    </button>
+                </div>
+
+                <!-- CONQUERED BANNER -->
+                <div class="conquered-banner" id="conquered-banner">
+                    <div class="conquered-title">
+                        <span>👑</span>
+                        <span>TODAY CONQUERED, MY KING!</span>
+                    </div>
+                    <div style="font-size: 13px; font-weight: 700; color: #FFFFFF; margin-top: 4px;" id="conquered-time-text">Logged at --:-- AM</div>
+                    <div style="font-size: 11px; color: #A7F3D0; margin-top: 2px;">5s Video Proof delivered directly to @wakyyyy_bot.</div>
+                </div>
+
+                <!-- TELEGRAM STATUS STRIP -->
+                <div class="tg-strip" style="margin-top: 12px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 15px;">✈️</span>
+                        <div>
+                            <div style="font-size: 11px; font-weight: 800; color: #93C5FD;" id="tg-status-label">@wakyyyy_bot (PAIRED)</div>
+                            <div style="font-size: 9px; color: var(--spartan-bronze); font-weight: 700;" id="tg-chat-label">Chat ID: 1900611848</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn-action" style="padding: 4px 8px; font-size: 10px; background: rgba(56,189,248,0.15); color: #38BDF8; border-color: rgba(56,189,248,0.4);" onclick="testTelegramConnection()">⚡ Ping</button>
+                        <button class="btn-action" style="padding: 4px 8px; font-size: 10px; background: rgba(234,179,8,0.15); color: var(--spartan-gold); border-color: rgba(234,179,8,0.4);" onclick="switchTab('fortress')">🔗 Connect</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- THE KING'S PRIME DIRECTIVE BANNER -->
+            <div class="directive-card">
+                <div class="directive-title">
+                    <span>👑</span>
+                    <span>THE KING'S MORNING DIRECTIVE</span>
+                </div>
+                <div class="directive-quote">
+                    "A King does not snooze. A King rises before the sun to conquer his territory. Build the fortress first. Financial armor, cybersecurity sovereignty, and an unshakeable mind begin the second you leave the bed."
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: BRAIN & BIOLOGY REBOOT MILESTONES -->
+        <div class="tab-pane" id="pane-milestones">
+            <!-- REBOOT OVERVIEW CARD -->
+            <div class="card" style="background: linear-gradient(135deg, rgba(20, 38, 58, 0.95), rgba(18, 22, 34, 0.95)); border: 1px solid rgba(56, 189, 248, 0.5);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 11px; font-weight: 800; color: #38BDF8; letter-spacing: 0.8px;">🧠 NEUROLOGICAL REBOOT PROGRESS</span>
+                    <span id="reboot-progress-pct" style="font-size: 12px; font-weight: 900; color: #FFFFFF;">0% (DAY 0 / 90)</span>
+                </div>
+                <div class="progress-bar-container" style="height: 8px; margin: 6px 0;">
+                    <div class="progress-bar-fill" id="reboot-progress-fill" style="width: 2%; background: linear-gradient(90deg, #38BDF8, #22C55E);"></div>
+                </div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px; line-height: 1.4;">
+                    Rising before dawn physically alters neuroplasticity, clears adenosine faster, and syncs your hormone release cascade.
+                </div>
+            </div>
+
+            <!-- TIMELINE CONTAINER -->
+            <div class="timeline-container" id="milestones-timeline-cont">
+                <div class="timeline-line"></div>
+
+                <!-- MILESTONE 1 -->
+                <div class="timeline-item" id="ms-item-1">
+                    <div class="timeline-node">1</div>
+                    <div class="timeline-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="timeline-days-badge" style="background: rgba(56,189,248,0.15); color: #38BDF8; border: 1px solid rgba(56,189,248,0.4);">DAY 1</span>
+                            <span class="timeline-days-badge" id="ms-badge-1" style="background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid #475569;">LOCKED</span>
+                        </div>
+                        <div style="font-size: 13px; font-weight: 900; color: #FFF; margin-bottom: 2px;">⚡ The Spark of Willpower (CAR Activation)</div>
+                        <div style="font-size: 11px; font-weight: 700; color: #38BDF8; margin-bottom: 6px;">Snooze Reflex Crushed</div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🧠</span>
+                            <div><b>Brain Science:</b> Cortisol Awakening Response (CAR) triggers a sharp peak within 30 min of rising. Adenosine clearance accelerates.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">⚔️</span>
+                            <div><b>Masculine Edge:</b> You told your body who is master on the very first second of the day.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">☕</span>
+                            <div style="color: var(--spartan-gold);"><b>King's Spoils:</b> First morning triumph espresso or artisanal green tea.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MILESTONE 3 -->
+                <div class="timeline-item" id="ms-item-3">
+                    <div class="timeline-node">3</div>
+                    <div class="timeline-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="timeline-days-badge" style="background: rgba(56,189,248,0.15); color: #38BDF8; border: 1px solid rgba(56,189,248,0.4);">DAY 3</span>
+                            <span class="timeline-days-badge" id="ms-badge-3" style="background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid #475569;">LOCKED</span>
+                        </div>
+                        <div style="font-size: 13px; font-weight: 900; color: #FFF; margin-bottom: 2px;">🧪 Habit Circuit Forming (Dopamine Reset)</div>
+                        <div style="font-size: 11px; font-weight: 700; color: #38BDF8; margin-bottom: 6px;">Basal Ganglia Encoding</div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🧠</span>
+                            <div><b>Brain Science:</b> The basal ganglia begins encoding the 5s webcam verification loop. Morning inertia and brain fog reduce by 35%.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">⚔️</span>
+                            <div><b>Masculine Edge:</b> Waking up no longer feels like an existential crisis—it feels like an operational procedure.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🥛</span>
+                            <div style="color: var(--spartan-gold);"><b>King's Spoils:</b> Fresh fruit smoothie or artisanal yogurt (iaurt) morning treat.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MILESTONE 7 -->
+                <div class="timeline-item" id="ms-item-7">
+                    <div class="timeline-node">7</div>
+                    <div class="timeline-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="timeline-days-badge" style="background: rgba(234,179,8,0.15); color: var(--spartan-gold); border: 1px solid rgba(234,179,8,0.4);">DAY 7 (1 WEEK)</span>
+                            <span class="timeline-days-badge" id="ms-badge-7" style="background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid #475569;">LOCKED</span>
+                        </div>
+                        <div style="font-size: 13px; font-weight: 900; color: #FFF; margin-bottom: 2px;">🌅 Circadian Master Clock Sync (SCN)</div>
+                        <div style="font-size: 11px; font-weight: 700; color: var(--spartan-gold); margin-bottom: 6px;">Suprachiasmatic Nucleus Lock</div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🧠</span>
+                            <div><b>Brain Science:</b> Your master circadian clock (SCN) hardwires to dawn. Core body temperature begins rising 45 minutes before alarm. Eyes open effortlessly.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">⚔️</span>
+                            <div><b>Masculine Edge:</b> You now have 7 extra hours of deep focus before the rest of the world wakes up.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🌯</span>
+                            <div style="color: var(--spartan-gold);"><b>King's Spoils:</b> The Legendary 1-Week Kebab / Loaded Shawarma King's Feast!</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MILESTONE 14 -->
+                <div class="timeline-item" id="ms-item-14">
+                    <div class="timeline-node">14</div>
+                    <div class="timeline-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="timeline-days-badge" style="background: rgba(234,179,8,0.15); color: var(--spartan-gold); border: 1px solid rgba(234,179,8,0.4);">DAY 14 (2 WEEKS)</span>
+                            <span class="timeline-days-badge" id="ms-badge-14" style="background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid #475569;">LOCKED</span>
+                        </div>
+                        <div style="font-size: 13px; font-weight: 900; color: #FFF; margin-bottom: 2px;">👁️ The Spartan Gaze & Peak Testosterone</div>
+                        <div style="font-size: 11px; font-weight: 700; color: var(--spartan-gold); margin-bottom: 6px;">Slow-Wave Sleep Synchrony</div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🧠</span>
+                            <div><b>Brain Science:</b> Deep slow-wave sleep (SWS) cycles synchronize. Morning testosterone surge peaks between 06:00 and 08:00 AM. Zero afternoon crashes.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">⚔️</span>
+                            <div><b>Masculine Edge:</b> Piercing clarity in your eyes. Mental fatigue no longer dictates your decisions.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🍕</span>
+                            <div style="color: var(--spartan-gold);"><b>King's Spoils:</b> The King's Table: Gourmet artisan pizza or double smash burger.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MILESTONE 21 -->
+                <div class="timeline-item" id="ms-item-21">
+                    <div class="timeline-node">21</div>
+                    <div class="timeline-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="timeline-days-badge" style="background: rgba(34,197,94,0.15); color: #22C55E; border: 1px solid rgba(34,197,94,0.4);">DAY 21 (3 WEEKS)</span>
+                            <span class="timeline-days-badge" id="ms-badge-21" style="background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid #475569;">LOCKED</span>
+                        </div>
+                        <div style="font-size: 13px; font-weight: 900; color: #FFF; margin-bottom: 2px;">🧬 Neural Pathway Myelination (The Habit Fortress)</div>
+                        <div style="font-size: 11px; font-weight: 700; color: #22C55E; margin-bottom: 6px;">Zero Willpower Friction</div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🧠</span>
+                            <div><b>Brain Science:</b> Oligodendrocytes wrap myelin around the neural pathway of rising. The resistance of getting out of bed drops to near ZERO.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">⚔️</span>
+                            <div><b>Masculine Edge:</b> What takes other men monumental willpower is now your automatic morning baseline.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🛍️</span>
+                            <div style="color: var(--spartan-gold);"><b>King's Spoils:</b> Warrior Gear Upgrade: New cologne, athletic apparel, or grooming kit.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MILESTONE 30 -->
+                <div class="timeline-item" id="ms-item-30">
+                    <div class="timeline-node">30</div>
+                    <div class="timeline-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="timeline-days-badge" style="background: rgba(234,179,8,0.2); color: var(--spartan-gold); border: 1px solid var(--spartan-gold);">DAY 30 (1 MONTH)</span>
+                            <span class="timeline-days-badge" id="ms-badge-30" style="background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid #475569;">LOCKED</span>
+                        </div>
+                        <div style="font-size: 13px; font-weight: 900; color: #FFF; margin-bottom: 2px;">👑 The Sovereign King's Transmutation</div>
+                        <div style="font-size: 11px; font-weight: 700; color: var(--spartan-gold); margin-bottom: 6px;">Default Mode Network Shift</div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🧠</span>
+                            <div><b>Brain Science:</b> Complete neurological identity shift. Your Default Mode Network (DMN) permanently recognizes you as an early-riser.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">⚔️</span>
+                            <div><b>Masculine Edge:</b> You own the morning. You rule your realm without hesitation.</div>
+                        </div>
+                        <div class="timeline-fact-row">
+                            <span class="timeline-fact-icon">🥩</span>
+                            <div style="color: var(--spartan-gold);"><b>King's Spoils:</b> Royal Agoge Banquet: High-end steakhouse feast or celebration.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: KING'S THRONE (RANKS & ROADMAP) -->
+        <div class="tab-pane" id="pane-throne">
+            <div class="directive-card">
+                <div class="directive-title">👑 THE WARRIOR-TO-KING ROADMAP</div>
+                <div class="directive-quote">
+                    "Every sunrise conquered is territory claimed. Rise consecutively to level your rank from an Agoge recruit into an Immortal Sovereign King."
+                </div>
+            </div>
+
+            <!-- TIER 1 -->
+            <div class="tier-card" id="tier-1-card">
+                <div class="tier-header">
+                    <span class="tier-name">⚔️ TIER 1: The Agoge Warrior (Days 1–3)</span>
+                    <span class="tier-badge unlocked">ACTIVE / UNLOCKED</span>
+                </div>
+                <div class="tier-desc">
+                    Initial trial by fire. Eliminating the morning fog and breaking the snooze habit permanently.
+                </div>
+            </div>
+
+            <!-- TIER 2 -->
+            <div class="tier-card" id="tier-2-card">
+                <div class="tier-header">
+                    <span class="tier-name">🛡️ TIER 2: The Spartan Hoplite (Days 4–7)</span>
+                    <span class="tier-badge locked" id="tier-2-badge">LOCKED (4 DAYS)</span>
+                </div>
+                <div class="tier-desc">
+                    1 Full week of relentless discipline. Morning cortisol optimized, energy levels surging at dawn.
+                </div>
+            </div>
+
+            <!-- TIER 3 -->
+            <div class="tier-card" id="tier-3-card">
+                <div class="tier-header">
+                    <span class="tier-name">⚡ TIER 3: The Centurion Commander (Days 8–14)</span>
+                    <span class="tier-badge locked" id="tier-3-badge">LOCKED (8 DAYS)</span>
+                </div>
+                <div class="tier-desc">
+                    Two weeks unbroken streak. Unflinching piercing focus ('The Spartan Gaze'). Complete mental sovereignty.
+                </div>
+            </div>
+
+            <!-- TIER 4 -->
+            <div class="tier-card" id="tier-4-card">
+                <div class="tier-header">
+                    <span class="tier-name">🔥 TIER 4: The Citadel Warlord (Days 15–29)</span>
+                    <span class="tier-badge locked" id="tier-4-badge">LOCKED (15 DAYS)</span>
+                </div>
+                <div class="tier-desc">
+                    High-tier masculine dominance. Waking before dawn is now subconscious second nature.
+                </div>
+            </div>
+
+            <!-- TIER 5 -->
+            <div class="tier-card" id="tier-5-card">
+                <div class="tier-header">
+                    <span class="tier-name">👑 TIER 5: The Sovereign King (Day 30+)</span>
+                    <span class="tier-badge locked" id="tier-5-badge">LOCKED (30 DAYS)</span>
+                </div>
+                <div class="tier-desc">
+                    Immortal Crown. Complete mastery over your body, time, and destiny. You rule your realm without apology.
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: WAR REPORTS & ANALYTICS -->
+        <div class="tab-pane" id="pane-reports">
+            <!-- MASTER CONSISTENCY SCORE GAUGE -->
+            <div class="consistency-gauge-card">
+                <div style="font-size: 11px; font-weight: 800; letter-spacing: 1.2px; color: var(--spartan-gold); text-transform: uppercase;">
+                    🎯 Master On-Time Consistency Index
+                </div>
+                <div class="consistency-pct-big" id="consistency-score-num">100%</div>
+                <div id="consistency-rating-badge" style="font-size: 11px; font-weight: 900; color: #34D399; letter-spacing: 1px; text-transform: uppercase;">
+                    👑 SOVEREIGN KING LEVEL
+                </div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 6px;">
+                    Calculated from daily on-time wakeups, streak momentum, and morning variance.
+                </div>
+            </div>
+
+            <!-- KPI METRICS GRID -->
+            <div class="card">
+                <div style="font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--spartan-gold); text-transform: uppercase; margin-bottom: 12px;">
+                    📊 Discipline Performance Telemetry
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">🔥 Current Streak</div>
+                        <div class="stat-val gold" id="report-streak">0 DAYS</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">⏱️ Avg Wake Time</div>
+                        <div class="stat-val" id="report-avg-time">--:--</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">🎯 On-Time Victory</div>
+                        <div class="stat-val green" id="report-ontime-rate">100%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">⚡ Hours Saved</div>
+                        <div class="stat-val gold" id="report-hours-saved">0.0 hrs</div>
+                    </div>
+                </div>
+
+                <!-- 14-DAY WAKE TREND GRAPH -->
+                <div style="margin-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 10px; font-weight: 800; color: var(--spartan-bronze); text-transform: uppercase; letter-spacing: 0.8px;">
+                            14-Day Dawn Wake Trend
+                        </span>
+                        <span style="font-size: 9px; font-weight: 700; color: #38BDF8;">Target: <span id="chart-target-label">07:00 AM</span></span>
+                    </div>
+                    <div class="chart-container" id="chart-container" style="height: 105px;"></div>
+                </div>
+
+                <!-- 30-DAY CONQUEST HEATMAP -->
+                <div style="margin-top: 18px;">
+                    <div style="font-size: 10px; font-weight: 800; color: var(--spartan-bronze); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px;">
+                        30-Day Dawn Conquest Heatmap
+                    </div>
+                    <div class="heatmap-grid" id="heatmap-grid">
+                        <!-- Filled dynamically -->
+                    </div>
+                    <div style="display: flex; justify-content: center; gap: 12px; margin-top: 8px; font-size: 9.5px; font-weight: 700; color: var(--text-muted);">
+                        <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: #10B981; display: inline-block;"></span> Early Bird</span>
+                        <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: #3B82F6; display: inline-block;"></span> On-Time</span>
+                        <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 2px; background: #F59E0B; display: inline-block;"></span> Over Target</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: WAR LOGS (HISTORY) -->
+        <div class="tab-pane" id="pane-logs">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <span style="font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--spartan-gold); text-transform: uppercase;">
+                        📜 Dawn Conquest Chronicles
+                    </span>
+                    <button class="btn-action" style="padding: 4px 8px; font-size: 10px;" onclick="exportHistory()">Export JSON</button>
+                </div>
+
+                <div class="history-list" id="history-list">
+                    <div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 24px 0;">
+                        No chronicle records yet. Record your first 5-second proof tomorrow dawn!
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: FORTRESS SETTINGS -->
+        <div class="tab-pane" id="pane-fortress">
+            <!-- 1-CLICK BOT PAIRING STATION -->
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <span style="font-size: 12px; font-weight: 800; letter-spacing: 1px; color: var(--spartan-gold); text-transform: uppercase;">
+                        🤖 Telegram Bot Pairing Station
+                    </span>
+                    <span class="tier-badge unlocked" id="tg-conn-badge">PAIRED & ACTIVE ✅</span>
+                </div>
+
+                <div style="background: rgba(34, 25, 12, 0.9); border: 1px solid rgba(234, 179, 8, 0.4); border-radius: 12px; padding: 14px; margin-bottom: 14px; text-align: center;">
+                    <div style="font-size: 13px; font-weight: 900; color: #FFFFFF; margin-bottom: 4px;">👑 1-CLICK TELEGRAM CONNECT</div>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">
+                        Open <b>@wakyyyy_bot</b> in Telegram on your phone or PC, tap <b>START</b> or send any message. WAKY will auto-pair with your account in real-time!
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <a href="https://t.me/wakyyyy_bot" target="_blank" class="btn-action" style="flex: 1; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 6px; background: rgba(37,99,235,0.25); color: #93C5FD; border-color: rgba(59,130,246,0.5);">
+                            <span>💬</span>
+                            <span>Open @wakyyyy_bot</span>
+                        </a>
+                        <button class="btn-action" id="btn-scan-tg" style="flex: 1; background: linear-gradient(135deg, var(--spartan-gold), #B45309); color: #000; font-weight: 900; border: none; cursor: pointer;" onclick="startTelegramRadarScan()">
+                            <span id="scan-icon">🛰️</span>
+                            <span id="scan-label">Auto-Detect Signal</span>
+                        </button>
+                    </div>
+                    <div id="radar-status" style="font-size: 11px; font-weight: 700; color: var(--spartan-gold); margin-top: 10px; display: none;">
+                        <span class="live-dot" style="background: var(--spartan-gold); animation: blink 0.6s infinite;"></span>
+                        <span>Listening for signal from @wakyyyy_bot... Send /start now!</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">🎯 Target Dawn Alarm Time</label>
+                    <input type="time" class="form-input" id="cfg-target-time" value="07:00">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">🤖 Telegram Bot Token</label>
+                    <input type="text" class="form-input" id="cfg-tg-token" value="8814364854:AAE3HpffTsEX3x6xnl74Fx0Lff6OxOxeTeA">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">👤 Spartan Telegram Chat ID</label>
+                    <input type="text" class="form-input" id="cfg-tg-chatid" value="1900611848">
+                </div>
+
+                <div style="display: flex; gap: 8px; margin-top: 14px;">
+                    <button class="btn-action" style="flex: 1;" onclick="testTelegramConnection()">⚡ Send Test Signal</button>
+                    <button class="btn-action" style="flex: 1; background: linear-gradient(135deg, var(--accent-green), #047857); color: #fff; border-color: var(--accent-green);" onclick="saveFortressSettings()">💾 Save Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPARTAN AUDIO SYNTHESIZER & WAR DRUMS -->
+    <script>
+        let audioCtx = null;
+        let warAnthemActive = false;
+        let anthemGainNode = null;
+        let anthemDroneOsc = null;
+        let anthemInterval = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // AMBIENT SPARTAN WAR DRUM GENERATOR
+        function toggleWarAnthem() {
+            initAudio();
+            warAnthemActive = !warAnthemActive;
+            const btn = document.getElementById('btn-anthem-toggle');
+            const label = document.getElementById('anthem-label');
+
+            if (warAnthemActive) {
+                btn.classList.add('anthem-playing');
+                label.textContent = "SPARTAN WAR ANTHEM: PLAYING";
+                startWarAnthemSound();
+            } else {
+                btn.classList.remove('anthem-playing');
+                label.textContent = "SPARTAN WAR ANTHEM: OFF";
+                stopWarAnthemSound();
+            }
+        }
+
+        function startWarAnthemSound() {
+            try {
+                anthemGainNode = audioCtx.createGain();
+                anthemGainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                anthemGainNode.connect(audioCtx.destination);
+
+                // Low battle drone (Spartan Horn)
+                anthemDroneOsc = audioCtx.createOscillator();
+                anthemDroneOsc.type = 'sawtooth';
+                anthemDroneOsc.frequency.setValueAtTime(55, audioCtx.currentTime); // A1 note
+                const droneFilter = audioCtx.createBiquadFilter();
+                droneFilter.type = 'lowpass';
+                droneFilter.frequency.setValueAtTime(220, audioCtx.currentTime);
+
+                anthemDroneOsc.connect(droneFilter);
+                droneFilter.connect(anthemGainNode);
+                anthemDroneOsc.start();
+
+                // Periodic War Drum Thud every 2.4s
+                playWarDrumHit();
+                anthemInterval = setInterval(() => {
+                    if (warAnthemActive) playWarDrumHit();
+                }, 2400);
+            } catch (e) {
+                console.warn("Anthem start notice:", e);
+            }
+        }
+
+        function playWarDrumHit() {
+            try {
+                if (!audioCtx) return;
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(110, now);
+                osc.frequency.exponentialRampToValueAtTime(35, now + 0.35);
+
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+                osc.connect(gain);
+                gain.connect(anthemGainNode || audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } catch(e) {}
+        }
+
+        function stopWarAnthemSound() {
+            if (anthemInterval) clearInterval(anthemInterval);
+            if (anthemDroneOsc) {
+                try { anthemDroneOsc.stop(); } catch(e){}
+                anthemDroneOsc = null;
+            }
+        }
+
+        function setAnthemVolume(val) {
+            if (anthemGainNode && audioCtx) {
+                anthemGainNode.gain.setValueAtTime(parseFloat(val), audioCtx.currentTime);
+            }
+        }
+
+        // BATTLE GONG & VICTORY FANFARE
+        function playSfx(type) {
+            initAudio();
+            try {
+                const now = audioCtx.currentTime;
+                if (type === 'tick') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, now);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'gong') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(260, now);
+                    osc.frequency.exponentialRampToValueAtTime(80, now + 1.4);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.4);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 1.4);
+                } else if (type === 'king_fanfare') {
+                    // Royal 4-Chord Fanfare
+                    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                    notes.forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'sawtooth';
+                        const filter = audioCtx.createBiquadFilter();
+                        filter.type = 'lowpass';
+                        filter.frequency.value = 1200;
+
+                        const startTime = now + (idx * 0.12);
+                        osc.frequency.setValueAtTime(freq, startTime);
+                        gain.gain.setValueAtTime(0.2, startTime);
+                        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 1.2);
+
+                        osc.connect(filter);
+                        filter.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start(startTime);
+                        osc.stop(startTime + 1.2);
+                    });
+                }
+            } catch(e){}
+        }
+    </script>
+
+    <!-- MAIN CITADEL APPLICATION ENGINE -->
+    <script>
+        let appConfig = {
+            targetTime: localStorage.getItem('waky_target') || "07:00",
+            tgToken: localStorage.getItem('waky_tg_token') || "8814364854:AAE3HpffTsEX3x6xnl74Fx0Lff6OxOxeTeA",
+            tgChatId: localStorage.getItem('waky_tg_chatid') || "1900611848"
+        };
+
+        let wakeRecords = [];
+        let webcamStream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+
+        // INITIALIZATION
+        window.addEventListener('DOMContentLoaded', async () => {
+            initEmbers();
+            startLiveClock();
+            startHeartbeat();
+            await loadFortressConfig();
+            updateTargetDisplay();
+            await loadRecords();
+            await startWebcam();
+            updateStreakAndRanks();
+            renderDashboard();
+            checkTodayStatus();
+        });
+
+        async function loadFortressConfig() {
+            try {
+                const res = await fetch('/api/config');
+                if (res.ok) {
+                    const cfg = await res.json();
+                    if (cfg.targetTime) appConfig.targetTime = cfg.targetTime;
+                    if (cfg.tgToken) appConfig.tgToken = cfg.tgToken;
+                    if (cfg.tgChatId) appConfig.tgChatId = cfg.tgChatId;
+                }
+            } catch(e){}
+        }
+
+        // TAB SWITCHER
+        function switchTab(tab) {
+            document.querySelectorAll('.nav-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+            const btn = document.getElementById(`tab-btn-${tab}`);
+            const pane = document.getElementById(`pane-${tab}`);
+            if (btn) btn.classList.add('active');
+            if (pane) pane.classList.add('active');
+        }
+
+        // LIVE CLOCK
+        function startLiveClock() {
+            const clockEl = document.getElementById('live-clock');
+            function tick() {
+                const now = new Date();
+                clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+            tick();
+            setInterval(tick, 1000);
+        }
+
+        function updateTargetDisplay() {
+            const [h, m] = appConfig.targetTime.split(':');
+            const d = new Date();
+            d.setHours(parseInt(h, 10), parseInt(m, 10), 0);
+            const str = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('target-time-display').textContent = str;
+            document.getElementById('chart-target-label').textContent = str;
+            document.getElementById('cfg-target-time').value = appConfig.targetTime;
+            document.getElementById('cfg-tg-token').value = appConfig.tgToken;
+            document.getElementById('cfg-tg-chatid').value = appConfig.tgChatId;
+
+            if (appConfig.tgChatId) {
+                document.getElementById('tg-status-label').textContent = "@wakyyyy_bot (PAIRED)";
+                document.getElementById('tg-chat-label').textContent = "Chat ID: " + appConfig.tgChatId;
+                const badge = document.getElementById('tg-conn-badge');
+                if (badge) { badge.className = "tier-badge unlocked"; badge.textContent = "PAIRED & ACTIVE ✅"; }
+            } else {
+                document.getElementById('tg-status-label').textContent = "@wakyyyy_bot (NOT LINKED)";
+                document.getElementById('tg-chat-label').textContent = "Click Connect to pair";
+                const badge = document.getElementById('tg-conn-badge');
+                if (badge) { badge.className = "tier-badge locked"; badge.textContent = "UNLINKED ⚠️"; }
+            }
+        }
+
+        // HEARTBEAT
+        function startHeartbeat() {
+            setInterval(() => {
+                fetch('/api/heartbeat').catch(() => {});
+            }, 8000);
+        }
+
+        // WEBCAM STREAM
+        async function startWebcam() {
+            const video = document.getElementById('webcam-video');
+            const statusText = document.getElementById('cam-status-text');
+            const dot = document.getElementById('cam-dot');
+
+            try {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    webcamStream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } },
+                        audio: false
+                    });
+                    video.srcObject = webcamStream;
+                    statusText.textContent = "WARRIOR HUD ACTIVE";
+                    dot.style.background = "#10B981";
+                } else {
+                    statusText.textContent = "CAMERA NOT DETECTED";
+                    dot.style.background = "#EF4444";
+                }
+            } catch (err) {
+                console.warn("Webcam notice:", err);
+                statusText.textContent = "CAMERA STANDBY";
+                dot.style.background = "#F59E0B";
+            }
+        }
+
+        // SCREEN SHAKE TRIGGER
+        function triggerScreenShake() {
+            document.body.classList.add('screen-shake');
+            setTimeout(() => {
+                document.body.classList.remove('screen-shake');
+            }, 450);
+        }
+
+        // 5-SECOND RECORDING PROTOCOL
+        async function startWakeProofProtocol() {
+            if (isRecording) return;
+            initAudio();
+
+            const countdownOverlay = document.getElementById('countdown-overlay');
+            const countdownNum = document.getElementById('countdown-num');
+            const countdownPrompt = document.getElementById('countdown-prompt');
+            const btn = document.getElementById('start-proof-btn');
+            const btnText = document.getElementById('btn-text');
+            const progressCont = document.getElementById('record-progress-cont');
+            const progressBar = document.getElementById('record-progress-bar');
+            const camViewport = document.getElementById('cam-viewport');
+            const camDot = document.getElementById('cam-dot');
+            const camText = document.getElementById('cam-status-text');
+
+            // 1. Countdown (3-2-1)
+            countdownOverlay.style.display = 'flex';
+            countdownPrompt.textContent = "WARRIOR ALIGN FACE...";
+            btn.disabled = true;
+
+            for (let i = 3; i >= 1; i--) {
+                countdownNum.textContent = i;
+                playSfx('tick');
+                await sleep(1000);
+            }
+
+            // 2. Start Recording
+            isRecording = true;
+            countdownOverlay.style.display = 'none';
+            triggerScreenShake();
+            playSfx('gong');
+
+            camViewport.classList.add('recording');
+            camDot.classList.add('rec');
+            camText.textContent = "RECORDING PROOF (5s)";
+            progressCont.style.display = 'block';
+            progressBar.style.width = '0%';
+            btnText.textContent = "RECORDING (5s)...";
+
+            recordedChunks = [];
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';
+            try {
+                mediaRecorder = new MediaRecorder(webcamStream, { mimeType });
+            } catch (e) {
+                mediaRecorder = new MediaRecorder(webcamStream);
+            }
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            mediaRecorder.start(200);
+
+            const startTime = Date.now();
+            const duration = 5000;
+
+            const interval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const pct = Math.min(100, (elapsed / duration) * 100);
+                progressBar.style.width = pct + '%';
+                const remaining = Math.max(0, Math.ceil((duration - elapsed) / 1000));
+                btnText.textContent = `ACQUIRING PROOF (${remaining}s)...`;
+
+                if (elapsed >= duration) {
+                    clearInterval(interval);
+                    finishRecording();
+                }
+            }, 50);
+        }
+
+        async function finishRecording() {
+            const camViewport = document.getElementById('cam-viewport');
+            const camDot = document.getElementById('cam-dot');
+            const camText = document.getElementById('cam-status-text');
+            const btnText = document.getElementById('btn-text');
+            const progressCont = document.getElementById('record-progress-cont');
+
+            btnText.textContent = "UPLOADING TO TELEGRAM...";
+            camViewport.classList.remove('recording');
+            camDot.classList.remove('rec');
+            camText.textContent = "FINALIZING PROOF...";
+
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+
+            await sleep(500);
+
+            const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0];
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const fileName = `proof_${dateStr}_${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}.webm`;
+
+            // Calculate early / on time status
+            const [th, tm] = appConfig.targetTime.split(':').map(Number);
+            const targetMinutes = th * 60 + tm;
+            const wakeMinutes = now.getHours() * 60 + now.getMinutes();
+            const diff = targetMinutes - wakeMinutes;
+
+            let statusLabel = "ON TIME";
+            let isEarly = diff >= 0;
+            if (diff >= 15) statusLabel = `EARLY BIRD (+${diff}m)`;
+            else if (diff >= 0) statusLabel = "ON TIME (Target Met)";
+            else statusLabel = `OVER TARGET (${Math.abs(diff)}m Late)`;
+
+            const currentStreak = calculateStreak() + 1;
+            const rankName = getRankName(currentStreak);
+
+            const newRecord = {
+                id: Date.now(),
+                date: dateStr,
+                timestamp: now.toISOString(),
+                timeStr: timeStr,
+                wakeMinutes: wakeMinutes,
+                targetTime: appConfig.targetTime,
+                isEarly: isEarly,
+                statusLabel: statusLabel,
+                diffMinutes: diff,
+                fileName: fileName,
+                rank: rankName
+            };
+
+            // 1. Save Video to Local Storage proofs
+            try {
+                await fetch(`/api/save_proof?name=${encodeURIComponent(fileName)}`, {
+                    method: 'POST',
+                    body: videoBlob
+                });
+            } catch(e){}
+
+            // 2. Deliver to Telegram Bot
+            let tgDelivered = false;
+            try {
+                tgDelivered = await uploadProofToTelegram(videoBlob, fileName, newRecord, currentStreak);
+            } catch(e) {
+                console.warn("Telegram error:", e);
+            }
+
+            newRecord.tgDelivered = tgDelivered;
+
+            wakeRecords.unshift(newRecord);
+            await saveRecordsToServer();
+
+            // Fanfare & Shake
+            triggerScreenShake();
+            playSfx('king_fanfare');
+            progressCont.style.display = 'none';
+            camViewport.classList.add('conquered');
+            camText.textContent = "PROTOCOL CONQUERED!";
+            camDot.style.background = "#10B981";
+
+            updateStreakAndRanks();
+            renderDashboard();
+            checkTodayStatus();
+            isRecording = false;
+        }
+
+        // TELEGRAM BOT UPLOADER
+        async function uploadProofToTelegram(videoBlob, fileName, record, streak) {
+            const token = appConfig.tgToken;
+            const chatId = appConfig.tgChatId;
+            if (!token || !chatId) return false;
+
+            const milestoneMap = {
+                1: "⚡ Day 1: Cortisol Awakening Surge (CAR) Active",
+                3: "🧪 Day 3: Habit Circuit Encoded & Morning Fog Reduced",
+                7: "🌅 Day 7: Circadian Master Clock Hardwired to Dawn",
+                14: "👁️ Day 14: Peak Testosterone & Spartan Gaze Unlocked",
+                21: "🧬 Day 21: Neural Pathway Myelination (Habit Fortress)",
+                30: "👑 Day 30: Sovereign King Neurological Transmutation"
+            };
+            const milestoneText = milestoneMap[streak] ? `\n🧠 *BRAIN REBOOT UNLOCKED:* ${milestoneMap[streak]}` : "";
+
+            const caption = 
+`👑 *THE KING HAS RISEN!*
+━━━━━━━━━━━━━━━━━━━━
+⏰ *Wake-Up Time:* ${record.timeStr}
+🎯 *Target:* ${appConfig.targetTime} (${record.statusLabel})
+🛡️ *Spartan Rank:* ${record.rank} (Day ${streak})${milestoneText}
+🔥 *Discipline Status:* Conquered & Sovereign!
+⚔️ Stand tall and dominate your kingdom.`;
+
+            const formData = new FormData();
+            formData.append('chat_id', chatId);
+            formData.append('video', videoBlob, fileName);
+            formData.append('caption', caption);
+            formData.append('parse_mode', 'Markdown');
+
+            const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            return data.ok === true;
+        }
+
+        // STREAK & WARRIOR-TO-KING RANKS
+        function calculateStreak() {
+            let streak = 0;
+            const sorted = [...wakeRecords].sort((a,b) => new Date(b.date) - new Date(a.date));
+            if (sorted.length > 0) {
+                streak = 1;
+                for (let i = 0; i < sorted.length - 1; i++) {
+                    const d1 = new Date(sorted[i].date);
+                    const d2 = new Date(sorted[i+1].date);
+                    const diffDays = Math.round((d1 - d2) / (1000 * 60 * 60 * 24));
+                    if (diffDays === 1) streak++;
+                    else break;
+                }
+            }
+            return streak;
+        }
+
+        function getRankName(streak) {
+            if (streak >= 30) return "👑 The Sovereign King";
+            if (streak >= 15) return "🔥 The Citadel Warlord";
+            if (streak >= 8) return "⚡ The Centurion Commander";
+            if (streak >= 4) return "🛡️ The Spartan Hoplite";
+            return "⚔️ The Agoge Warrior";
+        }
+
+        function updateStreakAndRanks() {
+            const streak = calculateStreak();
+            document.getElementById('streak-number').innerHTML = `${streak} <span style="font-size: 16px; color: var(--spartan-bronze);">DAYS</span>`;
+            document.getElementById('report-streak').textContent = `${streak} DAYS`;
+
+            const rankTitle = document.getElementById('rank-title');
+            const nextMilestone = document.getElementById('next-milestone');
+            const progressFill = document.getElementById('rank-progress-fill');
+
+            let pct = 10;
+            if (streak === 0) {
+                rankTitle.textContent = "⚔️ Level 1: The Agoge Warrior";
+                nextMilestone.textContent = "Next: Day 1";
+                pct = 10;
+            } else if (streak < 4) {
+                rankTitle.textContent = "⚔️ Level 1: The Agoge Warrior";
+                nextMilestone.textContent = `Next: Day 4 (${4 - streak} to go)`;
+                pct = Math.round((streak / 4) * 100);
+            } else if (streak < 8) {
+                rankTitle.textContent = "🛡️ Level 2: The Spartan Hoplite";
+                nextMilestone.textContent = `Next: Day 8 (${8 - streak} to go)`;
+                pct = Math.round(((streak - 3) / 4) * 100);
+            } else if (streak < 15) {
+                rankTitle.textContent = "⚡ Level 3: The Centurion Commander";
+                nextMilestone.textContent = `Next: Day 15 (${15 - streak} to go)`;
+                pct = Math.round(((streak - 7) / 7) * 100);
+            } else if (streak < 30) {
+                rankTitle.textContent = "🔥 Level 4: The Citadel Warlord";
+                nextMilestone.textContent = `Next: Day 30 (${30 - streak} to go)`;
+                pct = Math.round(((streak - 14) / 15) * 100);
+            } else {
+                rankTitle.textContent = "👑 Level 5: The Sovereign King";
+                nextMilestone.textContent = "Immortal Crown Master";
+                pct = 100;
+            }
+            progressFill.style.width = Math.max(8, pct) + '%';
+
+            // Update Throne Tier cards
+            updateThroneTiers(streak);
+        }
+
+        function updateThroneTiers(streak) {
+            const t2 = document.getElementById('tier-2-badge');
+            const t3 = document.getElementById('tier-3-badge');
+            const t4 = document.getElementById('tier-4-badge');
+            const t5 = document.getElementById('tier-5-badge');
+
+            if (streak >= 4) { t2.className = "tier-badge unlocked"; t2.textContent = "UNLOCKED ⚔️"; }
+            if (streak >= 8) { t3.className = "tier-badge unlocked"; t3.textContent = "UNLOCKED ⚡"; }
+            if (streak >= 15) { t4.className = "tier-badge unlocked"; t4.textContent = "UNLOCKED 🔥"; }
+            if (streak >= 30) { t5.className = "tier-badge unlocked"; t5.textContent = "SOVEREIGN KING 👑"; }
+        }
+
+        // CHECK IF TODAY IS ALREADY CONQUERED
+        function checkTodayStatus() {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todayRecord = wakeRecords.find(r => r.date === todayStr);
+
+            const banner = document.getElementById('conquered-banner');
+            const timeText = document.getElementById('conquered-time-text');
+            const btnRow = document.getElementById('action-btn-row');
+            const camViewport = document.getElementById('cam-viewport');
+
+            if (todayRecord) {
+                banner.style.display = 'block';
+                timeText.textContent = `Logged at ${todayRecord.timeStr} • ${todayRecord.statusLabel}`;
+                btnRow.style.display = 'none';
+                camViewport.classList.add('conquered');
+            } else {
+                banner.style.display = 'none';
+                btnRow.style.display = 'flex';
+                camViewport.classList.remove('conquered');
+            }
+        }
+
+        // RECORD PERSISTENCE
+        async function loadRecords() {
+            try {
+                const res = await fetch('/api/records');
+                if (res.ok) {
+                    wakeRecords = await res.json();
+                } else {
+                    const local = localStorage.getItem('waky_records');
+                    if (local) wakeRecords = JSON.parse(local);
+                }
+            } catch (e) {
+                const local = localStorage.getItem('waky_records');
+                if (local) wakeRecords = JSON.parse(local);
+            }
+        }
+
+        async function saveRecordsToServer() {
+            localStorage.setItem('waky_records', JSON.stringify(wakeRecords));
+            try {
+                await fetch('/api/records', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(wakeRecords)
+                });
+            } catch(e){}
+        }
+
+        // DASHBOARD & STATS RENDERING
+        function renderDashboard() {
+            const streak = calculateStreak();
+
+            // 1. Master Consistency Score
+            let consistencyScore = 100;
+            if (wakeRecords.length > 0) {
+                const onTimeCount = wakeRecords.filter(r => r.isEarly).length;
+                const onTimeRatio = onTimeCount / wakeRecords.length;
+                const streakBonus = Math.min(20, (streak / 14) * 20);
+                consistencyScore = Math.min(100, Math.round(onTimeRatio * 80 + streakBonus));
+            }
+            document.getElementById('consistency-score-num').textContent = consistencyScore + '%';
+            const ratingBadge = document.getElementById('consistency-rating-badge');
+            if (consistencyScore >= 90) {
+                ratingBadge.textContent = "👑 SOVEREIGN KING LEVEL";
+                ratingBadge.style.color = "#34D399";
+            } else if (consistencyScore >= 75) {
+                ratingBadge.textContent = "⚔️ WARRIOR DISCIPLINE LEVEL";
+                ratingBadge.style.color = "#F59E0B";
+            } else {
+                ratingBadge.textContent = "🛡️ RECRUIT STABILIZING PHASE";
+                ratingBadge.style.color = "#38BDF8";
+            }
+
+            // 2. Avg Wake Time
+            if (wakeRecords.length > 0) {
+                const avgMins = Math.round(wakeRecords.reduce((acc, r) => acc + r.wakeMinutes, 0) / wakeRecords.length);
+                const ah = Math.floor(avgMins / 60);
+                const am = avgMins % 60;
+                const d = new Date();
+                d.setHours(ah, am, 0);
+                document.getElementById('report-avg-time').textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else {
+                document.getElementById('report-avg-time').textContent = "--:--";
+            }
+
+            // 3. On-Time Rate
+            if (wakeRecords.length > 0) {
+                const onTimeCount = wakeRecords.filter(r => r.isEarly).length;
+                const rate = Math.round((onTimeCount / wakeRecords.length) * 100);
+                document.getElementById('report-ontime-rate').textContent = `${rate}%`;
+            } else {
+                document.getElementById('report-ontime-rate').textContent = "100%";
+            }
+
+            // 4. Hours Saved Before Dawn
+            const earlyMinutes = wakeRecords.reduce((acc, r) => acc + (r.diffMinutes > 0 ? r.diffMinutes : 0), 0);
+            const hoursSaved = (earlyMinutes / 60).toFixed(1);
+            document.getElementById('report-hours-saved').textContent = `${hoursSaved} hrs`;
+
+            // 5. Update Brain Reboot Milestones & Teaser
+            updateMilestonesAndTeaser(streak);
+
+            // 6. Render History List
+            const historyList = document.getElementById('history-list');
+            if (wakeRecords.length === 0) {
+                historyList.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 24px 0;">No chronicle records yet. Record your first 5-second proof tomorrow dawn!</div>`;
+            } else {
+                historyList.innerHTML = wakeRecords.slice(0, 25).map(r => {
+                    const badgeClass = r.isEarly ? 'badge-early' : 'badge-late';
+                    return `
+                    <div class="history-item">
+                        <div>
+                            <div style="font-size: 11px; font-weight: 700; color: var(--text-secondary);">${formatDate(r.date)}</div>
+                            <div style="font-size: 14px; font-weight: 900; color: #FFFFFF; margin-top: 1px;">${r.timeStr}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="history-badge ${badgeClass}">${r.statusLabel}</span>
+                            <span title="${r.tgDelivered ? 'Delivered to Telegram Bot' : 'Local Archive'}">
+                                ${r.tgDelivered ? '✈️' : '💾'}
+                            </span>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            }
+
+            // 7. Render Graphs: 14-Day Trend & 30-Day Heatmap
+            renderChart14();
+            renderHeatmap30();
+        }
+
+        // BRAIN REBOOT MILESTONES & TEASER ENGINE
+        function updateMilestonesAndTeaser(streak) {
+            const milestones = [
+                { day: 1, title: "Day 1: The Spark of Willpower", sub: "Cortisol surge & snooze reflex crushed" },
+                { day: 3, title: "Day 3: Habit Circuit Forming", sub: "Basal ganglia encoding & morning inertia clears" },
+                { day: 7, title: "Day 7: Circadian Clock Sync (1 Wk)", sub: "SCN biological clock locks to dawn" },
+                { day: 14, title: "Day 14: The Spartan Gaze (2 Wks)", sub: "Peak morning testosterone & deep SWS sleep" },
+                { day: 21, title: "Day 21: Neural Pathway Myelination", sub: "Habit fortress: rising friction drops to zero" },
+                { day: 30, title: "Day 30: Sovereign King's Transmutation", sub: "DMN identity shift: dawn belongs to you" }
+            ];
+
+            let nextMs = milestones.find(m => m.day > streak);
+            if (!nextMs) nextMs = { day: 90, title: "Day 90: Immortal Leonidas Crown", sub: "Permanent neurological dawn sovereignty" };
+            const daysLeft = Math.max(0, nextMs.day - streak);
+            document.getElementById('teaser-milestone-title').textContent = nextMs.title;
+            document.getElementById('teaser-milestone-sub').textContent = `${nextMs.sub} • ${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} to go!`;
+
+            const pct = Math.min(100, Math.round((streak / 90) * 100));
+            document.getElementById('reboot-progress-pct').textContent = `${pct}% (DAY ${streak} / 90)`;
+            document.getElementById('reboot-progress-fill').style.width = Math.max(3, pct) + '%';
+
+            const timelineDays = [1, 3, 7, 14, 21, 30];
+            let foundCurrent = false;
+            timelineDays.forEach(d => {
+                const item = document.getElementById(`ms-item-${d}`);
+                const badge = document.getElementById(`ms-badge-${d}`);
+                if (!item || !badge) return;
+
+                item.classList.remove('active', 'conquered');
+
+                if (streak >= d) {
+                    item.classList.add('conquered');
+                    badge.className = "timeline-days-badge";
+                    badge.style.background = "rgba(34, 197, 94, 0.2)";
+                    badge.style.color = "#22C55E";
+                    badge.style.border = "1px solid #22C55E";
+                    badge.textContent = "CONQUERED ✅";
+                } else if (!foundCurrent) {
+                    foundCurrent = true;
+                    item.classList.add('active');
+                    badge.className = "timeline-days-badge";
+                    badge.style.background = "rgba(56, 189, 248, 0.2)";
+                    badge.style.color = "#38BDF8";
+                    badge.style.border = "1px solid #38BDF8";
+                    badge.textContent = `CURRENT REBOOT (${d - streak}d LEFT)`;
+                } else {
+                    badge.className = "timeline-days-badge";
+                    badge.style.background = "rgba(100, 116, 139, 0.2)";
+                    badge.style.color = "#94a3b8";
+                    badge.style.border = "1px solid #475569";
+                    badge.textContent = "LOCKED 🔒";
+                }
+            });
+        }
+
+        // 14-DAY DAWN WAKE VARIANCE GRAPH
+        function renderChart14() {
+            const chartCont = document.getElementById('chart-container');
+            if (!chartCont) return;
+            chartCont.innerHTML = '';
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const today = new Date();
+
+            for (let i = 13; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - i);
+                const dateStr = d.toISOString().split('T')[0];
+                const dayName = days[d.getDay()][0];
+                const record = wakeRecords.find(r => r.date === dateStr);
+
+                const col = document.createElement('div');
+                col.className = 'chart-col';
+
+                let barHeight = '4px';
+                let barClass = '';
+
+                if (record) {
+                    if (record.diffMinutes >= 15) {
+                        barHeight = '68px';
+                        barClass = 'conquered';
+                    } else if (record.isEarly) {
+                        barHeight = '50px';
+                        barClass = 'conquered';
+                    } else {
+                        barHeight = '32px';
+                        barClass = 'late';
+                    }
+                }
+                if (i === 0) barClass += ' today';
+
+                col.innerHTML = `
+                    <div class="chart-bar ${barClass}" style="height: ${barHeight};" title="${record ? (record.timeStr + ' (' + record.statusLabel + ')') : (formatDate(dateStr) + ': No record')}"></div>
+                    <div class="chart-day" style="font-size: 8px;">${i === 0 ? '★' : dayName}</div>
+                `;
+                chartCont.appendChild(col);
+            }
+        }
+
+        // 30-DAY DAWN CONQUEST HEATMAP
+        function renderHeatmap30() {
+            const grid = document.getElementById('heatmap-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+
+            for (let i = 27; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - i);
+                const dateStr = d.toISOString().split('T')[0];
+                const dayNum = d.getDate();
+                const record = wakeRecords.find(r => r.date === dateStr);
+
+                const cell = document.createElement('div');
+                cell.className = 'heatmap-cell';
+                if (dateStr === todayStr) cell.classList.add('today-cell');
+
+                if (record) {
+                    if (record.diffMinutes >= 15) {
+                        cell.classList.add('early');
+                        cell.title = `${dateStr}: Early Bird ${record.timeStr} (+${record.diffMinutes}m)`;
+                    } else if (record.isEarly) {
+                        cell.classList.add('ontime');
+                        cell.title = `${dateStr}: On-Time ${record.timeStr}`;
+                    } else {
+                        cell.classList.add('late');
+                        cell.title = `${dateStr}: Over Target ${record.timeStr} (${Math.abs(record.diffMinutes)}m late)`;
+                    }
+                    cell.innerHTML = `<span>${dayNum}</span>`;
+                } else {
+                    cell.title = `${dateStr}: No wake record`;
+                    cell.innerHTML = `<span style="opacity: 0.35;">${dayNum}</span>`;
+                }
+
+                grid.appendChild(cell);
+            }
+        }
+
+        function formatDate(dStr) {
+            try {
+                const parts = dStr.split('-');
+                const d = new Date(parts[0], parts[1] - 1, parts[2]);
+                return d.toLocaleDateString([], { month: 'short', day: 'numeric', weekday: 'short' });
+            } catch(e) {
+                return dStr;
+            }
+        }
+
+        // FORTRESS SETTINGS & TELEGRAM RADAR SCAN
+        let isRadarScanning = false;
+        let radarInterval = null;
+
+        async function startTelegramRadarScan() {
+            if (isRadarScanning) return;
+            initAudio();
+            const token = document.getElementById('cfg-tg-token').value.trim() || appConfig.tgToken;
+            const radarStatus = document.getElementById('radar-status');
+            const scanLabel = document.getElementById('scan-label');
+            const scanIcon = document.getElementById('scan-icon');
+
+            isRadarScanning = true;
+            radarStatus.style.display = 'block';
+            radarStatus.innerHTML = `<span class="live-dot" style="background:#F59E0B; animation:blink 0.6s infinite;"></span> Listening for signal from Telegram... Tap <b>START</b> or send any message to <b>@wakyyyy_bot</b> now!`;
+            scanLabel.textContent = "Listening...";
+            scanIcon.textContent = "⏳";
+            playSfx('tick');
+
+            let attempts = 0;
+            radarInterval = setInterval(async () => {
+                attempts++;
+                try {
+                    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates?offset=-10`);
+                    const data = await res.json();
+                    if (data.ok && data.result && data.result.length > 0) {
+                        for (let i = data.result.length - 1; i >= 0; i--) {
+                            const u = data.result[i];
+                            const msg = u.message || u.channel_post || u.my_chat_member;
+                            if (msg && msg.chat && msg.chat.id) {
+                                const detectedChatId = String(msg.chat.id);
+                                const senderName = (msg.from && (msg.from.first_name || msg.from.username)) || "Warrior";
+
+                                clearInterval(radarInterval);
+                                isRadarScanning = false;
+                                appConfig.tgChatId = detectedChatId;
+                                document.getElementById('cfg-tg-chatid').value = detectedChatId;
+                                saveFortressSettings(true);
+
+                                playSfx('king_fanfare');
+                                triggerScreenShake();
+
+                                radarStatus.innerHTML = `✅ <b>SIGNAL ACQUIRED!</b> Linked with ${senderName} (Chat ID: ${detectedChatId})`;
+                                scanLabel.textContent = "Paired!";
+                                scanIcon.textContent = "👑";
+
+                                // Welcome notification directly to Telegram
+                                fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        chat_id: detectedChatId,
+                                        text: `👑 <b>CITADEL LINK ESTABLISHED!</b>\n━━━━━━━━━━━━━━━━━━━━\nWelcome, <b>${senderName}</b>. Your WAKY Desktop App is now paired with @wakyyyy_bot.\n\nEvery dawn, your 5-second video proof and morning consistency reports will arrive right here!`,
+                                        parse_mode: 'HTML'
+                                    })
+                                }).catch(()=>{});
+
+                                return;
+                            }
+                        }
+                    }
+                } catch(e) {
+                    console.warn("Radar scan:", e);
+                }
+
+                if (attempts >= 45) { // 65 seconds
+                    clearInterval(radarInterval);
+                    isRadarScanning = false;
+                    radarStatus.innerHTML = `⚠️ No signal detected yet. Open <b>@wakyyyy_bot</b> on Telegram, send <b>/start</b>, then click Auto-Detect again!`;
+                    scanLabel.textContent = "Auto-Detect Signal";
+                    scanIcon.textContent = "🛰️";
+                }
+            }, 1500);
+        }
+
+        async function saveFortressSettings(silent = false) {
+            appConfig.targetTime = document.getElementById('cfg-target-time').value || "07:00";
+            appConfig.tgToken = document.getElementById('cfg-tg-token').value.trim();
+            appConfig.tgChatId = document.getElementById('cfg-tg-chatid').value.trim();
+
+            localStorage.setItem('waky_target', appConfig.targetTime);
+            localStorage.setItem('waky_tg_token', appConfig.tgToken);
+            localStorage.setItem('waky_tg_chatid', appConfig.tgChatId);
+
+            try {
+                await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(appConfig)
+                });
+            } catch(e){}
+
+            updateTargetDisplay();
+            playSfx('tick');
+            if (!silent) {
+                alert("⚔️ Citadel & Telegram Settings Saved Successfully!");
+            }
+        }
+
+        async function testTelegramConnection() {
+            const token = document.getElementById('cfg-tg-token').value.trim();
+            const chatId = document.getElementById('cfg-tg-chatid').value.trim();
+
+            if (!token || !chatId) {
+                alert("Please enter both Bot Token and Chat ID!");
+                return;
+            }
+
+            try {
+                const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: "👑 WAKY Spartan King's Dawn: Signal Verified! Fortress link active."
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    playSfx('king_fanfare');
+                    alert("✅ Signal received directly on your Telegram!");
+                } else {
+                    alert("Telegram Error: " + (data.description || "Unknown error"));
+                }
+            } catch (err) {
+                alert("Could not reach Telegram: " + err.message);
+            }
+        }
+
+        function exportHistory() {
+            const blob = new Blob([JSON.stringify(wakeRecords, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `waky_chronicles_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // AMBIENT SPARTAN GOLD EMBERS
+        function initEmbers() {
+            const canvas = document.getElementById('ember-canvas');
+            const ctx = canvas.getContext('2d');
+            let w, h;
+            function resize() {
+                w = canvas.width = window.innerWidth;
+                h = canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            const embers = [];
+            for (let i = 0; i < 40; i++) {
+                embers.push({
+                    x: Math.random() * w,
+                    y: Math.random() * h,
+                    r: Math.random() * 2.2 + 0.8,
+                    vx: (Math.random() - 0.5) * 0.45,
+                    vy: -(Math.random() * 0.85 + 0.35),
+                    alpha: Math.random() * 0.55 + 0.2
+                });
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, w, h);
+                ctx.fillStyle = "#EAB308";
+                embers.forEach(e => {
+                    ctx.globalAlpha = e.alpha;
+                    ctx.beginPath();
+                    ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    e.x += e.vx;
+                    e.y += e.vy;
+                    if (e.y < -5) {
+                        e.y = h + 5;
+                        e.x = Math.random() * w;
+                    }
+                });
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+    </script>
+</body>
+</html>
