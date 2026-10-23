@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -33,16 +33,17 @@
         }
 
         body {
-            background-color: var(--bg-dark);
+            background: radial-gradient(circle at 50% 0%, #151A28 0%, #0A0D15 60%, #05070A 100%);
             color: var(--text-primary);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             overflow-x: hidden;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: stretch;
             position: relative;
             padding: 0;
+            margin: 0;
         }
 
         /* Screen Shake */
@@ -82,14 +83,15 @@
         /* FULLSCREEN DESKTOP SHELL */
         .desktop-container {
             width: 100%;
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 16px 24px 32px 24px;
+            max-width: 100%;
+            margin: 0;
+            padding: 14px 24px 28px 24px;
             z-index: 2;
             display: flex;
             flex-direction: column;
             gap: 16px;
             box-sizing: border-box;
+            min-height: 100vh;
         }
 
         /* TOP COMMAND BAR */
@@ -280,16 +282,20 @@
         /* 3-COLUMN DESKTOP WORKSPACE */
         .desktop-command-grid {
             display: grid;
-            grid-template-columns: 290px minmax(540px, 1fr) 380px;
-            gap: 16px;
+            grid-template-columns: clamp(280px, 18vw, 320px) minmax(560px, 1fr) clamp(380px, 24vw, 460px);
+            gap: 20px;
             align-items: start;
             width: 100%;
         }
 
         @media (max-width: 1300px) {
             .desktop-command-grid {
-                grid-template-columns: 260px 1fr;
-            }
+            display: grid;
+            grid-template-columns: clamp(280px, 18vw, 320px) minmax(560px, 1fr) clamp(380px, 24vw, 460px);
+            gap: 20px;
+            align-items: start;
+            width: 100%;
+        }
             .telemetry-rail-col {
                 grid-column: span 2;
             }
@@ -297,8 +303,12 @@
 
         @media (max-width: 860px) {
             .desktop-command-grid {
-                grid-template-columns: 1fr;
-            }
+            display: grid;
+            grid-template-columns: clamp(280px, 18vw, 320px) minmax(560px, 1fr) clamp(380px, 24vw, 460px);
+            gap: 20px;
+            align-items: start;
+            width: 100%;
+        }
             .telemetry-rail-col {
                 grid-column: span 1;
             }
@@ -562,6 +572,76 @@
             box-shadow: 0 0 8px currentColor;
         }
 
+        
+        /* CAM STANDBY OVERLAY */
+        .cam-standby-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, rgba(22, 28, 44, 0.92) 0%, rgba(8, 10, 16, 0.97) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            z-index: 5;
+            transition: opacity 0.3s ease;
+        }
+        .standby-radar-ring {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border: 1px dashed rgba(234, 179, 8, 0.35);
+            border-radius: 50%;
+            animation: rotate-radar 14s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes rotate-radar {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .standby-icon {
+            font-size: 38px;
+            filter: drop-shadow(0 0 16px rgba(234, 179, 8, 0.6));
+            z-index: 2;
+        }
+        .standby-title {
+            font-size: 13px;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+            color: var(--spartan-gold);
+            text-transform: uppercase;
+            z-index: 2;
+        }
+        .standby-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+            max-width: 340px;
+            text-align: center;
+            line-height: 1.4;
+            z-index: 2;
+        }
+        .btn-activate-cam {
+            margin-top: 6px;
+            background: rgba(234, 179, 8, 0.14);
+            border: 1px solid rgba(234, 179, 8, 0.45);
+            color: var(--spartan-gold);
+            font-size: 11.5px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            padding: 7px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 2;
+        }
+        .btn-activate-cam:hover {
+            background: rgba(234, 179, 8, 0.3);
+            border-color: var(--spartan-gold);
+            transform: translateY(-1px);
+        }
         .hud-fps-badge {
             position: absolute;
             top: 14px;
@@ -1068,7 +1148,17 @@
             background: rgba(255, 255, 255, 0.1);
         }
         .spartan-modal-body {
-            padding: 20px;
+            background: radial-gradient(circle at 50% 0%, #151A28 0%, #0A0D15 60%, #05070A 100%);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            position: relative;
+            padding: 0;
+            margin: 0;
         }
         .spartan-modal-footer {
             padding: 14px 20px;
@@ -1231,7 +1321,7 @@
         <!-- FULL-WIDTH TOP COMMAND BAR -->
         <header class="top-command-bar">
             <div class="brand-area">
-                <span class="brand-crown">👑</span>
+                <img src="/waky_crown.png" alt="WAKY Apex Crown" class="brand-crown-img" style="width: 38px; height: 38px; border-radius: 9px; box-shadow: 0 0 16px rgba(234, 179, 8, 0.45); border: 1px solid rgba(254, 240, 138, 0.35); object-fit: contain; background: #0c0f17;">
                 <div class="brand-text">
                     <div class="brand-title">WAKY <span class="brand-lambda">Λ</span></div>
                     <div class="brand-sub">Spartan King's Dawn Citadel</div>
@@ -1390,6 +1480,14 @@
                         <div class="hud-corner hud-corner-bl"></div>
                         <div class="hud-corner hud-corner-br"></div>
                         <div class="hud-scanline"></div>
+
+                        <div class="cam-standby-overlay" id="cam-standby-overlay">
+                            <div class="standby-radar-ring"></div>
+                            <div class="standby-icon">🛡️</div>
+                            <div class="standby-title">BIOMETRIC OPTICAL SENSOR READY</div>
+                            <div class="standby-subtitle">Click below to activate camera preview • Optical Anti-Cheat verification armed</div>
+                            <button class="btn-activate-cam" onclick="startWebcam()" type="button"><span>📷</span> Activate Camera Sensor</button>
+                        </div>
 
                         <div class="hud-reticle-center">
                             <div class="hud-crown-marker">
@@ -2042,7 +2140,7 @@
                         video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
                         audio: false
                     });
-                    video.srcObject = webcamStream;
+                    video.srcObject = webcamStream; const sby = document.getElementById('cam-standby-overlay'); if (sby) sby.style.display = 'none';
                     statusText.textContent = "WARRIOR HUD ACTIVE";
                     dot.style.background = "#10B981";
                 } else {
@@ -2077,7 +2175,7 @@
 
             isRecording = true;
             btn.disabled = true;
-            camText.textContent = "INITIALIZING OPTICAL SENSORS...";
+            camText.textContent = "INITIALIZING OPTICAL SENSORS..."; if (!webcamStream) { try { await startWebcam(); } catch(e){} }
 
             recordedChunks = [];
             const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm';

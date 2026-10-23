@@ -284,6 +284,24 @@ namespace WakyDesktop
                         SendBytes(ctx, new byte[0], "image/x-icon", 404);
                     }
                 }
+                else if (path.EndsWith(".png") || path.EndsWith(".jpg") || path.EndsWith(".jpeg") || path.EndsWith(".svg") || path.EndsWith(".webp"))
+                {
+                    string fileName = Path.GetFileName(path);
+                    string filePath = Path.Combine(appDir, fileName);
+                    if (File.Exists(filePath))
+                    {
+                        byte[] bytes = File.ReadAllBytes(filePath);
+                        string mime = "image/png";
+                        if (path.EndsWith(".jpg") || path.EndsWith(".jpeg")) mime = "image/jpeg";
+                        else if (path.EndsWith(".svg")) mime = "image/svg+xml";
+                        else if (path.EndsWith(".webp")) mime = "image/webp";
+                        SendBytes(ctx, bytes, mime, 200);
+                    }
+                    else
+                    {
+                        SendBytes(ctx, new byte[0], "text/plain", 404);
+                    }
+                }
                 else if (path == "/api/heartbeat")
                 {
                     byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true}");
