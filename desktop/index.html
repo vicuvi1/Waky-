@@ -2245,12 +2245,12 @@
 
             const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
             const now = new Date();
-            const dateStr = now.toISOString().split('T')[0];
+            const dateStr = getLocalDateStr(now);
             const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const fileName = `proof_${dateStr}_${now.getHours()}-${now.getMinutes()}-${now.getSeconds()}.webm`;
 
             // Calculate early / on time status
-            const [th, tm] = appConfig.targetTime.split(':').map(Number);
+            const [th, tm] = (appConfig.targetTime || "07:00").split(':').map(Number);
             const targetMinutes = th * 60 + tm;
             const wakeMinutes = now.getHours() * 60 + now.getMinutes();
             const diff = targetMinutes - wakeMinutes;
@@ -2267,15 +2267,19 @@
             const newRecord = {
                 id: Date.now(),
                 date: dateStr,
-                timestamp: now.toISOString(),
+                time: timeStr,
                 timeStr: timeStr,
+                timestamp: now.getTime(),
                 wakeMinutes: wakeMinutes,
-                targetTime: appConfig.targetTime,
+                targetTime: appConfig.targetTime || "07:00",
                 isEarly: isEarly,
+                on_time: isEarly,
+                status: isEarly ? 'on-time' : 'late',
                 statusLabel: statusLabel,
                 diffMinutes: diff,
                 fileName: fileName,
-                rank: rankName
+                rank: rankName,
+                method: "DESKTOP_VIDEO"
             };
 
             // 1. Save Video to Local Storage proofs
@@ -2358,19 +2362,90 @@
             return data.ok === true;
         }
 
+        // UNIVERSAL LOCAL DATE & RECORD HELPERS
+        function getLocalDateStr(d = new Date()) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function isRecordOnTime(r) {
+            if (!r) return false;
+            if (r.isEarly !== undefined) return Boolean(r.isEarly);
+            if (r.on_time !== undefined) return Boolean(r.on_time);
+            if (r.diffMinutes !== undefined) return r.diffMinutes >= 0;
+            const st = String(r.status || r.statusLabel || '').toLowerCase();
+            return st.includes('on-time') || st.includes('on time') || st.includes('conquered') || st.includes('early');
+        }
+
+        function getRecordMinutes(r) {
+            if (!r) return null;
+            if (typeof r.wakeMinutes === 'number' && !isNaN(r.wakeMinutes)) return r.wakeMinutes;
+            const t = String(r.timeStr || r.time || '').toUpperCase().trim();
+            if (!t) return null;
+            const isPm = t.includes('PM');
+            const clean = t.replace('AM', '').replace('PM', '').trim();
+            const parts = clean.split(':');
+            if (parts.length < 2) return null;
+            let hh = parseInt(parts[0], 10);
+            const mm = parseInt(parts[1], 10);
+            if (isNaN(hh) || isNaN(mm)) return null;
+            if (isPm && hh < 12) hh += 12;
+            if (!isPm && hh === 12) hh = 0;
+            return hh * 60 + mm;
+        }
+
+        function getRecordTimeDisplay(r) {
+            if (!r) return "--:--";
+            if (r.timeStr) return r.timeStr;
+            if (r.time) {
+                if (r.time.includes('AM') || r.time.includes('PM')) return r.time;
+                const parts = r.time.split(':');
+                if (parts.length >= 2) {
+                    let hh = parseInt(parts[0], 10);
+                    const mm = parseInt(parts[1], 10);
+                    if (!isNaN(hh) && !isNaN(mm)) {
+                        const period = hh >= 12 ? 'PM' : 'AM';
+                        const displayH = hh % 12 === 0 ? 12 : hh % 12;
+                        return `${String(displayH).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${period}`;
+                    }
+                }
+                return r.time;
+            }
+            return "07:00 AM";
+        }
+
+        function getRecordStatusLabel(r) {
+            if (!r) return "PENDING";
+            if (r.statusLabel) return r.statusLabel;
+            return isRecordOnTime(r) ? 'ON-TIME ⚔️' : 'LATE RISE ⚠️';
+        }
+
         // STREAK & WARRIOR-TO-KING RANKS
         function calculateStreak() {
-            let streak = 0;
-            const sorted = [...wakeRecords].sort((a,b) => new Date(b.date) - new Date(a.date));
-            if (sorted.length > 0) {
-                streak = 1;
-                for (let i = 0; i < sorted.length - 1; i++) {
-                    const d1 = new Date(sorted[i].date);
-                    const d2 = new Date(sorted[i+1].date);
-                    const diffDays = Math.round((d1 - d2) / (1000 * 60 * 60 * 24));
-                    if (diffDays === 1) streak++;
-                    else break;
-                }
+            if (!wakeRecords || wakeRecords.length === 0) return 0;
+            const uniqueDates = Array.from(new Set(wakeRecords.map(r => r.date).filter(Boolean)))
+                .sort((a, b) => new Date(b) - new Date(a));
+            if (uniqueDates.length === 0) return 0;
+
+            const todayStr = getLocalDateStr(new Date());
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = getLocalDateStr(yesterday);
+
+            // Streak is active only if latest log is today or yesterday
+            if (uniqueDates[0] !== todayStr && uniqueDates[0] !== yesterdayStr) {
+                return 0;
+            }
+
+            let streak = 1;
+            for (let i = 0; i < uniqueDates.length - 1; i++) {
+                const d1 = new Date(uniqueDates[i]);
+                const d2 = new Date(uniqueDates[i + 1]);
+                const diffDays = Math.round((d1 - d2) / (1000 * 60 * 60 * 24));
+                if (diffDays === 1) streak++;
+                else break;
             }
             return streak;
         }
@@ -2485,7 +2560,7 @@
             if (fillDisplay) fillDisplay.style.width = lvlPct + '%';
 
             // 3. Update Daily Quests
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = getLocalDateStr(new Date());
             const todayRecord = wakeRecords.find(r => r.date === todayStr);
 
             const q1 = document.getElementById('quest-item-1');
@@ -2500,7 +2575,7 @@
                 completedQuests++;
                 if (q1) q1.classList.add('completed');
                 if (q1Check) q1Check.textContent = "✅";
-                if (todayRecord.isEarly) {
+                if (isRecordOnTime(todayRecord)) {
                     completedQuests++;
                     if (q2) q2.classList.add('completed');
                     if (q2Check) q2Check.textContent = "✅";
@@ -2688,7 +2763,7 @@
 
         // CHECK IF TODAY IS ALREADY CONQUERED
         function checkTodayStatus() {
-            const todayStr = new Date().toISOString().split('T')[0];
+            const todayStr = getLocalDateStr(new Date());
             const todayRecord = wakeRecords.find(r => r.date === todayStr);
 
             const banner = document.getElementById('conquered-banner');
@@ -2698,7 +2773,7 @@
 
             if (todayRecord) {
                 banner.style.display = 'block';
-                timeText.textContent = `Logged at ${todayRecord.timeStr} • ${todayRecord.statusLabel}`;
+                timeText.textContent = `Logged at ${getRecordTimeDisplay(todayRecord)} • ${getRecordStatusLabel(todayRecord)}`;
                 btnRow.style.display = 'none';
                 camViewport.classList.add('conquered');
             } else {
@@ -2742,7 +2817,7 @@
             // 1. Master Consistency Score
             let consistencyScore = 100;
             if (wakeRecords.length > 0) {
-                const onTimeCount = wakeRecords.filter(r => r.isEarly).length;
+                const onTimeCount = wakeRecords.filter(isRecordOnTime).length;
                 const onTimeRatio = onTimeCount / wakeRecords.length;
                 const streakBonus = Math.min(20, (streak / 14) * 20);
                 consistencyScore = Math.min(100, Math.round(onTimeRatio * 80 + streakBonus));
@@ -2761,8 +2836,9 @@
             }
 
             // 2. Avg Wake Time
-            if (wakeRecords.length > 0) {
-                const avgMins = Math.round(wakeRecords.reduce((acc, r) => acc + r.wakeMinutes, 0) / wakeRecords.length);
+            const validMinutes = wakeRecords.map(getRecordMinutes).filter(m => m !== null);
+            if (validMinutes.length > 0) {
+                const avgMins = Math.round(validMinutes.reduce((acc, m) => acc + m, 0) / validMinutes.length);
                 const ah = Math.floor(avgMins / 60);
                 const am = avgMins % 60;
                 const d = new Date();
@@ -2774,7 +2850,7 @@
 
             // 3. On-Time Rate
             if (wakeRecords.length > 0) {
-                const onTimeCount = wakeRecords.filter(r => r.isEarly).length;
+                const onTimeCount = wakeRecords.filter(isRecordOnTime).length;
                 const rate = Math.round((onTimeCount / wakeRecords.length) * 100);
                 document.getElementById('report-ontime-rate').textContent = `${rate}%`;
             } else {
@@ -2782,7 +2858,14 @@
             }
 
             // 4. Hours Saved Before Dawn
-            const earlyMinutes = wakeRecords.reduce((acc, r) => acc + (r.diffMinutes > 0 ? r.diffMinutes : 0), 0);
+            const [th, tm] = (appConfig.targetTime || "07:00").split(':').map(Number);
+            const targetTotalMins = th * 60 + tm;
+            const earlyMinutes = wakeRecords.reduce((acc, r) => {
+                if (typeof r.diffMinutes === 'number') return acc + (r.diffMinutes > 0 ? r.diffMinutes : 0);
+                const mins = getRecordMinutes(r);
+                if (mins !== null && mins < targetTotalMins) return acc + (targetTotalMins - mins);
+                return acc;
+            }, 0);
             const hoursSaved = (earlyMinutes / 60).toFixed(1);
             document.getElementById('report-hours-saved').textContent = `${hoursSaved} hrs`;
 
@@ -2795,17 +2878,18 @@
                 historyList.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 12px; padding: 24px 0;">No chronicle records yet. Record your first 5-second proof tomorrow dawn!</div>`;
             } else {
                 historyList.innerHTML = wakeRecords.slice(0, 25).map(r => {
-                    const badgeClass = r.isEarly ? 'badge-early' : 'badge-late';
+                    const onTime = isRecordOnTime(r);
+                    const badgeClass = onTime ? 'badge-early' : 'badge-late';
                     return `
                     <div class="history-item">
                         <div>
                             <div style="font-size: 11px; font-weight: 700; color: var(--text-secondary);">${formatDate(r.date)}</div>
-                            <div style="font-size: 14px; font-weight: 900; color: #FFFFFF; margin-top: 1px;">${r.timeStr}</div>
+                            <div style="font-size: 14px; font-weight: 900; color: #FFFFFF; margin-top: 1px;">${getRecordTimeDisplay(r)}</div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="history-badge ${badgeClass}">${r.statusLabel}</span>
-                            <span title="${r.tgDelivered ? 'Delivered to Telegram Bot' : 'Local Archive'}">
-                                ${r.tgDelivered ? '✈️' : '💾'}
+                            <span class="history-badge ${badgeClass}">${getRecordStatusLabel(r)}</span>
+                            <span title="${r.tgDelivered || r.method === 'Cloud' ? 'Delivered & Secured in Citadel Memory' : 'Local Archive'}">
+                                ${r.tgDelivered || r.method === 'Cloud' ? '☁️' : '💾'}
                             </span>
                         </div>
                     </div>
@@ -2884,7 +2968,7 @@
             for (let i = 13; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(today.getDate() - i);
-                const dateStr = d.toISOString().split('T')[0];
+                const dateStr = getLocalDateStr(d);
                 const dayName = days[d.getDay()][0];
                 const record = wakeRecords.find(r => r.date === dateStr);
 
@@ -2895,11 +2979,9 @@
                 let barClass = '';
 
                 if (record) {
-                    if (record.diffMinutes >= 15) {
-                        barHeight = '68px';
-                        barClass = 'conquered';
-                    } else if (record.isEarly) {
-                        barHeight = '50px';
+                    const onTime = isRecordOnTime(record);
+                    if (onTime) {
+                        barHeight = (record.diffMinutes && record.diffMinutes >= 15) ? '68px' : '50px';
                         barClass = 'conquered';
                     } else {
                         barHeight = '32px';
@@ -2909,8 +2991,8 @@
                 if (i === 0) barClass += ' today';
 
                 col.innerHTML = `
-                    <div class="chart-bar ${barClass}" style="height: ${barHeight};" title="${record ? (record.timeStr + ' (' + record.statusLabel + ')') : (formatDate(dateStr) + ': No record')}"></div>
-                    <div class="chart-day" style="font-size: 8px;">${i === 0 ? '★' : dayName}</div>
+                    <div class="chart-bar ${barClass}" style="height: ${barHeight};" title="${record ? (getRecordTimeDisplay(record) + ' (' + getRecordStatusLabel(record) + ')') : (formatDate(dateStr) + ': No record')}"></div>
+                    <div class="chart-day" style="font-size: 8px;">${i === 0 ? '👑' : dayName}</div>
                 `;
                 chartCont.appendChild(col);
             }
@@ -2922,12 +3004,12 @@
             if (!grid) return;
             grid.innerHTML = '';
             const today = new Date();
-            const todayStr = today.toISOString().split('T')[0];
+            const todayStr = getLocalDateStr(today);
 
             for (let i = 27; i >= 0; i--) {
                 const d = new Date();
                 d.setDate(today.getDate() - i);
-                const dateStr = d.toISOString().split('T')[0];
+                const dateStr = getLocalDateStr(d);
                 const dayNum = d.getDate();
                 const record = wakeRecords.find(r => r.date === dateStr);
 
@@ -2936,15 +3018,20 @@
                 if (dateStr === todayStr) cell.classList.add('today-cell');
 
                 if (record) {
-                    if (record.diffMinutes >= 15) {
-                        cell.classList.add('early');
-                        cell.title = `${dateStr}: Early Bird ${record.timeStr} (+${record.diffMinutes}m)`;
-                    } else if (record.isEarly) {
-                        cell.classList.add('ontime');
-                        cell.title = `${dateStr}: On-Time ${record.timeStr}`;
+                    const onTime = isRecordOnTime(record);
+                    const timeDisp = getRecordTimeDisplay(record);
+                    if (onTime) {
+                        if (record.diffMinutes && record.diffMinutes >= 15) {
+                            cell.classList.add('early');
+                            cell.title = `${dateStr}: Early Bird ${timeDisp} (+${record.diffMinutes}m)`;
+                        } else {
+                            cell.classList.add('ontime');
+                            cell.title = `${dateStr}: On-Time Sovereign ${timeDisp}`;
+                        }
                     } else {
                         cell.classList.add('late');
-                        cell.title = `${dateStr}: Over Target ${record.timeStr} (${Math.abs(record.diffMinutes)}m late)`;
+                        const lateDiff = (record.diffMinutes !== undefined) ? ` (${Math.abs(record.diffMinutes)}m late)` : '';
+                        cell.title = `${dateStr}: Over Target ${timeDisp}${lateDiff}`;
                     }
                     cell.innerHTML = `<span>${dayNum}</span>`;
                 } else {
@@ -3128,7 +3215,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `waky_chronicles_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `waky_chronicles_${getLocalDateStr()}.json`;
             a.click();
             URL.revokeObjectURL(url);
         }

@@ -408,17 +408,30 @@ namespace WakyDesktop
                         var cItem = kvp.Value;
                         var newLocal = new Dictionary<string, object>();
                         newLocal["date"] = kvp.Key;
-                        newLocal["time"] = cItem.ContainsKey("time") ? cItem["time"] : "07:00";
-                        newLocal["timestamp"] = cItem.ContainsKey("timestamp") ? Convert.ToInt64(cItem["timestamp"]) * 1000 : DateTime.Now.Ticks;
-                        bool onTime = cItem.ContainsKey("on_time") ? Convert.ToBoolean(cItem["on_time"]) : true;
+                        string tVal = cItem.ContainsKey("time") && cItem["time"] != null ? cItem["time"].ToString() : "07:00";
+                        newLocal["time"] = tVal;
+                        newLocal["timeStr"] = tVal.Contains("AM") || tVal.Contains("PM") ? tVal : tVal + " AM";
+                        
+                        long unixMs = (long)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalMilliseconds;
+                        if (cItem.ContainsKey("timestamp") && cItem["timestamp"] != null)
+                        {
+                            try {
+                                long rawTs = Convert.ToInt64(cItem["timestamp"]);
+                                unixMs = rawTs < 10000000000L ? rawTs * 1000 : rawTs;
+                            } catch { }
+                        }
+                        newLocal["timestamp"] = unixMs;
+
+                        object onTimeVal = cItem.ContainsKey("on_time") ? cItem["on_time"] : (cItem.ContainsKey("status") ? cItem["status"] : null);
+                        bool onTime = SafeToBool(onTimeVal, true);
                         newLocal["status"] = onTime ? "on-time" : "late";
-                        newLocal["statusLabel"] = onTime ? "ON-TIME" : "LATE";
+                        newLocal["statusLabel"] = onTime ? "ON-TIME ⚔️" : "LATE RISE ⚠️";
                         newLocal["xpEarned"] = onTime ? 100 : 50;
                         newLocal["streak"] = 1;
                         newLocal["rank"] = "Agoge Recruit";
                         newLocal["proofFileName"] = "";
                         newLocal["verified"] = true;
-                        newLocal["method"] = cItem.ContainsKey("method") ? cItem["method"] : "Cloud";
+                        newLocal["method"] = cItem.ContainsKey("method") && cItem["method"] != null ? cItem["method"].ToString() : "Cloud";
                         localList.Add(newLocal);
                     }
                 }
@@ -431,9 +444,21 @@ namespace WakyDesktop
                         var lItem = kvp.Value;
                         var newCloud = new Dictionary<string, object>();
                         newCloud["date"] = kvp.Key;
-                        newCloud["time"] = lItem.ContainsKey("time") ? lItem["time"].ToString().Replace(" AM", "").Replace(" PM", "") : "07:00";
-                        newCloud["timestamp"] = DateTime.Now.Ticks / 10000;
-                        bool isOt = lItem.ContainsKey("status") && lItem["status"].ToString().ToLower().Contains("on-time");
+                        string ltVal = lItem.ContainsKey("time") && lItem["time"] != null ? lItem["time"].ToString().Replace(" AM", "").Replace(" PM", "").Trim() : "07:00";
+                        newCloud["time"] = ltVal;
+
+                        long unixSec = (long)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+                        if (lItem.ContainsKey("timestamp") && lItem["timestamp"] != null)
+                        {
+                            try {
+                                long rawTs = Convert.ToInt64(lItem["timestamp"]);
+                                unixSec = rawTs > 10000000000L ? rawTs / 1000 : rawTs;
+                            } catch { }
+                        }
+                        newCloud["timestamp"] = unixSec;
+
+                        object otVal = lItem.ContainsKey("on_time") ? lItem["on_time"] : (lItem.ContainsKey("status") ? lItem["status"] : null);
+                        bool isOt = SafeToBool(otVal, true);
                         newCloud["on_time"] = isOt;
                         newCloud["status"] = isOt ? "ON TIME ⚔️" : "LATE RISE ⚠️";
                         newCloud["method"] = "DESKTOP_VERIFIED";
@@ -458,6 +483,18 @@ namespace WakyDesktop
                 File.WriteAllText(cloudMemPath, serializer.Serialize(cloudObj), Encoding.UTF8);
             }
             catch (Exception) { }
+        }
+
+        private static bool SafeToBool(object obj, bool defVal)
+        {
+            if (obj == null) return defVal;
+            if (obj is bool) return (bool)obj;
+            string s = obj.ToString().ToLower().Trim();
+            if (s == "true" || s == "1" || s == "yes") return true;
+            if (s == "false" || s == "0" || s == "no") return false;
+            if (s.Contains("on-time") || s.Contains("on time") || s.Contains("conquered") || s.Contains("early")) return true;
+            if (s.Contains("late")) return false;
+            return defVal;
         }
 
         private static void SendBytes(HttpListenerContext ctx, byte[] bytes, string contentType, int statusCode)

@@ -208,6 +208,7 @@ def calculate_stats(mem):
 
     on_time_count = sum(1 for l in logs if is_log_on_time(l))
     on_time_pct = (on_time_count / total) * 100.0
+    mem["total_on_time"] = on_time_count
 
     # Average time calculation (minutes from midnight)
     total_minutes = 0
@@ -468,7 +469,7 @@ def handle_message(msg, mem):
 
     # Check for Video Proof (e.g. sent by Desktop app or mobile phone camera)
     if "video" in msg or "video_note" in msg or "document" in msg:
-        caption = msg.get("caption", "")
+        caption = (msg.get("caption") or "").strip()
         now = get_current_local_dt()
         wake_time_str = now.strftime("%H:%M")
         
@@ -628,7 +629,14 @@ def main():
                 if data.get("ok"):
                     for update in data.get("result", []):
                         offset = update["update_id"] + 1
-                        msg = update.get("message") or update.get("channel_post")
+                        msg = update.get("message") or update.get("channel_post") or update.get("edited_message")
+                        if not msg and "callback_query" in update:
+                            cb = update["callback_query"]
+                            msg = cb.get("message") or {}
+                            msg["text"] = cb.get("data", "")
+                            msg["from"] = cb.get("from", {})
+                            if "message" in cb and "chat" in cb["message"]:
+                                msg["chat"] = cb["message"]["chat"]
                         if msg:
                             handle_message(msg, mem)
             else:
