@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1002,6 +1002,82 @@
         .trophy-toast-overlay.show {
             transform: translateX(0);
         }
+
+        /* SPARTAN MODAL DIALOGS */
+        .spartan-modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(4, 6, 12, 0.85);
+            backdrop-filter: blur(6px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            padding: 20px;
+        }
+        .spartan-modal-backdrop.active {
+            display: flex;
+        }
+        .spartan-modal-card {
+            background: linear-gradient(145deg, #121622, #0A0D15);
+            border: 2px solid rgba(234, 179, 8, 0.4);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 30px rgba(234, 179, 8, 0.2);
+            overflow: hidden;
+            animation: modalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes modalPopIn {
+            from { opacity: 0; transform: scale(0.94) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .spartan-modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(234, 179, 8, 0.05);
+        }
+        .spartan-modal-title {
+            font-size: 14px;
+            font-weight: 900;
+            color: var(--spartan-gold);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .spartan-modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .spartan-modal-close:hover {
+            color: #FFF;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .spartan-modal-body {
+            padding: 20px;
+        }
+        .spartan-modal-footer {
+            padding: 14px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            background: rgba(11, 14, 23, 0.6);
+        }
     </style>
 </head>
 <body>
@@ -1017,6 +1093,133 @@
             </div>
             <div style="font-size: 14px; font-weight: 900; color: #FFFFFF;" id="toast-title">Dawn Sovereign</div>
             <div style="font-size: 11px; color: #38BDF8; font-weight: 700;" id="toast-xp">+100 XP Gained</div>
+        </div>
+    </div>
+
+        <!-- STREAK / DAY ADJUST MODAL -->
+    <div class="spartan-modal-backdrop" id="modal-streak">
+        <div class="spartan-modal-card">
+            <div class="spartan-modal-header">
+                <div class="spartan-modal-title">
+                    <span>ðŸ‘‘</span> Adjust Sovereign Streak & Days
+                </div>
+                <button class="spartan-modal-close" onclick="closeStreakModal()">&times;</button>
+            </div>
+            <div class="spartan-modal-body">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.5;">
+                    Adjust your active consecutive days or fix a day added by mistake.
+                </div>
+
+                <div style="background: rgba(11, 14, 23, 0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; margin-bottom: 14px;">
+                    <div class="form-label">Streak Calculation Mode</div>
+                    <div style="display: flex; gap: 14px; margin-top: 8px;">
+                        <label style="font-size: 12px; color: #FFF; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="radio" name="streak_calc_mode" id="mode-auto" onchange="toggleStreakModeUI()">
+                            Auto (From Battle Logs)
+                        </label>
+                        <label style="font-size: 12px; color: #FFF; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <input type="radio" name="streak_calc_mode" id="mode-manual" onchange="toggleStreakModeUI()">
+                            Manual Day Override
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group" id="manual-streak-group">
+                    <label class="form-label">Active Sovereign Streak (Days)</label>
+                    <input type="number" class="form-input" id="input-streak-days" min="0" max="999" placeholder="e.g. 0 or 5">
+                    <div style="font-size: 10.5px; color: var(--text-muted); margin-top: 4px;">
+                        Set to 0 if you want to reset your streak, or enter your exact day count.
+                    </div>
+                </div>
+
+                <div id="today-record-notice" style="margin-top: 14px; padding: 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 10px; display: none;">
+                    <div style="font-size: 11.5px; font-weight: 800; color: #FCA5A5; margin-bottom: 4px;">
+                        âš ï¸ Today's Wake Record Detected
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+                        A record for today is logged. If you added it by mistake, remove it with one click:
+                    </div>
+                    <button class="btn-action" style="padding: 6px 12px; font-size: 11px; border-color: rgba(239,68,68,0.5); color: #FCA5A5; background: rgba(239,68,68,0.15);" onclick="deleteTodayRecord()">
+                        ðŸ—‘ï¸ Delete Today's Record (Added by mistake)
+                    </button>
+                </div>
+            </div>
+            <div class="spartan-modal-footer">
+                <button class="btn-action" style="padding: 6px 14px;" onclick="closeStreakModal()">Cancel</button>
+                <button class="btn-action" style="padding: 6px 16px; background: var(--spartan-gold); color: #000; font-weight: 900;" onclick="saveStreakAdjustment()">Save Streak</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDIT RECORD MODAL -->
+    <div class="spartan-modal-backdrop" id="modal-edit-record">
+        <div class="spartan-modal-card">
+            <div class="spartan-modal-header">
+                <div class="spartan-modal-title">
+                    <span>âœï¸</span> Edit Dawn Battle Record
+                </div>
+                <button class="spartan-modal-close" onclick="closeEditRecordModal()">&times;</button>
+            </div>
+            <div class="spartan-modal-body">
+                <input type="hidden" id="edit-rec-orig-date">
+                <div class="form-group">
+                    <label class="form-label">Battle Date (YYYY-MM-DD)</label>
+                    <input type="date" class="form-input" id="edit-rec-date">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Wake-Up Time</label>
+                    <input type="time" class="form-input" id="edit-rec-time">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Conquest Status</label>
+                    <select class="form-input" id="edit-rec-status">
+                        <option value="on-time">ON-TIME âš”ï¸ (Full Honor, +100 XP)</option>
+                        <option value="late">LATE RISE âš ï¸ (Agoge Penalty, +50 XP)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="spartan-modal-footer" style="justify-content: space-between;">
+                <button class="btn-action" style="padding: 6px 12px; border-color: rgba(239,68,68,0.4); color: #FCA5A5; background: rgba(239,68,68,0.1);" onclick="deleteCurrentEditedRecord()">
+                    ðŸ—‘ï¸ Delete Record
+                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-action" style="padding: 6px 14px;" onclick="closeEditRecordModal()">Cancel</button>
+                    <button class="btn-action" style="padding: 6px 16px; background: var(--spartan-gold); color: #000; font-weight: 900;" onclick="saveEditedRecord()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD RECORD MODAL -->
+    <div class="spartan-modal-backdrop" id="modal-add-record">
+        <div class="spartan-modal-card">
+            <div class="spartan-modal-header">
+                <div class="spartan-modal-title">
+                    <span>âž•</span> Log Past Dawn Battle
+                </div>
+                <button class="spartan-modal-close" onclick="closeAddRecordModal()">&times;</button>
+            </div>
+            <div class="spartan-modal-body">
+                <div class="form-group">
+                    <label class="form-label">Battle Date</label>
+                    <input type="date" class="form-input" id="add-rec-date">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Wake-Up Time</label>
+                    <input type="time" class="form-input" id="add-rec-time" value="06:45">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select class="form-input" id="add-rec-status">
+                        <option value="on-time">ON-TIME âš”ï¸ (+100 XP)</option>
+                        <option value="late">LATE RISE âš ï¸ (+50 XP)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="spartan-modal-footer">
+                <button class="btn-action" style="padding: 6px 14px;" onclick="closeAddRecordModal()">Cancel</button>
+                <button class="btn-action" style="padding: 6px 16px; background: var(--spartan-gold); color: #000; font-weight: 900;" onclick="saveNewRecord()">Add to Chronicle</button>
+            </div>
         </div>
     </div>
 
@@ -1989,6 +2192,10 @@
 
         // STREAK & WARRIOR-TO-KING RANKS
         function calculateStreak() {
+            const override = localStorage.getItem('waky_streak_override');
+            if (override !== null && override !== '' && !isNaN(override)) {
+                return parseInt(override, 10);
+            }
             if (!wakeRecords || wakeRecords.length === 0) return 0;
             const uniqueDates = Array.from(new Set(wakeRecords.map(r => r.date).filter(Boolean)))
                 .sort((a, b) => new Date(b) - new Date(a));
@@ -2996,6 +3203,279 @@
                 requestAnimationFrame(draw);
             }
             draw();
+        }
+
+        // ----------------- RECORD & STREAK EDITING SUITE -----------------
+        function showToast(title, sub, icon = "ðŸ‘‘", xpText = "") {
+            const toast = document.getElementById('trophy-toast');
+            if (!toast) return;
+            const tIcon = document.getElementById('toast-icon');
+            const tTitle = document.getElementById('toast-title');
+            const tXp = document.getElementById('toast-xp');
+            if (tIcon) tIcon.textContent = icon;
+            if (tTitle) tTitle.textContent = title;
+            if (tXp) tXp.textContent = xpText || sub;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3500);
+        }
+
+        // STREAK MODAL
+        function openStreakModal() {
+            const override = localStorage.getItem('waky_streak_override');
+            const modeAuto = document.getElementById('mode-auto');
+            const modeManual = document.getElementById('mode-manual');
+            const inputDays = document.getElementById('input-streak-days');
+            const todayNotice = document.getElementById('today-record-notice');
+
+            const currentStreak = calculateStreak();
+            if (override !== null && override !== '') {
+                if (modeManual) modeManual.checked = true;
+                if (inputDays) inputDays.value = override;
+            } else {
+                if (modeAuto) modeAuto.checked = true;
+                if (inputDays) inputDays.value = currentStreak;
+            }
+            toggleStreakModeUI();
+
+            const todayStr = getLocalDateStr(new Date());
+            const hasToday = wakeRecords.some(r => r.date === todayStr);
+            if (todayNotice) {
+                todayNotice.style.display = hasToday ? 'block' : 'none';
+            }
+
+            const modal = document.getElementById('modal-streak');
+            if (modal) modal.classList.add('active');
+        }
+
+        function closeStreakModal() {
+            const modal = document.getElementById('modal-streak');
+            if (modal) modal.classList.remove('active');
+        }
+
+        function toggleStreakModeUI() {
+            const isManual = document.getElementById('mode-manual')?.checked;
+            const group = document.getElementById('manual-streak-group');
+            if (group) group.style.opacity = isManual ? '1' : '0.45';
+        }
+
+        async function saveStreakAdjustment() {
+            const isManual = document.getElementById('mode-manual')?.checked;
+            const inputDays = document.getElementById('input-streak-days');
+
+            if (isManual) {
+                const val = Math.max(0, parseInt(inputDays.value, 10) || 0);
+                localStorage.setItem('waky_streak_override', val.toString());
+                showToast("Streak Days Adjusted", Manual override set to  DAYS, "ðŸ‘‘");
+            } else {
+                localStorage.removeItem('waky_streak_override');
+                showToast("Streak Mode: Auto", Calculated dynamically from battle history, "âš”ï¸");
+            }
+
+            closeStreakModal();
+            updateStreakAndRanks();
+            updateGamification();
+            renderDashboard();
+            renderHistoryLists();
+        }
+
+        // EDIT RECORD MODAL
+        function openEditRecordModal(date) {
+            const record = wakeRecords.find(r => r.date === date);
+            if (!record) return;
+
+            document.getElementById('edit-rec-orig-date').value = date;
+            document.getElementById('edit-rec-date').value = date;
+            document.getElementById('edit-rec-time').value = formatTo24h(record.time || record.timeStr || "07:00");
+            document.getElementById('edit-rec-status').value = isRecordOnTime(record) ? 'on-time' : 'late';
+
+            const modal = document.getElementById('modal-edit-record');
+            if (modal) modal.classList.add('active');
+        }
+
+        function closeEditRecordModal() {
+            const modal = document.getElementById('modal-edit-record');
+            if (modal) modal.classList.remove('active');
+        }
+
+        async function saveEditedRecord() {
+            const origDate = document.getElementById('edit-rec-orig-date').value;
+            const newDate = document.getElementById('edit-rec-date').value;
+            const newTime24 = document.getElementById('edit-rec-time').value;
+            const newStatus = document.getElementById('edit-rec-status').value;
+
+            const rec = wakeRecords.find(r => r.date === origDate);
+            if (!rec) return;
+
+            const isOt = (newStatus === 'on-time');
+            rec.date = newDate;
+            rec.time = newTime24;
+            rec.timeStr = formatToDisplayTime(newTime24);
+            rec.status = isOt ? 'on-time' : 'late';
+            rec.statusLabel = isOt ? 'ON-TIME âš”ï¸' : 'LATE RISE âš ï¸';
+            rec.xpEarned = isOt ? 100 : 50;
+
+            // Re-sort records by date descending
+            wakeRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            await saveRecordsToServer();
+
+            closeEditRecordModal();
+            updateStreakAndRanks();
+            updateGamification();
+            renderDashboard();
+            renderHistoryLists();
+            checkTodayStatus();
+            showToast("Record Updated", Battle on  saved and synced!, "âœï¸");
+        }
+
+        function deleteCurrentEditedRecord() {
+            const date = document.getElementById('edit-rec-orig-date').value;
+            closeEditRecordModal();
+            deleteRecord(date);
+        }
+
+        // DELETE RECORD
+        async function deleteRecord(date) {
+            if (!confirm(Are you sure you want to delete the dawn battle record for ? This will adjust your streak and stats.)) {
+                return;
+            }
+
+            try {
+                await fetch('/api/records/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ date: date })
+                });
+            } catch (e) {}
+
+            wakeRecords = wakeRecords.filter(r => r.date !== date);
+            await saveRecordsToServer();
+
+            updateStreakAndRanks();
+            updateGamification();
+            renderDashboard();
+            renderHistoryLists();
+            checkTodayStatus();
+            showToast("Record Deleted", Battle record for  removed., "ðŸ—‘ï¸");
+        }
+
+        function deleteTodayRecord() {
+            const todayStr = getLocalDateStr(new Date());
+            deleteRecord(todayStr);
+        }
+
+        function editTodayRecord() {
+            const todayStr = getLocalDateStr(new Date());
+            openEditRecordModal(todayStr);
+        }
+
+        // ADD RECORD MODAL
+        function openAddRecordModal() {
+            const todayStr = getLocalDateStr(new Date());
+            document.getElementById('add-rec-date').value = todayStr;
+            document.getElementById('add-rec-time').value = appConfig.targetTime || "06:45";
+            document.getElementById('add-rec-status').value = "on-time";
+
+            const modal = document.getElementById('modal-add-record');
+            if (modal) modal.classList.add('active');
+        }
+
+        function closeAddRecordModal() {
+            const modal = document.getElementById('modal-add-record');
+            if (modal) modal.classList.remove('active');
+        }
+
+        async function saveNewRecord() {
+            const date = document.getElementById('add-rec-date').value;
+            const time24 = document.getElementById('add-rec-time').value;
+            const statusVal = document.getElementById('add-rec-status').value;
+
+            if (!date || !time24) {
+                alert("Please select both date and time.");
+                return;
+            }
+
+            // Remove existing record on same date if present
+            wakeRecords = wakeRecords.filter(r => r.date !== date);
+
+            const isOt = (statusVal === 'on-time');
+            const newRec = {
+                date: date,
+                time: time24,
+                timeStr: formatToDisplayTime(time24),
+                timestamp: Date.now(),
+                status: isOt ? 'on-time' : 'late',
+                statusLabel: isOt ? 'ON-TIME âš”ï¸' : 'LATE RISE âš ï¸',
+                xpEarned: isOt ? 100 : 50,
+                streak: 1,
+                rank: "Agoge Recruit",
+                proofFileName: "",
+                verified: true,
+                method: "MANUAL_LOG"
+            };
+
+            wakeRecords.push(newRec);
+            wakeRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            await saveRecordsToServer();
+
+            closeAddRecordModal();
+            updateStreakAndRanks();
+            updateGamification();
+            renderDashboard();
+            renderHistoryLists();
+            checkTodayStatus();
+            showToast("Battle Recorded", Dawn victory for  added!, "âž•");
+        }
+
+        // CLEAR ALL RECORDS (RESET)
+        async function confirmClearAllRecords() {
+            if (!confirm("âš ï¸ RESET KINGDOM: Are you sure you want to clear all battle chronicles and reset your streak back to Day 0?")) {
+                return;
+            }
+
+            try {
+                await fetch('/api/records/clear_all', { method: 'POST' });
+            } catch (e) {}
+
+            wakeRecords = [];
+            localStorage.removeItem('waky_streak_override');
+            await saveRecordsToServer();
+
+            updateStreakAndRanks();
+            updateGamification();
+            renderDashboard();
+            renderHistoryLists();
+            checkTodayStatus();
+            showToast("Citadel Reset", "All records cleared. Fresh start active!", "âš”ï¸");
+        }
+
+        // TIME UTILITIES
+        function formatTo24h(t) {
+            if (!t) return "07:00";
+            t = t.toString().trim().toUpperCase();
+            let isPm = t.includes("PM");
+            let isAm = t.includes("AM");
+            let clean = t.replace("AM", "").replace("PM", "").trim();
+            let parts = clean.split(":");
+            let h = parseInt(parts[0], 10);
+            let m = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+            if (isPm && h < 12) h += 12;
+            if (isAm && h === 12) h = 0;
+            return ${String(h).padStart(2, '0')}:;
+        }
+
+        function formatToDisplayTime(t24) {
+            if (!t24) return "07:00 AM";
+            let parts = t24.split(":");
+            let h = parseInt(parts[0], 10);
+            let m = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+            let ampm = h >= 12 ? "PM" : "AM";
+            let dispH = h % 12;
+            if (dispH === 0) dispH = 12;
+            return ${String(dispH).padStart(2, '0')}: ;
         }
     </script>
 </body>

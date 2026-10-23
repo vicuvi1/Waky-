@@ -17,6 +17,7 @@ namespace WakyDesktop
         private static string proofsDir;
         private static string recordsFile;
         private static string configFile;
+        private static string tombstonesFile;
         private static HttpListener listener;
         private static int port = 48999;
         private static DateTime lastHeartbeat = DateTime.Now;
@@ -52,12 +53,14 @@ namespace WakyDesktop
                 proofsDir = Path.Combine(appDir, "proofs");
                 recordsFile = Path.Combine(appDir, "wake_records.json");
                 configFile = Path.Combine(appDir, "waky_config.json");
+                tombstonesFile = Path.Combine(appDir, "deleted_dates.json");
 
                 string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 sshKeyPath = Path.Combine(userProfile, ".ssh", "hermes-vm.key");
 
                 if (!Directory.Exists(proofsDir)) Directory.CreateDirectory(proofsDir);
                 if (!File.Exists(recordsFile)) File.WriteAllText(recordsFile, "[]", Encoding.UTF8);
+                if (!File.Exists(tombstonesFile)) File.WriteAllText(tombstonesFile, "[]", Encoding.UTF8);
                 if (!File.Exists(configFile))
                 {
                     string defConfig = "{\"targetTime\":\"07:00\",\"tgToken\":\"8814364854:AAE3HpffTsEX3x6xnl74Fx0Lff6OxOxeTeA\",\"tgChatId\":\"1900611848\",\"botUsername\":\"wakyyyy_bot\",\"paired\":true}";
@@ -272,13 +275,65 @@ namespace WakyDesktop
                     using (var reader = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
                     {
                         string body = reader.ReadToEnd();
-                        File.WriteAllText(recordsFile, body, Encoding.UTF8);
+                        SaveRecordsAuthoritative(body);
                     }
-                    // Trigger cloud sync in background
-                    ThreadPool.QueueUserWorkItem(delegate(object o) {
-                        PerformCloudSync();
-                    });
+                    byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true}");
+                    SendBytes(ctx, bytes, "application/json", 200);
+                }
+                else if (path == "/api/records/delete" && ctx.Request.HttpMethod == "POST")
+                {
+                    using (var reader = new StreamReader(ctx.Request.InputStream, Encoding.UTF8))
+                    {
+                        string body = reader.ReadToEnd();
+                        try
+                        {
+                            var serializer = new JavaScriptSerializer();
+                            var dict = serializer.Deserialize<Dictionary<string, object>>(body);
+                            if (dict != null && dict.ContainsKey("date") && dict["date"] != null)
+                            {
+                                string delDate = dict["date"].ToString();
+                                var tombstones = LoadTombstones();
+                                tombstones.Add(delDate);
+                                SaveTombstones(tombstones);
 
+                                string oldJson = File.Exists(recordsFile) ? File.ReadAllText(recordsFile, Encoding.UTF8) : "[]";
+                                var localList = serializer.Deserialize<List<Dictionary<string, object>>>(oldJson) ?? new List<Dictionary<string, object>>();
+                                localList.RemoveAll(delegate(Dictionary<string, object> item) {
+                                    return item.ContainsKey("date") && item["date"] != null && item["date"].ToString() == delDate;
+                                });
+                                File.WriteAllText(recordsFile, serializer.Serialize(localList), Encoding.UTF8);
+
+                                ThreadPool.QueueUserWorkItem(delegate(object o) {
+                                    PerformCloudSync();
+                                });
+                            }
+                        }
+                        catch { }
+                    }
+                    byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true}");
+                    SendBytes(ctx, bytes, "application/json", 200);
+                }
+                else if (path == "/api/records/clear_all" && ctx.Request.HttpMethod == "POST")
+                {
+                    try
+                    {
+                        var serializer = new JavaScriptSerializer();
+                        string oldJson = File.Exists(recordsFile) ? File.ReadAllText(recordsFile, Encoding.UTF8) : "[]";
+                        var localList = serializer.Deserialize<List<Dictionary<string, object>>>(oldJson) ?? new List<Dictionary<string, object>>();
+                        var tombstones = LoadTombstones();
+                        foreach (var item in localList)
+                        {
+                            if (item.ContainsKey("date") && item["date"] != null)
+                                tombstones.Add(item["date"].ToString());
+                        }
+                        SaveTombstones(tombstones);
+                        File.WriteAllText(recordsFile, "[]", Encoding.UTF8);
+
+                        ThreadPool.QueueUserWorkItem(delegate(object o) {
+                            PerformCloudSync();
+                        });
+                    }
+                    catch { }
                     byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true}");
                     SendBytes(ctx, bytes, "application/json", 200);
                 }
@@ -380,6 +435,128 @@ namespace WakyDesktop
             return false;
         }
 
+        private static HashSet<string> LoadTombstones()
+        {
+            var set = new HashSet<string>();
+            try
+            {
+                if (File.Exists(tombstonesFile))
+                {
+                    var serializer = new JavaScriptSerializer();
+                    var list = serializer.Deserialize<List<string>>(File.ReadAllText(tombstonesFile, Encoding.UTF8));
+                    if (list != null)
+                    {
+                        foreach (var s in list)
+                        {
+                            if (!string.IsNullOrEmpty(s)) set.Add(s);
+                        }
+                    }
+                }
+            }
+            catch { }
+            return set;
+        }
+
+        private static void SaveTombstones(HashSet<string> set)
+        {
+            try
+            {
+                var serializer = new JavaScriptSerializer();
+                var list = new List<string>(set);
+                File.WriteAllText(tombstonesFile, serializer.Serialize(list), Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        private static void SaveRecordsAuthoritative(string body)
+        {
+            try
+            {
+                var serializer = new JavaScriptSerializer();
+                var newLocalList = serializer.Deserialize<List<Dictionary<string, object>>>(body);
+                if (newLocalList == null) newLocalList = new List<Dictionary<string, object>>();
+
+                string oldJson = File.Exists(recordsFile) ? File.ReadAllText(recordsFile, Encoding.UTF8) : "[]";
+                var oldLocalList = serializer.Deserialize<List<Dictionary<string, object>>>(oldJson);
+                if (oldLocalList == null) oldLocalList = new List<Dictionary<string, object>>();
+
+                var newDates = new HashSet<string>();
+                foreach (var item in newLocalList)
+                {
+                    if (item.ContainsKey("date") && item["date"] != null)
+                        newDates.Add(item["date"].ToString());
+                }
+
+                var tombstones = LoadTombstones();
+                // Dates that existed in old list but not in new list are considered deleted
+                foreach (var item in oldLocalList)
+                {
+                    if (item.ContainsKey("date") && item["date"] != null)
+                    {
+                        string d = item["date"].ToString();
+                        if (!newDates.Contains(d))
+                        {
+                            tombstones.Add(d);
+                        }
+                    }
+                }
+
+                // If user added or restored a date, remove from tombstones
+                foreach (var d in newDates)
+                {
+                    if (tombstones.Contains(d)) tombstones.Remove(d);
+                }
+                SaveTombstones(tombstones);
+
+                File.WriteAllText(recordsFile, body, Encoding.UTF8);
+
+                ThreadPool.QueueUserWorkItem(delegate(object o) {
+                    PerformCloudSync();
+                });
+            }
+            catch (Exception ex)
+            {
+                Log("Error in SaveRecordsAuthoritative: " + ex.Message);
+                File.WriteAllText(recordsFile, body, Encoding.UTF8);
+            }
+        }
+
+        private static int CalculateStreakFromLogs(List<object> logs)
+        {
+            if (logs == null || logs.Count == 0) return 0;
+            var dates = new List<string>();
+            foreach (var o in logs)
+            {
+                var dict = o as Dictionary<string, object>;
+                if (dict != null && dict.ContainsKey("date") && dict["date"] != null)
+                {
+                    string d = dict["date"].ToString();
+                    if (!dates.Contains(d)) dates.Add(d);
+                }
+            }
+            if (dates.Count == 0) return 0;
+            dates.Sort();
+            dates.Reverse();
+
+            DateTime nowLocal = DateTime.UtcNow.AddHours(3);
+            string todayStr = nowLocal.ToString("yyyy-MM-dd");
+            string yesterdayStr = nowLocal.AddDays(-1).ToString("yyyy-MM-dd");
+
+            if (dates[0] != todayStr && dates[0] != yesterdayStr) return 0;
+
+            int streak = 1;
+            for (int i = 0; i < dates.Count - 1; i++)
+            {
+                DateTime d1, d2;
+                if (DateTime.TryParse(dates[i], out d1) && DateTime.TryParse(dates[i + 1], out d2))
+                {
+                    if ((d1.Date - d2.Date).TotalDays == 1) streak++;
+                    else break;
+                }
+            }
+            return streak;
+        }
+
         private static void MergeCloudAndLocal(string localRecPath, string cloudMemPath)
         {
             try
@@ -395,14 +572,37 @@ namespace WakyDesktop
                 if (cloudObj == null) cloudObj = new Dictionary<string, object>();
 
                 object logsObj;
-                List<object> cloudLogsList = new List<object>();
+                List<object> rawCloudLogs = new List<object>();
                 if (cloudObj.TryGetValue("logs", out logsObj) && logsObj is System.Collections.IEnumerable)
                 {
                     foreach (var o in (System.Collections.IEnumerable)logsObj)
                     {
+                        rawCloudLogs.Add(o);
+                    }
+                }
+
+                var tombstones = LoadTombstones();
+
+                // Filter out any tombstoned dates from cloud logs and localList
+                var cloudLogsList = new List<object>();
+                foreach (var o in rawCloudLogs)
+                {
+                    var item = o as Dictionary<string, object>;
+                    if (item != null && item.ContainsKey("date") && item["date"] != null)
+                    {
+                        string d = item["date"].ToString();
+                        if (tombstones.Contains(d)) continue;
                         cloudLogsList.Add(o);
                     }
                 }
+
+                localList.RemoveAll(delegate(Dictionary<string, object> item) {
+                    if (item.ContainsKey("date") && item["date"] != null)
+                    {
+                        return tombstones.Contains(item["date"].ToString());
+                    }
+                    return false;
+                });
 
                 // Index local dates
                 var localDates = new Dictionary<string, Dictionary<string, object>>();
@@ -425,10 +625,10 @@ namespace WakyDesktop
                     }
                 }
 
-                // Add any missing cloud items to local
+                // 1. Add any missing cloud items to local (if NOT in tombstones)
                 foreach (var kvp in cloudDates)
                 {
-                    if (!localDates.ContainsKey(kvp.Key))
+                    if (!tombstones.Contains(kvp.Key) && !localDates.ContainsKey(kvp.Key))
                     {
                         var cItem = kvp.Value;
                         var newLocal = new Dictionary<string, object>();
@@ -461,29 +661,41 @@ namespace WakyDesktop
                     }
                 }
 
-                // Add any missing local items to cloud
+                // 2. Add or update local items to cloud
                 foreach (var kvp in localDates)
                 {
-                    if (!cloudDates.ContainsKey(kvp.Key))
+                    if (tombstones.Contains(kvp.Key)) continue;
+
+                    var lItem = kvp.Value;
+                    string ltVal = lItem.ContainsKey("time") && lItem["time"] != null ? lItem["time"].ToString().Replace(" AM", "").Replace(" PM", "").Trim() : "07:00";
+                    object otVal = lItem.ContainsKey("on_time") ? lItem["on_time"] : (lItem.ContainsKey("status") ? lItem["status"] : null);
+                    bool isOt = SafeToBool(otVal, true);
+
+                    long unixSec = (long)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+                    if (lItem.ContainsKey("timestamp") && lItem["timestamp"] != null)
                     {
-                        var lItem = kvp.Value;
+                        try {
+                            long rawTs = Convert.ToInt64(lItem["timestamp"]);
+                            unixSec = rawTs > 10000000000L ? rawTs / 1000 : rawTs;
+                        } catch { }
+                    }
+
+                    if (cloudDates.ContainsKey(kvp.Key))
+                    {
+                        // Update existing cloud entry
+                        var existingCloud = cloudDates[kvp.Key];
+                        existingCloud["time"] = ltVal;
+                        existingCloud["timestamp"] = unixSec;
+                        existingCloud["on_time"] = isOt;
+                        existingCloud["status"] = isOt ? "ON TIME ⚔️" : "LATE RISE ⚠️";
+                    }
+                    else
+                    {
+                        // Insert new cloud entry
                         var newCloud = new Dictionary<string, object>();
                         newCloud["date"] = kvp.Key;
-                        string ltVal = lItem.ContainsKey("time") && lItem["time"] != null ? lItem["time"].ToString().Replace(" AM", "").Replace(" PM", "").Trim() : "07:00";
                         newCloud["time"] = ltVal;
-
-                        long unixSec = (long)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
-                        if (lItem.ContainsKey("timestamp") && lItem["timestamp"] != null)
-                        {
-                            try {
-                                long rawTs = Convert.ToInt64(lItem["timestamp"]);
-                                unixSec = rawTs > 10000000000L ? rawTs / 1000 : rawTs;
-                            } catch { }
-                        }
                         newCloud["timestamp"] = unixSec;
-
-                        object otVal = lItem.ContainsKey("on_time") ? lItem["on_time"] : (lItem.ContainsKey("status") ? lItem["status"] : null);
-                        bool isOt = SafeToBool(otVal, true);
                         newCloud["on_time"] = isOt;
                         newCloud["status"] = isOt ? "ON TIME ⚔️" : "LATE RISE ⚠️";
                         newCloud["method"] = "DESKTOP_VERIFIED";
@@ -505,9 +717,33 @@ namespace WakyDesktop
                 // Update cloud
                 cloudObj["logs"] = cloudLogsList;
                 cloudObj["total_wakes"] = cloudLogsList.Count;
+                int streak = CalculateStreakFromLogs(cloudLogsList);
+                cloudObj["current_streak"] = streak;
+                int currentBest = 0;
+                if (cloudObj.ContainsKey("best_streak") && cloudObj["best_streak"] != null)
+                {
+                    int.TryParse(cloudObj["best_streak"].ToString(), out currentBest);
+                }
+                if (streak > currentBest) cloudObj["best_streak"] = streak;
+
+                int onTimeCount = 0;
+                foreach (var o in cloudLogsList)
+                {
+                    var dict = o as Dictionary<string, object>;
+                    if (dict != null)
+                    {
+                        object ot = dict.ContainsKey("on_time") ? dict["on_time"] : (dict.ContainsKey("status") ? dict["status"] : null);
+                        if (SafeToBool(ot, true)) onTimeCount++;
+                    }
+                }
+                cloudObj["total_on_time"] = onTimeCount;
+
                 File.WriteAllText(cloudMemPath, serializer.Serialize(cloudObj), Encoding.UTF8);
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                Log("MergeCloudAndLocal error: " + ex.Message);
+            }
         }
 
         private static bool SafeToBool(object obj, bool defVal)
