@@ -1410,7 +1410,8 @@
                     </div>
                     <div style="display: flex; gap: 6px;">
                         <button class="btn-action" style="padding: 4px 8px; font-size: 10px; background: rgba(56,189,248,0.15); color: #38BDF8; border-color: rgba(56,189,248,0.4);" onclick="testTelegramConnection()">⚡ Ping</button>
-                        <button class="btn-action" style="padding: 4px 8px; font-size: 10px; background: rgba(234,179,8,0.15); color: var(--spartan-gold); border-color: rgba(234,179,8,0.4);" onclick="switchTab('fortress')">🔗 Connect</button>
+                        <button class="btn-action" style="padding: 4px 8px; font-size: 10px; background: rgba(16,185,129,0.15); color: #34D399; border-color: rgba(16,185,129,0.4);" onclick="syncCloudMemory()">☁️ Sync</button>
+                        <button class="btn-action" style="padding: 4px 8px; font-size: 10px; background: rgba(234,179,8,0.15); color: var(--spartan-gold); border-color: rgba(234,179,8,0.4);" onclick="switchTab('fortress')">⚙️ Citadel</button>
                     </div>
                 </div>
             </div>
@@ -1824,6 +1825,31 @@
                     <button class="btn-action" style="flex: 1; background: linear-gradient(135deg, var(--accent-green), #047857); color: #fff; border-color: var(--accent-green);" onclick="saveFortressSettings()">💾 Save Settings</button>
                 </div>
             </div>
+
+            <!-- 24/7 CITADEL CLOUD MEMORY CARD -->
+            <div class="card" style="margin-top: 14px; border: 1px solid rgba(56, 189, 248, 0.4); background: linear-gradient(180deg, rgba(14, 28, 48, 0.95), rgba(10, 16, 26, 0.98));">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <span style="font-size: 12px; font-weight: 800; letter-spacing: 1px; color: #38BDF8; text-transform: uppercase;">
+                        ☁️ 24/7 Citadel Cloud Memory
+                    </span>
+                    <span class="tier-badge unlocked" style="background: rgba(16, 185, 129, 0.2); color: #34D399; border-color: rgba(16, 185, 129, 0.5);">
+                        ONLINE 24/7 ●
+                    </span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">
+                    Running 24/7 on your dedicated <b>Hermes VM</b>. Even when this PC is turned off, the Telegram bot retains your complete wake history, consistency metrics, and will answer <b>/report</b> or <b>/streak</b> on your phone immediately!
+                </div>
+                <div style="background: rgba(15, 23, 42, 0.7); border-radius: 8px; padding: 10px; margin-bottom: 12px; font-family: monospace; font-size: 11px; color: #94A3B8;">
+                    <div>📡 <b>Host:</b> hermes-vm (Oracle Cloud 92.5.93.119)</div>
+                    <div>🤖 <b>Daemon:</b> waky-bot.service (Python 3.12)</div>
+                    <div>💾 <b>Memory:</b> /opt/waky-bot/waky_memory.json</div>
+                    <div>📱 <b>Telegram:</b> @wakyyyy_bot (User: 1900611848)</div>
+                </div>
+                <button class="btn-action" id="btn-force-sync" style="width: 100%; background: linear-gradient(135deg, #0284C7, #0369A1); color: #fff; font-weight: 800; border: none; padding: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;" onclick="syncCloudMemory()">
+                    <span>☁️</span>
+                    <span id="sync-cloud-label">Sync PC & Cloud Memory Now</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -2025,6 +2051,8 @@
             updateGamification();
             renderDashboard();
             checkTodayStatus();
+            // Pull any mobile Telegram wake logs recorded while PC was asleep
+            syncCloudMemory(true);
         });
 
         async function loadFortressConfig() {
@@ -3065,6 +3093,33 @@
                 }
             } catch (err) {
                 alert("Could not reach Telegram: " + err.message);
+            }
+        }
+
+        async function syncCloudMemory(silent = false) {
+            const btn = document.getElementById('btn-force-sync');
+            const label = document.getElementById('sync-cloud-label');
+            if (label) label.textContent = "Syncing with Hermes VM...";
+            try {
+                const res = await fetch('/api/cloud_sync');
+                const data = await res.json();
+                if (data && data.ok) {
+                    if (Array.isArray(data.records)) {
+                        wakeRecords = data.records;
+                        updateStreakAndRanks();
+                        updateGamification();
+                        renderDashboard();
+                        checkTodayStatus();
+                    }
+                    if (!silent) {
+                        playSfx('king_fanfare');
+                        alert("☁️ 24/7 Cloud Memory Synced! All mobile Telegram logs & PC records merged seamlessly.");
+                    }
+                }
+            } catch (err) {
+                console.warn("Cloud sync non-fatal error:", err);
+            } finally {
+                if (label) label.textContent = "Sync PC & Cloud Memory Now";
             }
         }
 

@@ -1,0 +1,23 @@
+[Unit]
+Description=WAKY Spartan King Dawn 24/7 Telegram Cloud Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/waky-bot
+ExecStart=/opt/waky-bot/.venv/bin/python /opt/waky-bot/bot.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=WAKY_BOT_TOKEN=8814364854:AAE3HpffTsEX3x6xnl74Fx0Lff6OxOxeTeA
+Environment=WAKY_USER_ID=1900611848
+Environment=WAKY_DATA_FILE=/opt/waky-bot/waky_memory.json
+Environment=WAKY_TZ_OFFSET=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

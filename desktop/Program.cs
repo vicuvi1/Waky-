@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 namespace WakyDesktop
@@ -18,6 +20,10 @@ namespace WakyDesktop
         private static HttpListener listener;
         private static int port = 48999;
         private static DateTime lastHeartbeat = DateTime.Now;
+
+        private static string sshKeyPath;
+        private static readonly string remoteHost = "ubuntu@92.5.93.119";
+        private static readonly string remoteMemoryPath = "/opt/waky-bot/waky_memory.json";
 
         [STAThread]
         static void Main()
@@ -33,6 +39,9 @@ namespace WakyDesktop
                 recordsFile = Path.Combine(appDir, "wake_records.json");
                 configFile = Path.Combine(appDir, "waky_config.json");
 
+                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                sshKeyPath = Path.Combine(userProfile, ".ssh", "hermes-vm.key");
+
                 if (!Directory.Exists(proofsDir)) Directory.CreateDirectory(proofsDir);
                 if (!File.Exists(recordsFile)) File.WriteAllText(recordsFile, "[]", Encoding.UTF8);
                 if (!File.Exists(configFile))
@@ -46,6 +55,11 @@ namespace WakyDesktop
                 {
                     StartHttpServer();
                     amIServer = true;
+
+                    // Initial background cloud sync
+                    ThreadPool.QueueUserWorkItem(delegate(object o) {
+                        PerformCloudSync();
+                    });
                 }
 
                 // Launch Chrome or Edge in App Mode
@@ -136,14 +150,16 @@ namespace WakyDesktop
             listener.Prefixes.Add(string.Format("http://127.0.0.1:{0}/", port));
             listener.Start();
 
-            ThreadPool.QueueUserWorkItem((o) =>
+            ThreadPool.QueueUserWorkItem(delegate(object o)
             {
                 while (listener != null && listener.IsListening)
                 {
                     try
                     {
                         var context = listener.GetContext();
-                        ThreadPool.QueueUserWorkItem((c) => HandleRequest((HttpListenerContext)c), context);
+                        ThreadPool.QueueUserWorkItem(delegate(object c) {
+                            HandleRequest((HttpListenerContext)c);
+                        }, context);
                     }
                     catch
                     {
@@ -233,6 +249,11 @@ namespace WakyDesktop
                         string body = reader.ReadToEnd();
                         File.WriteAllText(recordsFile, body, Encoding.UTF8);
                     }
+                    // Trigger cloud sync in background
+                    ThreadPool.QueueUserWorkItem(delegate(object o) {
+                        PerformCloudSync();
+                    });
+
                     byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true}");
                     SendBytes(ctx, bytes, "application/json", 200);
                 }
@@ -254,6 +275,14 @@ namespace WakyDesktop
                     byte[] bytes = Encoding.UTF8.GetBytes(resJson);
                     SendBytes(ctx, bytes, "application/json", 200);
                 }
+                else if (path == "/api/cloud_sync")
+                {
+                    bool success = PerformCloudSync();
+                    string updatedJson = File.Exists(recordsFile) ? File.ReadAllText(recordsFile, Encoding.UTF8) : "[]";
+                    string responseJson = string.Format("{{\"ok\":true,\"cloudSynced\":{0},\"records\":{1}}}", success ? "true" : "false", updatedJson);
+                    byte[] bytes = Encoding.UTF8.GetBytes(responseJson);
+                    SendBytes(ctx, bytes, "application/json; charset=utf-8", 200);
+                }
                 else
                 {
                     SendBytes(ctx, Encoding.UTF8.GetBytes("Not Found"), "text/plain", 404);
@@ -268,6 +297,167 @@ namespace WakyDesktop
                 }
                 catch { }
             }
+        }
+
+        public static bool PerformCloudSync()
+        {
+            try
+            {
+                if (!File.Exists(sshKeyPath)) return false;
+
+                string tempCloudFile = Path.Combine(appDir, "cloud_temp.json");
+
+                // 1. Pull waky_memory.json from hermes-vm
+                ProcessStartInfo psiPull = new ProcessStartInfo();
+                psiPull.FileName = "scp";
+                psiPull.Arguments = string.Format("-i \"{0}\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 {1}:{2} \"{3}\"",
+                    sshKeyPath, remoteHost, remoteMemoryPath, tempCloudFile);
+                psiPull.CreateNoWindow = true;
+                psiPull.UseShellExecute = false;
+
+                using (var p = Process.Start(psiPull))
+                {
+                    if (p.WaitForExit(10000) && p.ExitCode == 0 && File.Exists(tempCloudFile))
+                    {
+                        // 2. Perform JSON Merge
+                        MergeCloudAndLocal(recordsFile, tempCloudFile);
+
+                        // 3. Push merged file back to hermes-vm
+                        ProcessStartInfo psiPush = new ProcessStartInfo();
+                        psiPush.FileName = "scp";
+                        psiPush.Arguments = string.Format("-i \"{0}\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 \"{1}\" {2}:{3}",
+                            sshKeyPath, tempCloudFile, remoteHost, remoteMemoryPath);
+                        psiPush.CreateNoWindow = true;
+                        psiPush.UseShellExecute = false;
+                        using (var p2 = Process.Start(psiPush))
+                        {
+                            p2.WaitForExit(10000);
+                        }
+
+                        // 4. Signal daemon reload over SSH
+                        ProcessStartInfo psiRestart = new ProcessStartInfo();
+                        psiRestart.FileName = "ssh";
+                        psiRestart.Arguments = string.Format("-i \"{0}\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 {1} \"sudo systemctl restart waky-bot.service\"",
+                            sshKeyPath, remoteHost);
+                        psiRestart.CreateNoWindow = true;
+                        psiRestart.UseShellExecute = false;
+                        using (var p3 = Process.Start(psiRestart))
+                        {
+                            p3.WaitForExit(7000);
+                        }
+
+                        try { File.Delete(tempCloudFile); } catch { }
+                        return true;
+                    }
+                }
+            }
+            catch (Exception) { }
+            return false;
+        }
+
+        private static void MergeCloudAndLocal(string localRecPath, string cloudMemPath)
+        {
+            try
+            {
+                var serializer = new JavaScriptSerializer();
+                string localJson = File.Exists(localRecPath) ? File.ReadAllText(localRecPath, Encoding.UTF8) : "[]";
+                string cloudJson = File.Exists(cloudMemPath) ? File.ReadAllText(cloudMemPath, Encoding.UTF8) : "{}";
+
+                var localList = serializer.Deserialize<List<Dictionary<string, object>>>(localJson);
+                if (localList == null) localList = new List<Dictionary<string, object>>();
+
+                var cloudObj = serializer.Deserialize<Dictionary<string, object>>(cloudJson);
+                if (cloudObj == null) cloudObj = new Dictionary<string, object>();
+
+                object logsObj;
+                List<object> cloudLogsList = new List<object>();
+                if (cloudObj.TryGetValue("logs", out logsObj) && logsObj is System.Collections.IEnumerable)
+                {
+                    foreach (var o in (System.Collections.IEnumerable)logsObj)
+                    {
+                        cloudLogsList.Add(o);
+                    }
+                }
+
+                // Index local dates
+                var localDates = new Dictionary<string, Dictionary<string, object>>();
+                foreach (var item in localList)
+                {
+                    if (item.ContainsKey("date") && item["date"] != null)
+                    {
+                        localDates[item["date"].ToString()] = item;
+                    }
+                }
+
+                // Index cloud dates
+                var cloudDates = new Dictionary<string, Dictionary<string, object>>();
+                foreach (var obj in cloudLogsList)
+                {
+                    var item = obj as Dictionary<string, object>;
+                    if (item != null && item.ContainsKey("date") && item["date"] != null)
+                    {
+                        cloudDates[item["date"].ToString()] = item;
+                    }
+                }
+
+                // Add any missing cloud items to local
+                foreach (var kvp in cloudDates)
+                {
+                    if (!localDates.ContainsKey(kvp.Key))
+                    {
+                        var cItem = kvp.Value;
+                        var newLocal = new Dictionary<string, object>();
+                        newLocal["date"] = kvp.Key;
+                        newLocal["time"] = cItem.ContainsKey("time") ? cItem["time"] : "07:00";
+                        newLocal["timestamp"] = cItem.ContainsKey("timestamp") ? Convert.ToInt64(cItem["timestamp"]) * 1000 : DateTime.Now.Ticks;
+                        bool onTime = cItem.ContainsKey("on_time") ? Convert.ToBoolean(cItem["on_time"]) : true;
+                        newLocal["status"] = onTime ? "on-time" : "late";
+                        newLocal["statusLabel"] = onTime ? "ON-TIME" : "LATE";
+                        newLocal["xpEarned"] = onTime ? 100 : 50;
+                        newLocal["streak"] = 1;
+                        newLocal["rank"] = "Agoge Recruit";
+                        newLocal["proofFileName"] = "";
+                        newLocal["verified"] = true;
+                        newLocal["method"] = cItem.ContainsKey("method") ? cItem["method"] : "Cloud";
+                        localList.Add(newLocal);
+                    }
+                }
+
+                // Add any missing local items to cloud
+                foreach (var kvp in localDates)
+                {
+                    if (!cloudDates.ContainsKey(kvp.Key))
+                    {
+                        var lItem = kvp.Value;
+                        var newCloud = new Dictionary<string, object>();
+                        newCloud["date"] = kvp.Key;
+                        newCloud["time"] = lItem.ContainsKey("time") ? lItem["time"].ToString().Replace(" AM", "").Replace(" PM", "") : "07:00";
+                        newCloud["timestamp"] = DateTime.Now.Ticks / 10000;
+                        bool isOt = lItem.ContainsKey("status") && lItem["status"].ToString().ToLower().Contains("on-time");
+                        newCloud["on_time"] = isOt;
+                        newCloud["status"] = isOt ? "ON TIME ⚔️" : "LATE RISE ⚠️";
+                        newCloud["method"] = "DESKTOP_VERIFIED";
+                        newCloud["caption"] = "Conquered via WAKY Desktop";
+                        cloudLogsList.Add(newCloud);
+                    }
+                }
+
+                // Re-sort local by date
+                localList.Sort(delegate(Dictionary<string, object> a, Dictionary<string, object> b) {
+                    string da = a.ContainsKey("date") ? a["date"].ToString() : "";
+                    string db = b.ContainsKey("date") ? b["date"].ToString() : "";
+                    return db.CompareTo(da);
+                });
+
+                // Write back local
+                File.WriteAllText(localRecPath, serializer.Serialize(localList), Encoding.UTF8);
+
+                // Update cloud
+                cloudObj["logs"] = cloudLogsList;
+                cloudObj["total_wakes"] = cloudLogsList.Count;
+                File.WriteAllText(cloudMemPath, serializer.Serialize(cloudObj), Encoding.UTF8);
+            }
+            catch (Exception) { }
         }
 
         private static void SendBytes(HttpListenerContext ctx, byte[] bytes, string contentType, int statusCode)
