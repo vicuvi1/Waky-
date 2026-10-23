@@ -1022,10 +1022,167 @@
             border-color: #38bdf8;
             box-shadow: 0 4px 16px rgba(56, 189, 248, 0.2);
         }
+        /* ACHIEVEMENTS & QUEST CARDS */
+        .quest-board {
+            background: linear-gradient(135deg, rgba(34, 25, 12, 0.9), rgba(18, 20, 29, 0.9));
+            border: 1px solid rgba(234, 179, 8, 0.4);
+            border-radius: 12px;
+            padding: 12px 14px;
+        }
+        .quest-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 10px;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-top: 6px;
+            transition: all 0.2s;
+        }
+        .quest-item.completed {
+            border-color: rgba(34, 197, 94, 0.5);
+            background: rgba(34, 197, 94, 0.1);
+        }
+        .quest-xp-badge {
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--spartan-gold);
+            background: rgba(234, 179, 8, 0.15);
+            padding: 2px 6px;
+            border-radius: 6px;
+            letter-spacing: 0.5px;
+        }
+        .ach-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .ach-card {
+            display: flex;
+            gap: 12px;
+            padding: 12px 14px;
+            background: #151824;
+            border: 1px solid #272B38;
+            border-radius: 12px;
+            transition: all 0.25s;
+            align-items: center;
+        }
+        .ach-card.unlocked {
+            border-color: rgba(234, 179, 8, 0.5);
+            background: linear-gradient(135deg, rgba(34, 25, 12, 0.8), #151824);
+            box-shadow: 0 4px 16px rgba(234, 179, 8, 0.15);
+        }
+        .ach-icon-box {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: #11131C;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .ach-card.unlocked .ach-icon-box {
+            border-color: var(--spartan-gold);
+            box-shadow: 0 0 10px rgba(234, 179, 8, 0.3);
+        }
+
+        /* LEVEL & XP BAR */
+        .xp-level-strip {
+            background: linear-gradient(135deg, #171A26, #12141D);
+            border: 1px solid rgba(234, 179, 8, 0.35);
+            border-radius: 12px;
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .xp-text-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 800;
+        }
+        .xp-level-title {
+            color: var(--spartan-gold);
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .xp-val {
+            color: #38BDF8;
+        }
+
+        /* FLOATING XP ANIMATION */
+        @keyframes float-up-fade {
+            0% { transform: translateY(0) scale(0.9); opacity: 1; }
+            50% { transform: translateY(-25px) scale(1.1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1); opacity: 0; }
+        }
+        .floating-xp {
+            position: absolute;
+            color: var(--spartan-gold);
+            font-size: 24px;
+            font-weight: 900;
+            text-shadow: 0 0 14px rgba(234, 179, 8, 0.9);
+            pointer-events: none;
+            animation: float-up-fade 1.6s forwards ease-out;
+            z-index: 100;
+        }
+
+        /* TOAST ACHIEVEMENT POPUP */
+        .toast-achievement {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-120px);
+            background: linear-gradient(135deg, rgba(34, 25, 12, 0.98), rgba(18, 20, 29, 0.98));
+            border: 2px solid var(--spartan-gold);
+            box-shadow: 0 10px 30px rgba(234, 179, 8, 0.45);
+            border-radius: 14px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 2000;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-width: 90vw;
+        }
+        .toast-achievement.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* CONFETTI CANVAS */
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 1500;
+        }
     </style>
 </head>
 <body>
     <canvas id="ember-canvas"></canvas>
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- TOAST POPUP NOTIFICATION -->
+    <div class="toast-achievement" id="achievement-toast">
+        <div style="font-size: 32px;" id="toast-icon">🏆</div>
+        <div>
+            <div style="font-size: 10px; font-weight: 800; color: var(--spartan-gold); letter-spacing: 1px; text-transform: uppercase;">
+                🏆 SPARTAN HONOR UNLOCKED!
+            </div>
+            <div style="font-size: 14px; font-weight: 900; color: #FFFFFF;" id="toast-title">First Blood</div>
+            <div style="font-size: 11px; color: #38BDF8; font-weight: 700;" id="toast-xp">+100 XP Gained</div>
+        </div>
+    </div>
 
     <div class="container">
         <!-- TOP AUDIO BANNER -->
@@ -1047,6 +1204,17 @@
             <span class="header-lambda">Λ</span>
         </div>
         <div class="header-tagline">The Spartan King's Dawn Citadel</div>
+
+        <!-- SPARTAN LEVEL & XP BAR -->
+        <div class="xp-level-strip">
+            <div class="xp-text-row">
+                <span class="xp-level-title" id="xp-level-display">⚔️ LEVEL 1: AGOGE RECRUIT</span>
+                <span class="xp-val" id="xp-points-display">0 / 300 XP</span>
+            </div>
+            <div class="progress-bar-container" style="height: 6px; margin-top: 4px;">
+                <div class="progress-bar-fill" id="xp-progress-fill" style="width: 5%; background: linear-gradient(90deg, #EAB308, #38BDF8);"></div>
+            </div>
+        </div>
 
         <!-- STREAK & WARRIOR-TO-KING PROGRESSION CARD -->
         <div class="card streak-card">
@@ -1081,6 +1249,10 @@
                 <span>🧠</span>
                 <span>Milestones</span>
             </button>
+            <button class="nav-tab-btn" id="tab-btn-badges" onclick="switchTab('badges')">
+                <span>🏆</span>
+                <span>Badges</span>
+            </button>
             <button class="nav-tab-btn" id="tab-btn-reports" onclick="switchTab('reports')">
                 <span>📊</span>
                 <span>Consistency</span>
@@ -1101,6 +1273,39 @@
 
         <!-- TAB 1: WARRIOR PROTOCOL & WEBCAM -->
         <div class="tab-pane active" id="pane-warrior">
+            <!-- DAILY SPARTAN QUESTS -->
+            <div class="quest-board">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-size: 11px; font-weight: 800; color: var(--spartan-gold); letter-spacing: 0.8px; text-transform: uppercase;">
+                        🎯 Daily Spartan Dawn Quests
+                    </span>
+                    <span style="font-size: 10px; font-weight: 800; color: #34D399;" id="quests-completed-count">0 / 3 Conquered</span>
+                </div>
+
+                <div class="quest-item" id="quest-item-1">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="quest-check-1">⭕</span>
+                        <span style="font-size: 11.5px; font-weight: 700; color: #FFF;">Record 5s Video Proof</span>
+                    </div>
+                    <span class="quest-xp-badge">+100 XP</span>
+                </div>
+
+                <div class="quest-item" id="quest-item-2">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="quest-check-2">⭕</span>
+                        <span style="font-size: 11.5px; font-weight: 700; color: #FFF;">Beat The Sun (Rise On-Time)</span>
+                    </div>
+                    <span class="quest-xp-badge">+50 XP</span>
+                </div>
+
+                <div class="quest-item" id="quest-item-3">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="quest-check-3">⭕</span>
+                        <span style="font-size: 11.5px; font-weight: 700; color: #FFF;">Protect Phalanx Streak</span>
+                    </div>
+                    <span class="quest-xp-badge" id="quest-streak-xp">+25 XP</span>
+                </div>
+            </div>
             <!-- NEXT BRAIN MILESTONE TEASER BANNER -->
             <div class="milestone-teaser" onclick="switchTab('milestones')">
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -1391,6 +1596,27 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- TAB: SPARTAN HONORS & BADGES (GAMIFIED ACHIEVEMENTS) -->
+        <div class="tab-pane" id="pane-badges">
+            <div class="card" style="background: linear-gradient(135deg, rgba(34, 25, 12, 0.95), rgba(18, 20, 29, 0.95)); border: 1px solid rgba(234, 179, 8, 0.5);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 12px; font-weight: 900; letter-spacing: 1px; color: var(--spartan-gold); text-transform: uppercase;">
+                        🏆 Spartan Medals & Trophies
+                    </span>
+                    <span id="badges-unlocked-count" style="font-size: 11px; font-weight: 800; color: #34D399; background: rgba(52, 211, 153, 0.15); padding: 3px 8px; border-radius: 12px; border: 1px solid rgba(52, 211, 153, 0.4);">
+                        0 / 12 UNLOCKED
+                    </span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;">
+                    Every dawn conquered forges your warrior legend. Unlock achievements to level up your Spartan Rank and claim sovereign honors.
+                </div>
+            </div>
+
+            <div class="ach-grid" id="achievements-list">
+                <!-- Dynamically populated -->
             </div>
         </div>
 
@@ -1767,9 +1993,28 @@
         let recordedChunks = [];
         let isRecording = false;
 
+        // 12 SPARTAN RPG ACHIEVEMENTS
+        const ACHIEVEMENTS = [
+            { id: "first_blood", title: "⚔️ First Blood", desc: "Record your very first 5-second dawn proof. The journey begins.", xp: 100, icon: "⚔️" },
+            { id: "apex_predator", title: "🦅 Apex Dawn Predator", desc: "Conquer dawn at least 15 minutes before target alarm time.", xp: 150, icon: "🦅" },
+            { id: "phalanx_3", title: "🛡️ The Phalanx Three", desc: "Hold an unbroken 3-day wake streak. Habit circuit active.", xp: 200, icon: "🛡️" },
+            { id: "iron_7", title: "⚡ Iron Discipline", desc: "Complete 7 consecutive days of dawn verification. Circadian master clock locked.", xp: 350, icon: "⚡" },
+            { id: "spartan_gaze_14", title: "👁️ The Spartan Gaze", desc: "Hold a 14-day unbroken streak. Peak morning testosterone unlocked.", xp: 500, icon: "👁️" },
+            { id: "neuro_fortress_21", title: "🧬 Neural Fortress", desc: "21 consecutive days. Neural pathways myelinated—zero friction.", xp: 750, icon: "🧬" },
+            { id: "immortal_king_30", title: "👑 Immortal Leonidas", desc: "30 consecutive days of dawn mastery. Sovereign King transmuted.", xp: 1500, icon: "👑" },
+            { id: "sniper_prec", title: "🎯 Sniper Precision", desc: "Log a wake-up within ±3 minutes of target alarm time.", xp: 120, icon: "🎯" },
+            { id: "telegram_lord", title: "✈️ Telegram Warlord", desc: "Successfully pair with @wakyyyy_bot and receive video proof.", xp: 100, icon: "✈️" },
+            { id: "centurion_hours", title: "☀️ Dawn Centurion", desc: "Accumulate 10 total productive hours saved before dawn.", xp: 400, icon: "☀️" },
+            { id: "unbreakable_5", title: "🛡️ Unbreakable Phalanx", desc: "Complete 5 consecutive on-time conquests without delay.", xp: 250, icon: "🛡️" },
+            { id: "sovereign_dynasty", title: "💎 Sovereign Dynasty", desc: "Log 60 total cumulative days conquered.", xp: 2500, icon: "💎" }
+        ];
+
+        let unlockedAchievements = JSON.parse(localStorage.getItem('waky_achievements') || '[]');
+
         // INITIALIZATION
         window.addEventListener('DOMContentLoaded', async () => {
             initEmbers();
+            initConfetti();
             startLiveClock();
             startHeartbeat();
             await loadFortressConfig();
@@ -1777,6 +2022,7 @@
             await loadRecords();
             await startWebcam();
             updateStreakAndRanks();
+            updateGamification();
             renderDashboard();
             checkTodayStatus();
         });
@@ -2025,9 +2271,14 @@
             wakeRecords.unshift(newRecord);
             await saveRecordsToServer();
 
-            // Fanfare & Shake
+            // Fanfare, Shake, Confetti & XP
             triggerScreenShake();
             playSfx('king_fanfare');
+            spawnConfetti();
+            spawnFloatingXp("+150 XP", document.getElementById('cam-viewport'));
+            checkAndUnlockAchievements(newRecord, currentStreak);
+            updateGamification();
+
             progressCont.style.display = 'none';
             camViewport.classList.add('conquered');
             camText.textContent = "PROTOCOL CONQUERED!";
@@ -2155,6 +2406,256 @@
             if (streak >= 8) { t3.className = "tier-badge unlocked"; t3.textContent = "UNLOCKED ⚡"; }
             if (streak >= 15) { t4.className = "tier-badge unlocked"; t4.textContent = "UNLOCKED 🔥"; }
             if (streak >= 30) { t5.className = "tier-badge unlocked"; t5.textContent = "SOVEREIGN KING 👑"; }
+        }
+
+        // -------------------------------------------------------------
+        // SPARTAN GAMIFICATION, XP & ACHIEVEMENTS ENGINE
+        // -------------------------------------------------------------
+        function updateGamification() {
+            const streak = calculateStreak();
+
+            // 1. Calculate XP
+            let xp = 0;
+            xp += wakeRecords.length * 100;
+            xp += wakeRecords.filter(r => r.diffMinutes >= 15).length * 50;
+            xp += streak * 25;
+            unlockedAchievements.forEach(id => {
+                const a = ACHIEVEMENTS.find(item => item.id === id);
+                if (a) xp += a.xp;
+            });
+
+            // 2. Levels
+            let levelTitle = "⚔️ LEVEL 1: AGOGE RECRUIT";
+            let minXp = 0, maxXp = 300;
+            if (xp < 300) {
+                levelTitle = "⚔️ LEVEL 1: AGOGE RECRUIT";
+                minXp = 0; maxXp = 300;
+            } else if (xp < 800) {
+                levelTitle = "🛡️ LEVEL 2: SPARTAN HOPLITE";
+                minXp = 300; maxXp = 800;
+            } else if (xp < 1800) {
+                levelTitle = "⚡ LEVEL 3: CENTURION COMMANDER";
+                minXp = 800; maxXp = 1800;
+            } else if (xp < 3500) {
+                levelTitle = "🔥 LEVEL 4: CITADEL WARLORD";
+                minXp = 1800; maxXp = 3500;
+            } else {
+                levelTitle = "👑 LEVEL 5: SOVEREIGN KING LEONIDAS";
+                minXp = 3500; maxXp = 5000;
+            }
+
+            const currentLvlXp = xp - minXp;
+            const requiredLvlXp = maxXp - minXp;
+            const lvlPct = Math.min(100, Math.max(5, Math.round((currentLvlXp / requiredLvlXp) * 100)));
+
+            const lvlDisplay = document.getElementById('xp-level-display');
+            const ptsDisplay = document.getElementById('xp-points-display');
+            const fillDisplay = document.getElementById('xp-progress-fill');
+
+            if (lvlDisplay) lvlDisplay.textContent = levelTitle;
+            if (ptsDisplay) ptsDisplay.textContent = `${xp} / ${maxXp} XP`;
+            if (fillDisplay) fillDisplay.style.width = lvlPct + '%';
+
+            // 3. Update Daily Quests
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todayRecord = wakeRecords.find(r => r.date === todayStr);
+
+            const q1 = document.getElementById('quest-item-1');
+            const q1Check = document.getElementById('quest-check-1');
+            const q2 = document.getElementById('quest-item-2');
+            const q2Check = document.getElementById('quest-check-2');
+            const q3 = document.getElementById('quest-item-3');
+            const q3Check = document.getElementById('quest-check-3');
+
+            let completedQuests = 0;
+            if (todayRecord) {
+                completedQuests++;
+                if (q1) q1.classList.add('completed');
+                if (q1Check) q1Check.textContent = "✅";
+                if (todayRecord.isEarly) {
+                    completedQuests++;
+                    if (q2) q2.classList.add('completed');
+                    if (q2Check) q2Check.textContent = "✅";
+                }
+            } else {
+                if (q1) q1.classList.remove('completed');
+                if (q1Check) q1Check.textContent = "⭕";
+                if (q2) q2.classList.remove('completed');
+                if (q2Check) q2Check.textContent = "⭕";
+            }
+
+            if (streak > 0) {
+                completedQuests++;
+                if (q3) q3.classList.add('completed');
+                if (q3Check) q3Check.textContent = "✅";
+            } else {
+                if (q3) q3.classList.remove('completed');
+                if (q3Check) q3Check.textContent = "⭕";
+            }
+
+            const countEl = document.getElementById('quests-completed-count');
+            if (countEl) countEl.textContent = `${completedQuests} / 3 Conquered`;
+
+            // 4. Render Achievements Vault
+            renderAchievementsList();
+        }
+
+        function renderAchievementsList() {
+            const list = document.getElementById('achievements-list');
+            const countEl = document.getElementById('badges-unlocked-count');
+            if (!list) return;
+
+            if (countEl) countEl.textContent = `${unlockedAchievements.length} / ${ACHIEVEMENTS.length} UNLOCKED`;
+            list.innerHTML = ACHIEVEMENTS.map(a => {
+                const unlocked = unlockedAchievements.includes(a.id);
+                return `
+                <div class="ach-card ${unlocked ? 'unlocked' : ''}">
+                    <div class="ach-icon-box">${a.icon}</div>
+                    <div style="flex: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                            <span style="font-size: 13px; font-weight: 900; color: #FFF;">${a.title}</span>
+                            <span class="quest-xp-badge" style="${unlocked ? 'background: rgba(34,197,94,0.2); color: #22C55E; border: 1px solid #22C55E;' : ''}">
+                                ${unlocked ? 'UNLOCKED ✅' : `+${a.xp} XP`}
+                            </span>
+                        </div>
+                        <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.35;">${a.desc}</div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function checkAndUnlockAchievements(record, streak) {
+            const earlyMinutesTotal = wakeRecords.reduce((acc, r) => acc + (r.diffMinutes > 0 ? r.diffMinutes : 0), 0);
+            const onTimeLast5 = wakeRecords.slice(0, 5).length === 5 && wakeRecords.slice(0, 5).every(r => r.isEarly);
+
+            ACHIEVEMENTS.forEach(a => {
+                if (unlockedAchievements.includes(a.id)) return;
+                let unlock = false;
+
+                if (a.id === "first_blood" && wakeRecords.length >= 1) unlock = true;
+                if (a.id === "apex_predator" && record && record.diffMinutes >= 15) unlock = true;
+                if (a.id === "phalanx_3" && streak >= 3) unlock = true;
+                if (a.id === "iron_7" && streak >= 7) unlock = true;
+                if (a.id === "spartan_gaze_14" && streak >= 14) unlock = true;
+                if (a.id === "neuro_fortress_21" && streak >= 21) unlock = true;
+                if (a.id === "immortal_king_30" && streak >= 30) unlock = true;
+                if (a.id === "sniper_prec" && record && Math.abs(record.diffMinutes) <= 3) unlock = true;
+                if (a.id === "telegram_lord" && record && record.tgDelivered) unlock = true;
+                if (a.id === "centurion_hours" && earlyMinutesTotal >= 600) unlock = true;
+                if (a.id === "unbreakable_5" && onTimeLast5) unlock = true;
+                if (a.id === "sovereign_dynasty" && wakeRecords.length >= 60) unlock = true;
+
+                if (unlock) {
+                    unlockedAchievements.push(a.id);
+                    localStorage.setItem('waky_achievements', JSON.stringify(unlockedAchievements));
+                    showAchievementToast(a);
+                    spawnConfetti();
+                    playSfx('king_fanfare');
+                }
+            });
+        }
+
+        function showAchievementToast(ach) {
+            const toast = document.getElementById('achievement-toast');
+            if (!toast) return;
+            document.getElementById('toast-icon').textContent = ach.icon;
+            document.getElementById('toast-title').textContent = ach.title;
+            document.getElementById('toast-xp').textContent = `+${ach.xp} XP Gained! Honor Conquered.`;
+
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 4500);
+        }
+
+        function spawnFloatingXp(text, anchorEl) {
+            if (!anchorEl) return;
+            const rect = anchorEl.getBoundingClientRect();
+            const el = document.createElement('div');
+            el.className = 'floating-xp';
+            el.textContent = text;
+            el.style.left = (rect.left + rect.width / 2 - 40) + 'px';
+            el.style.top = (rect.top + 40) + 'px';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1600);
+        }
+
+        // CONFETTI CANNON PARTICLES
+        let confettiCtx = null;
+        let confettiParticles = [];
+        let confettiAnimating = false;
+
+        function initConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            if (!canvas) return;
+            confettiCtx = canvas.getContext('2d');
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+        }
+
+        function spawnConfetti() {
+            if (!confettiCtx) return;
+            const canvas = document.getElementById('confetti-canvas');
+            const colors = ['#EAB308', '#F59E0B', '#10B981', '#34D399', '#EF4444', '#FFFFFF'];
+            confettiParticles = [];
+
+            for (let i = 0; i < 70; i++) {
+                confettiParticles.push({
+                    x: canvas.width / 2 + (Math.random() - 0.5) * 80,
+                    y: canvas.height * 0.4,
+                    r: Math.random() * 5 + 3,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: -(Math.random() * 10 + 6),
+                    gravity: 0.35,
+                    rotation: Math.random() * 360,
+                    vRot: (Math.random() - 0.5) * 8,
+                    alpha: 1
+                });
+            }
+
+            if (!confettiAnimating) {
+                confettiAnimating = true;
+                animateConfetti();
+            }
+        }
+
+        function animateConfetti() {
+            if (!confettiCtx) return;
+            const canvas = document.getElementById('confetti-canvas');
+            confettiCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let alive = 0;
+            confettiParticles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += p.gravity;
+                p.rotation += p.vRot;
+                p.alpha -= 0.012;
+
+                if (p.alpha > 0 && p.y < canvas.height) {
+                    alive++;
+                    confettiCtx.save();
+                    confettiCtx.translate(p.x, p.y);
+                    confettiCtx.rotate((p.rotation * Math.PI) / 180);
+                    confettiCtx.globalAlpha = Math.max(0, p.alpha);
+                    confettiCtx.fillStyle = p.color;
+                    confettiCtx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 1.5);
+                    confettiCtx.restore();
+                }
+            });
+
+            if (alive > 0) {
+                requestAnimationFrame(animateConfetti);
+            } else {
+                confettiCtx.clearRect(0, 0, canvas.width, canvas.height);
+                confettiAnimating = false;
+            }
         }
 
         // CHECK IF TODAY IS ALREADY CONQUERED
