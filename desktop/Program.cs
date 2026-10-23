@@ -23,6 +23,7 @@ namespace WakyDesktop
         private static HttpListener listener;
         private static int port = 48999;
         private static DateTime lastHeartbeat = DateTime.Now;
+        private static DateTime lastSyncTime = DateTime.MinValue;
 
         private static string sshKeyPath;
         private static readonly string remoteHost = "ubuntu@92.5.93.119";
@@ -77,6 +78,7 @@ namespace WakyDesktop
                     appDir = AppDomain.CurrentDomain.BaseDirectory;
                 }
                 Log("Starting WAKY Desktop app...");
+                Log("CP1: Init paths");
                 proofsDir = Path.Combine(appDir, "proofs");
                 recordsFile = Path.Combine(appDir, "wake_records.json");
                 configFile = Path.Combine(appDir, "waky_config.json");
@@ -87,6 +89,7 @@ namespace WakyDesktop
                 string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 sshKeyPath = Path.Combine(userProfile, ".ssh", "hermes-vm.key");
 
+                Log("CP2: Checking dirs");
                 if (!Directory.Exists(proofsDir)) Directory.CreateDirectory(proofsDir);
                 if (!Directory.Exists(backupsDir)) Directory.CreateDirectory(backupsDir);
                 if (!File.Exists(recordsFile)) SaveFileAtomic(recordsFile, "[]");
@@ -103,10 +106,12 @@ namespace WakyDesktop
                     SaveFileAtomic(configFile, defConfig);
                 }
 
-                // Long-term reliability: Ensure startup shortcut & rolling backup
+                Log("CP3: Ensure startup shortcut");
                 EnsureStartupShortcut();
+                Log("CP4: Rolling backup");
                 PerformDailyRollingBackup();
 
+                Log("CP5: Check port");
                 bool isPortOpen = IsPortInUse(port);
                 Log("Port " + port + " in use: " + isPortOpen);
                 if (!isPortOpen)
@@ -133,6 +138,16 @@ namespace WakyDesktop
                     while (true)
                     {
                         Thread.Sleep(3000);
+
+                        // Continuous 60s background sync with Hermes VM & Google Drive
+                        if ((DateTime.Now - lastSyncTime).TotalSeconds >= 60)
+                        {
+                            ThreadPool.QueueUserWorkItem(delegate(object o) {
+                                PerformCloudSync();
+                                PerformGoogleDriveSync();
+                            });
+                        }
+
                         // Stay active as long as app sends heartbeats within 30 minutes
                         if ((DateTime.Now - lastHeartbeat).TotalMinutes > 30)
                         {
@@ -149,7 +164,6 @@ namespace WakyDesktop
             catch (Exception ex)
             {
                 Log("FATAL ERROR: " + ex.ToString());
-                MessageBox.Show("Could not launch WAKY: " + ex.Message, "WAKY Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
@@ -165,17 +179,13 @@ namespace WakyDesktop
         {
             try
             {
-                using (var tcp = new TcpClient())
+                var ipGlobal = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties();
+                var listeners = ipGlobal.GetActiveTcpListeners();
+                foreach (var ep in listeners)
                 {
-                    var ar = tcp.BeginConnect("127.0.0.1", p, null, null);
-                    bool ok = ar.AsyncWaitHandle.WaitOne(250);
-                    if (ok && tcp.Connected)
-                    {
-                        tcp.EndConnect(ar);
-                        return true;
-                    }
-                    return false;
+                    if (ep.Port == p) return true;
                 }
+                return false;
             }
             catch
             {
@@ -185,30 +195,40 @@ namespace WakyDesktop
 
         private static void LaunchBrowserApp()
         {
-            string chromePath = @"C:\Program Files\Google\Chrome\Application\chrome.exe";
-            string chromePathX86 = @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe";
-            string edgePath64 = @"C:\Program Files\Microsoft\Edge\Application\msedge.exe";
-            string edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
-
-            string browserExe = null;
-            if (File.Exists(chromePath)) browserExe = chromePath;
-            else if (File.Exists(chromePathX86)) browserExe = chromePathX86;
-            else if (File.Exists(edgePath64)) browserExe = edgePath64;
-            else if (File.Exists(edgePath)) browserExe = edgePath;
-
-            string profileDir = Path.Combine(appDir, "profile");
-            string appUrl = string.Format("http://localhost:{0}/", port);
-
-            if (browserExe != null)
+            try
             {
-                string args = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1440,920 --start-maximized --no-first-run --no-default-browser-check", appUrl, profileDir);
-                ProcessStartInfo psi = new ProcessStartInfo(browserExe, args);
-                psi.UseShellExecute = true;
-                Process.Start(psi);
+                string chromePath = @"C:\Program Files\Google\Chrome\Application\chrome.exe";
+                string chromePathX86 = @"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe";
+                string edgePath64 = @"C:\Program Files\Microsoft\Edge\Application\msedge.exe";
+                string edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
+
+                string browserExe = null;
+                if (File.Exists(chromePath)) browserExe = chromePath;
+                else if (File.Exists(chromePathX86)) browserExe = chromePathX86;
+                else if (File.Exists(edgePath64)) browserExe = edgePath64;
+                else if (File.Exists(edgePath)) browserExe = edgePath;
+
+                string profileDir = Path.Combine(appDir, "profile");
+                string appUrl = string.Format("http://localhost:{0}/", port);
+
+                if (browserExe != null)
+                {
+                    string args = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1440,920 --start-maximized --no-first-run --no-default-browser-check", appUrl, profileDir);
+                    ProcessStartInfo psi = new ProcessStartInfo(browserExe, args);
+                    psi.UseShellExecute = true;
+                    Process.Start(psi);
+                    Log("Launched browser via: " + browserExe);
+                }
+                else
+                {
+                    Process.Start(appUrl);
+                    Log("Launched default browser for: " + appUrl);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                Process.Start(appUrl);
+                Log("Browser launch notice: " + ex.Message);
+                try { Process.Start(string.Format("http://localhost:{0}/", port)); } catch { }
             }
         }
 
@@ -305,6 +325,16 @@ namespace WakyDesktop
                 else if (path == "/api/heartbeat")
                 {
                     byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true}");
+                    SendBytes(ctx, bytes, "application/json", 200);
+                }
+                else if (path == "/api/sync")
+                {
+                    ThreadPool.QueueUserWorkItem(delegate(object o) {
+                        PerformCloudSync();
+                        PerformGoogleDriveSync();
+                    });
+                    string syncStr = (lastSyncTime == DateTime.MinValue) ? "Just now" : lastSyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+                    byte[] bytes = Encoding.UTF8.GetBytes(string.Format("{{\"ok\":true,\"last_sync\":\"{0}\"}}", syncStr));
                     SendBytes(ctx, bytes, "application/json", 200);
                 }
                 else if (path == "/api/config" && ctx.Request.HttpMethod == "GET")
@@ -517,24 +547,17 @@ namespace WakyDesktop
                             p2.WaitForExit(10000);
                         }
 
-                        // 4. Signal daemon reload over SSH
-                        ProcessStartInfo psiRestart = new ProcessStartInfo();
-                        psiRestart.FileName = "ssh";
-                        psiRestart.Arguments = string.Format("-i \"{0}\" -o StrictHostKeyChecking=no -o ConnectTimeout=5 {1} \"sudo systemctl restart waky-bot.service\"",
-                            sshKeyPath, remoteHost);
-                        psiRestart.CreateNoWindow = true;
-                        psiRestart.UseShellExecute = false;
-                        using (var p3 = Process.Start(psiRestart))
-                        {
-                            p3.WaitForExit(7000);
-                        }
-
                         try { File.Delete(tempCloudFile); } catch { }
+                        lastSyncTime = DateTime.Now;
+                        Log("Cloud and bot synchronization completed successfully.");
                         return true;
                     }
                 }
             }
-            catch (Exception) { }
+            catch (Exception ex)
+            {
+                Log("Cloud sync notice: " + ex.Message);
+            }
             return false;
         }
 
@@ -601,6 +624,12 @@ namespace WakyDesktop
                 if (Directory.Exists(startupFolder))
                 {
                     string lnkPath = Path.Combine(startupFolder, "WAKY.lnk");
+                    if (File.Exists(lnkPath))
+                    {
+                        Log("Windows startup shortcut verified at: " + lnkPath);
+                        return;
+                    }
+
                     string exePath = Path.Combine(appDir, "WAKY.exe");
                     string icoPath = Path.Combine(appDir, "waky.ico");
 
@@ -614,7 +643,7 @@ namespace WakyDesktop
                         shortcut.IconLocation = icoPath + ",0";
                         shortcut.Description = "WAKY - Spartan Dawn Wake-Up Protocol";
                         shortcut.Save();
-                        Log("Windows startup shortcut verified at: " + lnkPath);
+                        Log("Windows startup shortcut created at: " + lnkPath);
                     }
                 }
             }
