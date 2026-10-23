@@ -1081,6 +1081,10 @@
     </style>
 </head>
 <body>
+
+    <!-- CIRCADIAN SUNRISE SCREEN RAMP OVERLAY -->
+    <div id="sunrise-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 80; opacity: 0; transition: opacity 2.5s ease-in-out; background: radial-gradient(circle at 50% 100%, rgba(245, 158, 11, 0.4) 0%, rgba(217, 119, 6, 0.18) 45%, rgba(10, 13, 20, 0) 80%);"></div>
+
     <canvas id="ember-canvas"></canvas>
     <canvas id="confetti-canvas"></canvas>
 
@@ -1259,6 +1263,12 @@
                     <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="0.4" oninput="setAnthemVolume(this.value)">
                 </div>
 
+                
+                <!-- SUNDAY DEBRIEF BUTTON -->
+                <button class="btn-action" style="padding: 4px 10px; font-size: 10.5px; background: rgba(234, 179, 8, 0.15); border: 1px solid var(--spartan-gold); color: var(--spartan-gold); font-weight: 800; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px;" onclick="openWeeklyDebrief()" title="Open Weekly Performance Chronicle">
+                    <span>📜</span> Weekly Debrief
+                </button>
+
                 <!-- TELEGRAM CLOUD PILL -->
                 <div class="tg-cloud-pill">
                     <span class="tg-cloud-dot">●</span>
@@ -1267,6 +1277,12 @@
                 </div>
             </div>
         </header>
+
+        <!-- CIRCADIAN SUNRISE RAMP BANNER -->
+        <div id="sunrise-banner" style="display: none; width: 100%; background: linear-gradient(90deg, #78350F, #D97706, #78350F); color: #FFFFFF; padding: 7px 16px; font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; text-align: center; border-bottom: 1px solid #F59E0B; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); justify-content: center; align-items: center; gap: 8px;">
+            <span>🌅</span> <span id="sunrise-banner-text">CIRCADIAN SUNRISE RAMP ACTIVE — MELATONIN HALT IN PROGRESS</span>
+        </div>
+
 
         <!-- 3-COLUMN DESKTOP WORKSPACE -->
         <div class="desktop-command-grid">
@@ -1892,14 +1908,106 @@
         }
 
         // LIVE MILITARY CLOCK
+        
+        // CIRCADIAN SUNRISE SCREEN RAMP (MELATONIN SUPPRESSION)
+        function updateSunriseProtocol() {
+            const now = new Date();
+            const [th, tm] = (appConfig.targetTime || "07:00").split(':').map(Number);
+            const targetM = th * 60 + tm;
+            const nowM = now.getHours() * 60 + now.getMinutes();
+            const diff = targetM - nowM;
+
+            const overlay = document.getElementById('sunrise-overlay');
+            const banner = document.getElementById('sunrise-banner');
+            const bannerText = document.getElementById('sunrise-banner-text');
+
+            // 15 minutes before target dawn
+            if (diff > 0 && diff <= 15) {
+                const progress = (16 - diff) / 15.0; // 0.0 to 1.0
+                if (overlay) {
+                    overlay.style.opacity = Math.min(0.85, Math.max(0.15, progress * 0.85));
+                }
+                if (banner) {
+                    banner.style.display = 'flex';
+                    if (bannerText) {
+                        bannerText.textContent = `CIRCADIAN SUNRISE RAMP ACTIVE (-${diff}m TO DAWN) — MELATONIN HALT IN PROGRESS`;
+                    }
+                }
+            } else {
+                if (overlay) overlay.style.opacity = 0;
+                if (banner) banner.style.display = 'none';
+            }
+        }
+
         function startLiveClock() {
             const clockEl = document.getElementById('live-clock');
             function tick() {
                 const now = new Date();
                 clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                updateSunriseProtocol();
             }
             tick();
             setInterval(tick, 1000);
+        }
+
+        
+        function openWeeklyDebrief() {
+            const modal = document.getElementById('modal-weekly');
+            const body = document.getElementById('weekly-debrief-body');
+            if (!modal || !body) return;
+
+            const now = new Date();
+            const weekDays = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(now);
+                d.setDate(d.getDate() - i);
+                weekDays.push(getLocalDateStr(d));
+            }
+
+            const weekLogs = wakeRecords.filter(r => weekDays.includes(r.date));
+            const onTimeCount = weekLogs.filter(r => r.on_time || (r.status && r.status.includes('on-time'))).length;
+            const consistencyPct = Math.round((onTimeCount / 7.0) * 100);
+
+            let tier = "🛡️ AGOGE INITIATE";
+            if (consistencyPct >= 85) tier = "👑 S-TIER SOVEREIGN CENTURION";
+            else if (consistencyPct >= 70) tier = "⚔️ A-TIER DISCIPLINED HOPLITE";
+
+            let daysHtml = weekDays.map(dStr => {
+                const log = wakeRecords.find(r => r.date === dStr);
+                if (log) {
+                    const ot = log.on_time || (log.status && log.status.includes('on-time'));
+                    const icon = ot ? '✅' : '⚠️';
+                    return `<div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                        <span><b>${dStr}</b></span>
+                        <span style="color: ${ot ? '#10B981' : '#F59E0B'};">${icon} ${log.time || log.timeStr} (${ot ? 'ON-TIME' : 'LATE'})</span>
+                    </div>`;
+                } else {
+                    return `<div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-muted);">
+                        <span>${dStr}</span>
+                        <span>❌ Unrecorded / Rest</span>
+                    </div>`;
+                }
+            }).join('');
+
+            body.innerHTML = `
+                <div style="background: rgba(234, 179, 8, 0.08); border-left: 3px solid var(--spartan-gold); padding: 10px 14px; margin-bottom: 14px; border-radius: 4px;">
+                    <div style="font-weight: 800; color: var(--spartan-gold); font-size: 14px;">Rank Tier: ${tier}</div>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">7-Day Consistency: <b>${consistencyPct}%</b> (${onTimeCount}/7 Mornings Conquered)</div>
+                </div>
+                <div style="font-size: 11.5px; font-weight: 800; color: #38BDF8; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px;">Weekly Dawn Battle Log:</div>
+                <div style="margin-bottom: 14px;">${daysHtml}</div>
+                <div style="font-size: 11px; color: var(--text-muted); font-style: italic; text-align: center;">
+                    "Consistency is the high phalanx that protects the sovereign mind."
+                </div>
+            `;
+
+            modal.style.display = 'flex';
+            playSfx('king_fanfare');
+        }
+
+        function closeWeeklyModal() {
+            const modal = document.getElementById('modal-weekly');
+            if (modal) modal.style.display = 'none';
         }
 
         function updateTargetDisplay() {
@@ -3603,5 +3711,24 @@
             }, 3000);
         }
     </script>
+
+    <!-- SUNDAY CITADEL CHRONICLE (WEEKLY PERFORMANCE DEBRIEF) -->
+    <div id="modal-weekly" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 680px; background: #0E121B; border: 1px solid var(--spartan-gold); border-radius: 12px; padding: 24px; box-shadow: 0 0 35px rgba(234, 179, 8, 0.25);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid rgba(234, 179, 8, 0.3); padding-bottom: 12px;">
+                <div style="font-size: 16px; font-weight: 900; color: var(--spartan-gold); letter-spacing: 1px;">
+                    📜 SUNDAY CITADEL CHRONICLE — WEEKLY PERFORMANCE
+                </div>
+                <button onclick="closeWeeklyModal()" style="background: transparent; border: none; color: var(--text-muted); font-size: 20px; cursor: pointer;">✕</button>
+            </div>
+            <div id="weekly-debrief-body" style="font-size: 13px; color: #E2E8F0; line-height: 1.7;">
+                <!-- Generated dynamically -->
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                <button class="btn-action" style="background: var(--spartan-gold); color: #000; font-weight: 900; padding: 8px 20px;" onclick="closeWeeklyModal()">Acknowledge Orders</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

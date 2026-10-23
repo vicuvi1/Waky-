@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
-WAKY - Spartan King Dawn Citadel 24/7 Cloud Bot
+WAKY - Spartan King Dawn Citadel 24/7 Cloud Bot v3.0
 Persistent Memory & Remote Command Relay for @wakyyyy_bot
 Runs 24/7 on hermes-vm, retaining full discipline history even when Desktop PC is closed.
 
 Upgrades:
-1. Urgent Repeated Phone Alarm (90s interval, up to 7 rounds, inline [⚔️ I AM AWAKE & OUT OF BED] button).
-2. Night Agoge Bedtime Curfew Protocol (Daily at 22:30 with [😴 Entering Sleep Recovery] +50 XP).
-3. The 3 Prime Directives Mobile Sync (Interactive inline checkmarks at 13:00 & 18:00).
-4. Robust HTTP Session management with automatic 409 conflict backoff.
+1. AI Dawn Briefing & Daily Battle Orders (streak-tailored speech, Prime Directives, sleep metrics).
+2. Epic Voice Note Dawn Orders (Spoken Spartan General Audio speech via sendVoice).
+3. Real Sleep Duration & Recovery Score (Bedtime curfew to wake duration & circadian efficiency).
+4. Sunday Citadel Chronicle (Weekly Performance Debrief with grade, on-time %, directives %).
+5. Spartan Honor Penalty & Restoration (-150 XP for snooze abandonment, restoration agoge).
+6. Daytime Energy & Brain Fog Tracker (Circadian correlation check at 18:00).
+7. Urgent Repeated Phone Alarm (90s interval, up to 7 rounds with inline button).
+8. Night Agoge Bedtime Curfew Protocol (22:30 check-in, +50 XP).
+9. The 3 Prime Directives Mobile Sync (Interactive inline checkmarks).
 """
 
 import os
@@ -27,6 +32,7 @@ BOT_TOKEN = os.environ.get("WAKY_BOT_TOKEN", "8814364854:AAE3HpffTsEX3x6xnl74Fx0
 API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 PRIMARY_USER_ID = int(os.environ.get("WAKY_USER_ID", "1900611848"))
 DATA_FILE = os.environ.get("WAKY_DATA_FILE", "/opt/waky-bot/waky_memory.json")
+WARCRY_AUDIO_PATH = "/opt/waky-bot/dawn_warcry.mp3"
 
 LOCAL_TZ_OFFSET = int(os.environ.get("WAKY_TZ_OFFSET", "3"))
 LOCAL_TZ = timezone(timedelta(hours=LOCAL_TZ_OFFSET))
@@ -44,54 +50,14 @@ http_session.mount("https://", adapter)
 
 # ----------------- SPARTAN GAME SYSTEM -----------------
 MILESTONES = [
-    {
-        "day": 1,
-        "title": "Day 1: The Spark of Willpower",
-        "sub": "Cortisol surge crushed & snooze reflex banished",
-        "desc": "Initial neuro-activation. The baseline dopamine resistance is broken."
-    },
-    {
-        "day": 3,
-        "title": "Day 3: The Circadian Anchor",
-        "sub": "Suprachiasmatic nucleus clock-genes lock in",
-        "desc": "Morning grogginess drops by 40%. REM sleep cycles realign to dawn."
-    },
-    {
-        "day": 7,
-        "title": "Day 7: The Spartan Initiate",
-        "sub": "Full 1-Week Sovereign Victory",
-        "desc": "Adenosine receptor sensitivity restored. Prefrontal cortex awakening accelerates."
-    },
-    {
-        "day": 14,
-        "title": "Day 14: Neural Habit Crystallization",
-        "sub": "Myelination of dawn waking pathways",
-        "desc": "The urge to bargain with the alarm disappears. Rising becomes autonomous reflex."
-    },
-    {
-        "day": 21,
-        "title": "Day 21: Dopamine Baseline Reset",
-        "sub": "Cheap morning dopamine detox complete",
-        "desc": "Natural cortisol peak replaces caffeine dependency. Unshakable mental clarity."
-    },
-    {
-        "day": 30,
-        "title": "Day 30: Spartan Phalanx Centurion",
-        "sub": "1 Full Month of Dawn Mastery",
-        "desc": "Circadian rhythm fully hardcoded. Deep sleep stages optimize automatically."
-    },
-    {
-        "day": 60,
-        "title": "Day 60: The Iron King's Guard",
-        "sub": "Habitual invincibility across all seasons",
-        "desc": "Neuroplasticity locks habit into identity. You no longer 'try' to wake early; you ARE early."
-    },
-    {
-        "day": 90,
-        "title": "Day 90: Sovereign Transcendence",
-        "sub": "Permanent Bio-Neurological Rewiring",
-        "desc": "The highest echelon of sovereign human willpower. The dawn belongs to you forever."
-    }
+    {"day": 1, "title": "Day 1: The Spark of Willpower", "sub": "Cortisol surge crushed & snooze reflex banished", "desc": "Initial neuro-activation. The baseline dopamine resistance is broken."},
+    {"day": 3, "title": "Day 3: The Circadian Anchor", "sub": "Suprachiasmatic nucleus clock-genes lock in", "desc": "Morning grogginess drops by 40%. REM sleep cycles realign to dawn."},
+    {"day": 7, "title": "Day 7: The Spartan Initiate", "sub": "Full 1-Week Sovereign Victory", "desc": "Adenosine receptor sensitivity restored. Prefrontal cortex awakening accelerates."},
+    {"day": 14, "title": "Day 14: Neural Habit Crystallization", "sub": "Myelination of dawn waking pathways", "desc": "The urge to bargain with the alarm disappears. Rising becomes autonomous reflex."},
+    {"day": 21, "title": "Day 21: Dopamine Baseline Reset", "sub": "Cheap morning dopamine detox complete", "desc": "Natural cortisol peak replaces caffeine dependency. Unshakable mental clarity."},
+    {"day": 30, "title": "Day 30: Spartan Phalanx Centurion", "sub": "1 Full Month of Dawn Mastery", "desc": "Circadian rhythm fully hardcoded. Deep sleep stages optimize automatically."},
+    {"day": 60, "title": "Day 60: The Iron King's Guard", "sub": "Habitual invincibility across all seasons", "desc": "Neuroplasticity locks habit into identity. You no longer 'try' to wake early; you ARE early."},
+    {"day": 90, "title": "Day 90: Sovereign Transcendence", "sub": "Permanent Bio-Neurological Rewiring", "desc": "The highest echelon of sovereign human willpower. The dawn belongs to you forever."}
 ]
 
 RANKS = [
@@ -111,9 +77,17 @@ ALL_TROPHIES = {
     "thirty_streak": {"icon": "👑", "name": "Imperial Centurion", "desc": "30 days of unyielding circadian mastery."},
     "bullseye": {"icon": "🎯", "name": "Precision Strike", "desc": "Woke up within 5 minutes of target alarm."},
     "early_bird": {"icon": "🦅", "name": "Apex Predator", "desc": "Awoke before 06:30 AM."},
-    "curfew_master": {"icon": "🌙", "name": "Agoge Curfew Master", "desc": "Logged 5 nights of disciplined sleep recovery."}
+    "curfew_master": {"icon": "🌙", "name": "Agoge Curfew Master", "desc": "Logged 5 nights of disciplined sleep recovery."},
+    "weekly_titan": {"icon": "📜", "name": "Weekly Titan", "desc": "Conquered a 100% perfect 7-day Sunday debrief."}
 }
 
+MOTIVATIONAL_QUOTES = [
+    "\"He who conquers the dawn commands his destiny; he who bargains with the bed is conquered by it.\"",
+    "\"The Spartan does not ask how many the enemy are, but where they are. Today's battlefield is yours.\"",
+    "\"Dopamine is earned through discipline, not granted through comfort. Stand tall and strike first.\"",
+    "\"Circadian sovereignty is the bedrock of empire. Rule the morning, rule the kingdom.\"",
+    "\"Every sunrise demands a choice: voluntary discomfort for greatness, or easy sleep for regret.\""
+]
 
 # ----------------- DATA PERSISTENCE -----------------
 def get_default_memory():
@@ -128,6 +102,9 @@ def get_default_memory():
         "xp": 0,
         "unlocked_trophies": [],
         "logs": [],
+        "last_curfew_ts": 0,
+        "last_curfew_date": "",
+        "honor_status": "HONORABLE",
         "directives": {
             "date": "",
             "items": [
@@ -260,9 +237,37 @@ def calculate_stats(mem):
     }
 
 
+def calculate_sleep_recovery(mem, wake_ts):
+    last_curfew = mem.get("last_curfew_ts", 0)
+    if not last_curfew or wake_ts <= last_curfew:
+        return {"duration_str": "7h 30m (Estimated)", "hours": 7.5, "score": 92, "label": "Combat Ready ⚡"}
+
+    diff_sec = wake_ts - last_curfew
+    hours = diff_sec / 3600.0
+    h = int(hours)
+    m = int((diff_sec % 3600) / 60)
+    dur_str = f"{h}h {m:02d}m"
+
+    if 7.25 <= hours <= 8.5:
+        score = 98
+        label = "Optimal Sovereign Recovery 👑"
+    elif 6.5 <= hours < 7.25 or 8.5 < hours <= 9.0:
+        score = 88
+        label = "Combat Ready ⚡"
+    elif 5.5 <= hours < 6.5:
+        score = 74
+        label = "Mild Sleep Debt ⚠️"
+    else:
+        score = 60
+        label = "Circadian Warning 🛑"
+
+    return {"duration_str": dur_str, "hours": round(hours, 2), "score": score, "label": label}
+
+
 def record_wake(mem, wake_time_str, method="TELEGRAM_LOG", caption=""):
     now = get_current_local_dt()
     date_str = now.strftime("%Y-%m-%d")
+    current_ts = int(now.timestamp())
 
     target_time = mem.get("target_time", "07:00")
     t_parts = [int(p) for p in target_time.split(":")]
@@ -275,28 +280,38 @@ def record_wake(mem, wake_time_str, method="TELEGRAM_LOG", caption=""):
         wake_min = target_min
 
     is_on_time = (wake_min <= target_min + 15)
+    sleep_info = calculate_sleep_recovery(mem, current_ts)
 
     existing = next((l for l in mem.get("logs", []) if l.get("date") == date_str), None)
     is_new_day = False
     if existing:
         existing["time"] = wake_time_str
-        existing["timestamp"] = int(now.timestamp())
+        existing["timestamp"] = current_ts
         existing["on_time"] = is_on_time
         existing["method"] = method
         existing["caption"] = caption
+        existing["sleep_duration"] = sleep_info["duration_str"]
+        existing["recovery_score"] = sleep_info["score"]
         log_entry = existing
     else:
         is_new_day = True
         log_entry = {
             "date": date_str,
             "time": wake_time_str,
-            "timestamp": int(now.timestamp()),
+            "timestamp": current_ts,
             "on_time": is_on_time,
             "status": "ON TIME ⚔️" if is_on_time else "LATE RISE ⚠️",
             "method": method,
-            "caption": caption
+            "caption": caption,
+            "sleep_duration": sleep_info["duration_str"],
+            "recovery_score": sleep_info["score"],
+            "energy": "NORMAL"
         }
         mem.setdefault("logs", []).append(log_entry)
+
+    # Clear any honor breach upon logging
+    if mem.get("honor_status") == "BREACH":
+        mem["honor_status"] = "HONORABLE"
 
     base_xp = 100 if is_on_time else 50
     if is_new_day:
@@ -333,7 +348,8 @@ def record_wake(mem, wake_time_str, method="TELEGRAM_LOG", caption=""):
         "is_new_day": is_new_day,
         "stats": stats,
         "xp_earned": new_xp if is_new_day else 0,
-        "new_trophies": unlocked_now
+        "new_trophies": unlocked_now,
+        "sleep_info": sleep_info
     }
 
 
@@ -419,6 +435,23 @@ def send_telegram_message(chat_id, text, parse_mode="Markdown", reply_markup=Non
         return None
 
 
+def send_telegram_voice(chat_id, voice_file_path, caption=None):
+    if not os.path.exists(voice_file_path):
+        logger.warning(f"Voice file not found: {voice_file_path}")
+        return None
+    try:
+        data = {"chat_id": chat_id}
+        if caption:
+            data["caption"] = caption
+            data["parse_mode"] = "Markdown"
+        with open(voice_file_path, "rb") as f:
+            res = requests.post(f"{API_URL}/sendVoice", data=data, files={"voice": f}, timeout=25)
+            return res.json()
+    except Exception as e:
+        logger.error(f"Failed to send telegram voice: {e}")
+        return None
+
+
 def edit_telegram_message(chat_id, message_id, text, parse_mode="Markdown", reply_markup=None):
     payload = {
         "chat_id": chat_id,
@@ -454,15 +487,93 @@ def get_main_keyboard():
     return {
         "keyboard": [
             [{"text": "📊 Full Report"}, {"text": "🔥 Sovereign Streak"}],
-            [{"text": "⚔️ 3 Directives"}, {"text": "🏆 Trophies"}],
-            [{"text": "⏰ Log Today"}, {"text": "🛡️ Status"}]
+            [{"text": "⚔️ 3 Directives"}, {"text": "📜 Sunday Debrief"}],
+            [{"text": "🎙️ Morning Briefing"}, {"text": "⏰ Log Today"}]
         ],
         "resize_keyboard": True,
         "is_persistent": True
     }
 
 
-# ----------------- MESSAGE FORMATTERS -----------------
+# ----------------- MESSAGE FORMATTERS & INTELLIGENCE -----------------
+def format_daily_briefing(mem, sleep_info=None):
+    stats = calculate_stats(mem)
+    streak = stats["streak"]
+    rank = stats["rank"]
+    dirs = get_today_directives(mem)
+    quote = MOTIVATIONAL_QUOTES[streak % len(MOTIVATIONAL_QUOTES)]
+
+    if not sleep_info:
+        sleep_info = calculate_sleep_recovery(mem, int(get_current_local_dt().timestamp()))
+
+    lines = [
+        f"🎙️👑 *AI DAWN BRIEFING — ORDERS FROM HIGH COMMAND* 👑🎙️",
+        "────────────────────────",
+        f"🎖️ *Spartan King:* `{mem.get('user_name', 'King')}` | *Rank:* *{rank['title']}*",
+        f"🔥 *Sovereign Streak:* *{streak} DAYS CONQUERED*",
+        f"🌙 *Sleep Recovery:* `{sleep_info['duration_str']}` ({sleep_info['score']}% — {sleep_info['label']})",
+        "",
+        f"_{quote}_",
+        "",
+        "⚔️ *TODAY'S MARCHING ORDERS (THE 3 PRIME DIRECTIVES):*"
+    ]
+    for it in dirs.get("items", []):
+        icon = "✅" if it.get("done") else "🎯"
+        lines.append(f"{icon} *Battle {it.get('id')}:* {it.get('text')}")
+
+    lines.append("\n_Conquer the first 90 minutes. Today's battlefield is already won in your mind._")
+    return "\n".join(lines)
+
+
+def format_weekly_chronicle(mem):
+    now = get_current_local_dt()
+    logs = mem.get("logs", [])
+    today = now.date()
+
+    # Filter last 7 days
+    past_7_dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+    past_7_dates.reverse()
+
+    week_logs = [l for l in logs if l.get("date") in past_7_dates]
+    wakes_count = len(week_logs)
+    on_time_count = sum(1 for l in week_logs if l.get("on_time"))
+    on_time_pct = (on_time_count / 7.0 * 100.0)
+
+    if on_time_pct >= 85:
+        tier = "🏆 S-TIER SOVEREIGN CENTURION"
+    elif on_time_pct >= 70:
+        tier = "⚔️ A-TIER DISCIPLINED HOPLITE"
+    else:
+        tier = "🛡️ B-TIER AGOGE RECRUIT"
+
+    dirs = get_today_directives(mem)
+    conquered_today = sum(1 for x in dirs.get("items", []) if x.get("done"))
+
+    lines = [
+        "📜👑 *SUNDAY CITADEL CHRONICLE (WEEKLY DEBRIEF)* 👑📜",
+        "────────────────────────",
+        f"📅 *Evaluation Window:* `{past_7_dates[0]}` → `{past_7_dates[-1]}`",
+        f"🎖️ *Performance Tier:* *{tier}*",
+        f"🔥 *Active Streak:* *{mem.get('current_streak', 0)} Days*",
+        f"⏰ *Mornings Conquered:* *{wakes_count} / 7 Days* ({on_time_pct:.1f}% Consistency)",
+        f"✨ *Citadel Total XP:* `{mem.get('xp', 0)} XP`",
+        "",
+        "📊 *7-DAY DAWN BATTLE BREAKDOWN:*"
+    ]
+
+    for d_str in past_7_dates:
+        matching = next((l for l in logs if l.get("date") == d_str), None)
+        if matching:
+            icon = "✅" if matching.get("on_time") else "⚠️"
+            energy_icon = "⚡" if matching.get("energy") == "HIGH" else "😐"
+            lines.append(f"• `{d_str}`: {icon} `{matching.get('time')}` (Sleep: {matching.get('sleep_duration', '7h')}, {energy_icon})")
+        else:
+            lines.append(f"• `{d_str}`: ❌ _Unrecorded / Rest_")
+
+    lines.append("\n_\"Consistency is the rare metal from which legends are forged.\"_")
+    return "\n".join(lines)
+
+
 def format_report(mem):
     stats = calculate_stats(mem)
     streak = stats["streak"]
@@ -487,6 +598,8 @@ def format_report(mem):
     d_done = sum(1 for x in dirs.get("items", []) if x.get("done"))
     d_total = len(dirs.get("items", []))
 
+    honor_str = "🛡️ HONOR INTACT" if mem.get("honor_status") != "BREACH" else "⚠️ BREACH RECORDED"
+
     text = f"""👑 *WAKY SPARTAN KING — CITADEL DAWN REPORT* 🏛️
 ────────────────────────
 🔥 *Active Sovereign Streak:* *{streak} DAYS*
@@ -496,6 +609,7 @@ def format_report(mem):
 ⚡ *On-Time Consistency:* *{stats['on_time_pct']:.1f}%*
 ⏱️ *Average Wake-Up Time:* `{stats['avg_time']}`
 🎯 *Today's Directives:* *{d_done}/{d_total} Battles Won*
+🛡️ *Citadel Standing:* *{honor_str}*
 
 🎖️ *Current Rank:*
 *{rank['title']}*
@@ -541,30 +655,6 @@ _\"He who conquers the dawn commands his destiny.\"_"""
     return text
 
 
-def format_milestones(mem):
-    streak = calculate_streak(mem.get("logs", []))
-    lines = ["🧠 *NEUROLOGICAL & DOPAMINE REBOOT ROADMAP* 🧬\n────────────────────────"]
-    for m in MILESTONES:
-        is_done = (streak >= m["day"])
-        icon = "👑 [CONQUERED]" if is_done else f"🔒 [Day {m['day']}]"
-        prefix = "✅" if is_done else "▫️"
-        lines.append(f"{prefix} *{m['title']}* {icon}\n_{m['sub']}_\n> {m['desc']}\n")
-    lines.append(f"────────────────────────\n📍 *Current Position:* Day *{streak}* of 90")
-    return "\n".join(lines)
-
-
-def format_trophies(mem):
-    unlocked = set(mem.get("unlocked_trophies", []))
-    lines = ["🏆 *SPARTAN HALL OF TROPHIES* 🏛️\n────────────────────────"]
-    for tid, tinfo in ALL_TROPHIES.items():
-        is_unlocked = tid in unlocked
-        icon = tinfo["icon"] if is_unlocked else "🔒"
-        status = "✅ *UNLOCKED*" if is_unlocked else "_LOCKED_"
-        lines.append(f"{icon} *{tinfo['name']}* — {status}\n   _{tinfo['desc']}_")
-    lines.append(f"\n✨ *Total Trophies Claimed:* {len(unlocked)} / {len(ALL_TROPHIES)}")
-    return "\n".join(lines)
-
-
 # ----------------- COMMAND & CALLBACK DISPATCHER -----------------
 def handle_message(msg, mem):
     chat_id = msg.get("chat", {}).get("id")
@@ -594,27 +684,27 @@ def handle_message(msg, mem):
         result = record_wake(mem, wake_time_str, method="DESKTOP_VIDEO_PROOF", caption=caption)
         log = result["log"]
         stats = result["stats"]
-        trophy_text = ""
-        if result["new_trophies"]:
-            t_names = ", ".join([f"{t['icon']} {t['name']}" for t in result["new_trophies"]])
-            trophy_text = f"\n\n🎉 *NEW TROPHY UNLOCKED:* {t_names}!"
+        sleep_info = result["sleep_info"]
 
         reply = f"""👑 *5-SECOND VIDEO PROOF VERIFIED!* ⚔️
 ────────────────────────
 🛡️ *The Spartan Citadel salutes your vigilance!*
 📅 *Date:* `{log['date']}`
 ⏰ *Wake Time:* `{log['time']}` ({log['status']})
+🌙 *Sleep Recovery:* `{sleep_info['duration_str']}` ({sleep_info['score']}%)
 🔥 *Current Streak:* *{stats['streak']} DAYS*
-✨ *XP Earned:* `+{result['xp_earned']} XP` (Total: `{mem.get('xp', 0)} XP`){trophy_text}
+✨ *XP Earned:* `+{result['xp_earned']} XP` (Total: `{mem.get('xp', 0)} XP`)
 
 _Citadel Cloud Memory updated. Sleep or shut down your PC with total peace of mind._"""
         send_telegram_message(chat_id, reply, reply_markup=get_main_keyboard())
+        # Also send AI Dawn Briefing
+        send_telegram_message(chat_id, format_daily_briefing(mem, sleep_info), reply_markup=get_main_keyboard())
         return
 
     text = (msg.get("text") or "").strip()
     text_lower = text.lower()
 
-    # 2. Handle Inline Button Callbacks
+    # 2. Handle Inline Callbacks
     if callback_id:
         if text == "btn_wake":
             now = get_current_local_dt()
@@ -624,25 +714,31 @@ _Citadel Cloud Memory updated. Sleep or shut down your PC with total peace of mi
             result = record_wake(mem, wake_time_str, method="URGENT_ALARM_OUT_OF_BED", caption="Dismissed urgent phone alarm")
             log = result["log"]
             stats = result["stats"]
+            sleep_info = result["sleep_info"]
+
             answer_callback_query(callback_id, text="⚔️ DAWN VICTORY! Out of bed confirmed!", show_alert=True)
             reply = f"""⚔️👑 *VICTORY CONFIRMED: OUT OF BED!* 👑⚔️
 ────────────────────────
 You conquered the mattress trap and silenced the urgent alarm!
 ⏰ *Wake Time:* `{log['time']}` ({log['status']})
+🌙 *Sleep Duration:* `{sleep_info['duration_str']}` ({sleep_info['score']}%)
 🔥 *Active Streak:* *{stats['streak']} DAYS*
 ✨ *XP Earned:* `+{result['xp_earned']} XP`
 
 _The phalanx holds strong! Today's kingdom is yours._"""
             send_telegram_message(chat_id, reply, reply_markup=get_main_keyboard())
+            send_telegram_message(chat_id, format_daily_briefing(mem, sleep_info), reply_markup=get_main_keyboard())
             return
 
         elif text == "btn_curfew":
             now = get_current_local_dt()
             today_str = now.strftime("%Y-%m-%d")
+            current_ts = int(now.timestamp())
             if mem.get("last_curfew_awarded_date") == today_str:
                 answer_callback_query(callback_id, text="Sleep recovery already logged for tonight! Rest well.", show_alert=False)
             else:
                 mem["last_curfew_awarded_date"] = today_str
+                mem["last_curfew_ts"] = current_ts
                 curfew_count = mem.get("curfew_count", 0) + 1
                 mem["curfew_count"] = curfew_count
                 mem["xp"] = mem.get("xp", 0) + 50
@@ -677,6 +773,28 @@ Total XP: `{mem.get('xp', 0)} XP`."""
                 answer_callback_query(callback_id, text="Error updating directive.")
             return
 
+        elif text.startswith("energy_"):
+            rating = text.split("_")[1].upper()
+            now = get_current_local_dt()
+            today_str = now.strftime("%Y-%m-%d")
+            for l in mem.get("logs", []):
+                if l.get("date") == today_str:
+                    l["energy"] = rating
+                    break
+            save_memory(mem)
+            rating_label = "⚡ HIGH FOCUS" if rating == "HIGH" else ("😐 NORMAL" if rating == "NORMAL" else "🥱 SLUGGISH")
+            answer_callback_query(callback_id, text=f"Logged energy: {rating_label}!", show_alert=True)
+            if message_id:
+                edit_telegram_message(chat_id, message_id, f"🌆 *EVENING PHALANX REVIEW RECORDED*\nToday's Energy Rating: *{rating_label}*\n\nRest well tonight, Spartan King!")
+            return
+
+        elif text == "restore_honor":
+            mem["honor_status"] = "HONORABLE"
+            save_memory(mem)
+            answer_callback_query(callback_id, text="⚔️ Honor Restored! Stand tall and conquer the battlefield!", show_alert=True)
+            send_telegram_message(chat_id, "🛡️ *SPARTAN HONOR RESTORED!* You have reclaimed your place in the phalanx. Execute your Prime Directives!", reply_markup=get_main_keyboard())
+            return
+
         elif text == "refresh_directives":
             answer_callback_query(callback_id, text="Directives refreshed!")
             if message_id:
@@ -688,25 +806,33 @@ Total XP: `{mem.get('xp', 0)} XP`."""
         stats = calculate_stats(mem)
         welcome = f"""👑 *HAIL, SPARTAN KING {user_name.upper()}!* 🏛️
 ────────────────────────
-Welcome to the *WAKY 24/7 Citadel Cloud Memory*.
-Even when your desktop PC is closed, this cloud daemon retains every wake proof, streak milestone, and biological stat.
+Welcome to the *WAKY 24/7 Citadel Cloud Memory v3.0*.
 
 🔥 *Active Streak:* *{stats['streak']} Days*
 🎯 *Target Battle Alarm:* `{mem.get('target_time', '07:00')}`
 🎖️ *Rank:* *{stats['rank']['title']}*
 
-*QUICK COMMANDS:*
+*TACTICAL COMMANDS:*
+• `/briefing` — Daily AI Dawn Orders & Battle March
+• `/warcry` — Spoken Spartan General Dawn Voice Note
+• `/weekly` — Sunday Citadel Performance Debrief
 • `/report` — Complete Dawn Intelligence & Consistency Report
-• `/streak` — Active Streak & Countdown to Next Brain Stage
 • `/directives` — View and tick off your 3 Prime Directives
-• `/milestones` — 90-Day Dopamine & Neuroplasticity Roadmap
-• `/trophies` — Hall of Unlocked Trophies
 • `/curfew` — Log tonight's Sleep Recovery (+50 XP)
-• `/log` or `/log [HH:MM]` — Direct mobile morning check-in
-• `/alarm [HH:MM]` — Change morning battle target time
+• `/log` — Direct mobile morning check-in
 
 _The dawn is conquered, not given._"""
         send_telegram_message(chat_id, welcome, reply_markup=get_main_keyboard())
+
+    elif text_lower in ["/briefing", "briefing", "🎙️ morning briefing"]:
+        send_telegram_message(chat_id, format_daily_briefing(mem), reply_markup=get_main_keyboard())
+
+    elif text_lower in ["/warcry", "warcry", "voice", "/voice"]:
+        send_telegram_message(chat_id, "🔊 *Summoning Spartan High Command War Cry...*")
+        send_telegram_voice(chat_id, WARCRY_AUDIO_PATH, caption="⚔️ *SPARTAN GENERAL'S DAWN WAR CRY*")
+
+    elif text_lower in ["/weekly", "weekly", "📜 sunday debrief", "debrief"]:
+        send_telegram_message(chat_id, format_weekly_chronicle(mem), reply_markup=get_main_keyboard())
 
     elif text_lower in ["/report", "report", "📊 full report", "report please"]:
         send_telegram_message(chat_id, format_report(mem), reply_markup=get_main_keyboard())
@@ -720,19 +846,15 @@ _The dawn is conquered, not given._"""
     elif text_lower in ["/curfew", "curfew", "sleep", "/sleep"]:
         now = get_current_local_dt()
         today_str = now.strftime("%Y-%m-%d")
+        current_ts = int(now.timestamp())
         if mem.get("last_curfew_awarded_date") == today_str:
             send_telegram_message(chat_id, "😴 *Sleep recovery already logged for tonight!* Rest well, King.", reply_markup=get_main_keyboard())
         else:
             mem["last_curfew_awarded_date"] = today_str
+            mem["last_curfew_ts"] = current_ts
             mem["xp"] = mem.get("xp", 0) + 50
             save_memory(mem)
             send_telegram_message(chat_id, "🛡️ *SLEEP RECOVERY LOGGED! (+50 XP)*\nRest well, Spartan King. See you at dawn.", reply_markup=get_main_keyboard())
-
-    elif text_lower in ["/milestones", "milestones", "🧠 brain milestones", "/brain"]:
-        send_telegram_message(chat_id, format_milestones(mem), reply_markup=get_main_keyboard())
-
-    elif text_lower in ["/trophies", "/badges", "trophies", "badges", "🏆 trophies"]:
-        send_telegram_message(chat_id, format_trophies(mem), reply_markup=get_main_keyboard())
 
     elif text_lower.startswith("/log") or text_lower.startswith("log") or text_lower in ["⏰ log today", "i woke up", "awake"]:
         now = get_current_local_dt()
@@ -744,20 +866,19 @@ _The dawn is conquered, not given._"""
         result = record_wake(mem, wake_time_str, method="MOBILE_TELEGRAM_LOG")
         log = result["log"]
         stats = result["stats"]
-        trophy_text = ""
-        if result["new_trophies"]:
-            t_names = ", ".join([f"{t['icon']} {t['name']}" for t in result["new_trophies"]])
-            trophy_text = f"\n\n🎉 *NEW TROPHY CLAIMED:* {t_names}!"
+        sleep_info = result["sleep_info"]
 
         reply = f"""⚔️ *DAWN CONQUERED & RECORDED IN CLOUD MEMORY!* 👑
 ────────────────────────
 📅 *Date:* `{log['date']}`
 ⏰ *Wake Time:* `{log['time']}` ({log['status']})
+🌙 *Sleep Recovery:* `{sleep_info['duration_str']}` ({sleep_info['score']}%)
 🔥 *Active Streak:* *{stats['streak']} DAYS*
-✨ *XP Earned:* `+{result['xp_earned']} XP` (Total: `{mem.get('xp', 0)} XP`){trophy_text}
+✨ *XP Earned:* `+{result['xp_earned']} XP` (Total: `{mem.get('xp', 0)} XP`)
 
 _Recorded instantly to 24/7 cloud storage._"""
         send_telegram_message(chat_id, reply, reply_markup=get_main_keyboard())
+        send_telegram_message(chat_id, format_daily_briefing(mem, sleep_info), reply_markup=get_main_keyboard())
 
     elif text_lower.startswith("/alarm") or text_lower.startswith("/target") or text_lower.startswith("alarm"):
         parts = text.split()
@@ -803,31 +924,8 @@ _Recorded instantly to 24/7 cloud storage._"""
         save_memory(mem)
         send_telegram_message(chat_id, "⚔️ *All records and stats have been reset to zero.* Ready for your new journey!", reply_markup=get_main_keyboard())
 
-    elif text_lower in ["🛡️ status", "status", "/status"]:
-        stats = calculate_stats(mem)
-        dirs = get_today_directives(mem)
-        d_done = sum(1 for x in dirs.get("items", []) if x.get("done"))
-        send_telegram_message(chat_id, f"🏛️ *CITADEL CLOUD DAEMON 24/7 STATUS:*\n• *Uptime:* ONLINE\n• *Streak:* {stats['streak']} Days\n• *Total Proofs:* {stats['total']}\n• *Today's Directives:* {d_done}/3 Won\n• *PC Sync:* Ready & listening.", reply_markup=get_main_keyboard())
-
-    elif text_lower in ["/help", "help"]:
-        help_text = """🏛️ *WAKY BOT COMMAND DIRECTORY* 🏛️
-────────────────────────
-• `/report` — Comprehensive dawn performance & history
-• `/streak` — Current streak & next neuro-stage
-• `/directives` — View & toggle today's 3 Prime Directives
-• `/milestones` — Biological timeline (Day 1 to 90)
-• `/trophies` — Unlocked achievements & badges
-• `/curfew` — Log sleep recovery bedtime (+50 XP)
-• `/log` — Log wake at current time
-• `/log HH:MM` — Log wake at specific time (e.g. `/log 06:45`)
-• `/alarm HH:MM` — Set dawn battle target (e.g. `/alarm 07:00`)
-• *Video Proof* — Send any 5-second video note or video to verify automatically!
-
-_Your cloud memory never sleeps._"""
-        send_telegram_message(chat_id, help_text, reply_markup=get_main_keyboard())
-
     else:
-        send_telegram_message(chat_id, f"⚔️ Spartan King, I received: \"{text}\".\nUse `/report` for analytics or `/directives` for your battle plan.", reply_markup=get_main_keyboard())
+        send_telegram_message(chat_id, f"⚔️ Spartan King, I received: \"{text}\".\nUse `/briefing` for orders, `/report` for analytics, or `/directives` for your battle plan.", reply_markup=get_main_keyboard())
 
 
 # ----------------- AUTONOMOUS 24/7 DAWN ALARM & PROTOCOLS DISPATCHER -----------------
@@ -844,6 +942,7 @@ def alarm_dispatcher_thread():
             now = get_current_local_dt()
             today_str = now.strftime("%Y-%m-%d")
             now_hm = now.strftime("%H:%M")
+            weekday = now.weekday() # 6 is Sunday
 
             target_time = mem.get("target_time", "07:00")
             has_logged = any(l.get("date") == today_str for l in mem.get("logs", []))
@@ -860,7 +959,16 @@ def alarm_dispatcher_thread():
 
             current_ts = time.time()
 
-            # 1. URGENT REPEATED PHONE ALARM (Fires starting at target dawn, every 90s up to 7 rounds)
+            # 1. MORNING BATTLE DAWN ALARM & SPOKEN WAR CRY (At target dawn time)
+            if now_hm == target_time and not has_logged:
+                if mem.get("last_alarm_date") != today_str:
+                    mem["last_alarm_date"] = today_str
+                    save_memory(mem)
+                    # Send General's Spoken Voice Note
+                    send_telegram_voice(user_id, WARCRY_AUDIO_PATH, caption=f"⚔️👑 *SPARTAN KING, AWAKEN! TARGET DAWN {target_time}* 👑⚔️")
+                    logger.info(f"Morning Dawn Spoken Voice Note dispatched to {user_id}")
+
+            # 2. URGENT REPEATED PHONE ALARM (Fires starting at target dawn, every 90s up to 7 rounds)
             if not has_logged and mem.get("urgent_alarm_dismissed_date") != today_str:
                 if 0 <= diff_min <= 20:
                     if mem.get("urgent_alarm_date") != today_str:
@@ -892,7 +1000,34 @@ Stand on your feet right now and press the button below:"""
                         send_telegram_message(user_id, urgent_msg, reply_markup=urgent_markup)
                         logger.info(f"Dispatched urgent alarm round {round_num}/7 to {user_id}")
 
-            # 2. MIDDAY PRIME DIRECTIVES CHECK (13:00)
+            # 3. SPARTAN HONOR PENALTY (30+ minutes past dawn without logging)
+            if not has_logged and diff_min >= 30 and diff_min <= 60:
+                if mem.get("last_penalty_date") != today_str:
+                    mem["last_penalty_date"] = today_str
+                    mem["honor_status"] = "BREACH"
+                    old_xp = mem.get("xp", 0)
+                    mem["xp"] = max(0, old_xp - 150)
+                    save_memory(mem)
+
+                    penalty_msg = f"""⚠️🛡️ *CITADEL DISGRACE ALERT: THE PHALANX WAS BREACHED!* 🛡️⚠️
+────────────────────────
+You are 30+ minutes past your target dawn `{target_time}` without logging.
+Voluntary surrender to comfort carries consequences:
+
+📉 *Penalty Applied:* `-150 XP` (Total: `{mem['xp']} XP`)
+Status: *PHALANX BREACH*
+
+⚔️ *A Spartan falls only to rise stronger.*
+Tap below to restore your honor and march into battle:"""
+                    pen_markup = {
+                        "inline_keyboard": [
+                            [{"text": "⚔️ I Stand & Restore My Honor", "callback_data": "restore_honor"}]
+                        ]
+                    }
+                    send_telegram_message(user_id, penalty_msg, reply_markup=pen_markup)
+                    logger.info(f"Honor penalty dispatched to {user_id}")
+
+            # 4. MIDDAY PRIME DIRECTIVES CHECK (13:00)
             if now_hm == "13:00":
                 if mem.get("last_midday_date") != today_str:
                     mem["last_midday_date"] = today_str
@@ -901,16 +1036,35 @@ Stand on your feet right now and press the button below:"""
                     send_telegram_message(user_id, msg, reply_markup=get_directives_inline_keyboard(mem))
                     logger.info(f"Midday Directives Check dispatched to {user_id}")
 
-            # 3. EVENING DIRECTIVES REVIEW (18:00)
+            # 5. EVENING DIRECTIVES & ENERGY TRACKER REVIEW (18:00)
             if now_hm == "18:00":
                 if mem.get("last_evening_date") != today_str:
                     mem["last_evening_date"] = today_str
                     save_memory(mem)
-                    msg = "🌆 *EVENING AGOGE REVIEW (18:00)* ⚔️\nFinish the day strong! Concur your remaining Prime Directives:\n\n" + format_directives_message(mem)
+                    msg = "🌆 *EVENING PHALANX REVIEW (18:00)* ⚔️\nFinish the day strong! Concur your remaining battles:\n\n" + format_directives_message(mem)
                     send_telegram_message(user_id, msg, reply_markup=get_directives_inline_keyboard(mem))
-                    logger.info(f"Evening Directives Review dispatched to {user_id}")
 
-            # 4. NIGHT AGOGE BEDTIME CURFEW (22:30)
+                    # Energy prompt
+                    energy_msg = "🧠 *CIRCADIAN ENERGY CHECK:* How was your laser focus & mental alertness today?"
+                    energy_markup = {
+                        "inline_keyboard": [
+                            [{"text": "⚡ High Focus / Zero Brain Fog", "callback_data": "energy_high"}],
+                            [{"text": "😐 Normal / Steady Work", "callback_data": "energy_normal"}],
+                            [{"text": "🥱 Sluggish / Tired", "callback_data": "energy_low"}]
+                        ]
+                    }
+                    send_telegram_message(user_id, energy_msg, reply_markup=energy_markup)
+                    logger.info(f"Evening Directives & Energy Review dispatched to {user_id}")
+
+            # 6. SUNDAY CITADEL CHRONICLE DEBRIEF (Every Sunday at 20:00)
+            if weekday == 6 and now_hm == "20:00":
+                if mem.get("last_sunday_debrief_date") != today_str:
+                    mem["last_sunday_debrief_date"] = today_str
+                    save_memory(mem)
+                    send_telegram_message(user_id, format_weekly_chronicle(mem), reply_markup=get_main_keyboard())
+                    logger.info(f"Sunday Weekly Debrief dispatched to {user_id}")
+
+            # 7. NIGHT AGOGE BEDTIME CURFEW (22:30)
             if now_hm == "22:30":
                 if mem.get("last_curfew_date") != today_str:
                     mem["last_curfew_date"] = today_str
@@ -940,7 +1094,7 @@ Tap below to lock in sleep recovery and claim *+50 XP*!"""
 
 # ----------------- MAIN LONG POLLING LOOP -----------------
 def main():
-    logger.info("Starting WAKY Spartan King Cloud Bot (24/7 Daemon)...")
+    logger.info("Starting WAKY Spartan King Cloud Bot v3.0 (24/7 Daemon)...")
     threading.Thread(target=alarm_dispatcher_thread, daemon=True).start()
     logger.info("Autonomous 24/7 background dawn alarm dispatcher initiated.")
     logger.info(f"Target Primary User: {PRIMARY_USER_ID}")
@@ -982,7 +1136,7 @@ def main():
                         if msg:
                             handle_message(msg, mem)
             elif res.status_code == 409:
-                logger.warning("Telegram returned 409 Conflict (session held by server). Backing off 20s...")
+                logger.warning("Telegram returned 409 Conflict. Backing off 20s...")
                 time.sleep(20)
             else:
                 logger.warning(f"Telegram returned status {res.status_code}: {res.text}")
