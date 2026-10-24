@@ -9,7 +9,7 @@ from pathlib import Path
 
 from stats import DEFAULT_REWARDS
 
-DEFAULT_SETTINGS = {"weekday": "06:30", "weekend": "06:30", "grace": 15, "reps": 20, "sound": True}
+DEFAULT_SETTINGS = {"weekday": "06:30", "weekend": "06:30", "grace": 15, "reps": 20, "sound": True, "why": ""}
 
 
 class Store:

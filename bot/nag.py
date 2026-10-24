@@ -13,6 +13,7 @@ Config comes from environment variables (or a .env file next to this script):
   WAKY_TZ          your time zone                        default Europe/Chisinau
   WAKY_NAGS        how many reminders at most            default 3
   WAKY_NAG_EVERY   minutes between reminders             default 10
+  WAKY_WHY         your why, quoted in the first reminder (optional)
 """
 
 import json
@@ -51,6 +52,7 @@ def config():
         "tz": ZoneInfo(os.environ.get("WAKY_TZ", "Europe/Chisinau")),
         "nags": int(os.environ.get("WAKY_NAGS", 3)),
         "every": int(os.environ.get("WAKY_NAG_EVERY", 10)),
+        "why": os.environ.get("WAKY_WHY", ""),
     }
 
 
@@ -85,10 +87,11 @@ def streak_from(pinned):
     return int(match.group(1)) if match else 0
 
 
-def nag_text(n, now, streak_at_risk):
+def nag_text(n, now, streak_at_risk, why=""):
     clock = now.strftime("%H:%M")
     if n == 1:
-        return f"⏰ It's {clock} and you haven't checked in. Get up and do your push-ups at the desk."
+        text = f"⏰ It's {clock} and you haven't checked in. Get up and go to your desk."
+        return f"{text}\n\nRemember why: “{why}”" if why else text
     if n == 2:
         if streak_at_risk:
             return f"Still nothing. Your {streak_at_risk}-day streak ends today if you stay in bed."
@@ -133,7 +136,7 @@ def tick(cfg):
         at_risk = streak_from(pinned) if pin_day == now.date() - timedelta(days=1) else 0
         state["sent"] = state.get("sent", 0) + 1
         state["last"] = now.timestamp()
-        call(cfg["token"], "sendMessage", chat_id=cfg["chat_id"], text=nag_text(state["sent"], now, at_risk))
+        call(cfg["token"], "sendMessage", chat_id=cfg["chat_id"], text=nag_text(state["sent"], now, at_risk, cfg.get("why", "")))
     save_state(state)
 
 

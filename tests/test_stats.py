@@ -82,6 +82,16 @@ class NumbersTest(unittest.TestCase):
         self.assertEqual(s["hit"]["days"], 5)
         self.assertTrue(s["levelUp"])  # Day 5 starts level 2.
 
+    def test_ranks_and_daily_quote(self):
+        recs = [day(i) for i in range(10)]
+        s = stats.compute(data(*recs), TODAY)
+        self.assertEqual((s["journey"]["level"], s["journey"]["rank"]), (3, "Hoplite"))
+        self.assertEqual(s["hit"]["rank"], "Hoplite")
+        q1 = s["today"]["quote"]
+        q2 = stats.compute(data(), TODAY + timedelta(days=1))["today"]["quote"]
+        self.assertTrue(q1["text"] and q1["who"])
+        self.assertNotEqual(q1["text"], q2["text"])  # A new quote each day.
+
     def test_no_hit_when_today_not_checked_in(self):
         s = stats.compute(data(day(1), day(2), day(3)), TODAY)
         self.assertEqual(s["journey"]["current"]["days"], 3)
@@ -166,6 +176,11 @@ class AppTest(unittest.TestCase):
         self.assertEqual(s["days"]["2026-01-05"]["time"], "06:20")
         s = self.app.delete_day("2026-01-05")
         self.assertNotIn("2026-01-05", s["days"])
+
+    def test_why_is_saved_trimmed(self):
+        s = self.app.update_settings({"why": "  I am the man who\n changes my family's destiny  " + "x" * 300})
+        self.assertTrue(s["settings"]["why"].startswith("I am the man who changes my family's destiny"))
+        self.assertEqual(len(s["settings"]["why"]), 160)
 
     def test_rejects_bad_input(self):
         with self.assertRaises(BadRequest):

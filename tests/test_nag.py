@@ -50,6 +50,10 @@ class PinTest(unittest.TestCase):
         self.assertIsNone(nag.pinned_checkin_day({"text": "hello", "date": 0}, TZ))
         self.assertIsNone(nag.pinned_checkin_day(None, TZ))
 
+    def test_first_nag_quotes_your_why(self):
+        self.assertIn("Remember why: “Change my family's destiny”", nag.nag_text(1, at("06:45"), 0, "Change my family's destiny"))
+        self.assertNotIn("Remember why", nag.nag_text(1, at("06:45"), 0))
+
     def test_second_nag_mentions_streak(self):
         self.assertIn("5-day streak", nag.nag_text(2, at("06:55"), 5))
         self.assertIn("06:45", nag.nag_text(1, at("06:45"), 0))

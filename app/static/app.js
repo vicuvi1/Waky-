@@ -123,13 +123,23 @@ function renderToday() {
   $("streak-unit").textContent = s.streak === 1 ? "day" : "days";
   $("streak-best").textContent = s.best ? `Best: ${plural(s.best, "day")}` : "Your first check-in starts it";
 
+  const why = state.settings.why;
+  $("why-banner").className = `why-banner${why ? "" : " empty"}`;
+  $("why-banner").innerHTML = why
+    ? `<span class="why-mark">“</span>${esc(why)}<span class="why-edit">Edit</span>`
+    : `<span class="why-cta">What are you getting up for? <b>Write your why →</b></span>`;
+  const q = t.quote;
+  $("quote-card").innerHTML = `<div class="label">Today's words</div>
+    <blockquote>${esc(q.text)}</blockquote>
+    <figcaption>${esc(q.who)} <span>· ${esc(q.source)}</span></figcaption>`;
+
   const j = s.journey;
   const cur = j.current, nxt = j.next;
   const pct = nxt ? Math.max(4, (100 * (j.good - nxt.from)) / (nxt.days - nxt.from)) : 100;
   $("journey-card").innerHTML = `
-    <div class="jc-badge">${j.level}</div>
+    <div class="jc-badge"><span>${["I", "II", "III", "IV", "V"][j.level - 1]}</span></div>
     <div>
-      <div class="jc-eyebrow">Level ${j.level} · ${esc(j.levelName)}${cur ? ` · day ${cur.days}` : ""}</div>
+      <div class="jc-eyebrow"><span class="rank">${esc(j.rank)}</span> Level ${j.level} · ${esc(j.levelName)}${cur ? ` · day ${cur.days}` : ""}</div>
       <div class="jc-title">${cur ? esc(cur.title) : "Your journey starts with one good morning"}</div>
       <div class="jc-text">${esc(cur ? cur.text : "Get up on time once and your body clock gets its first new signal.")}</div>
     </div>
@@ -157,7 +167,7 @@ function renderToday() {
 
 function renderJourney() {
   const j = state.stats.journey;
-  $("j-level").textContent = `Level ${j.level} · ${j.levelName}`;
+  $("j-level").innerHTML = `<span class="rank-big">${esc(j.rank)}</span> <span class="muted">Level ${j.level} · ${esc(j.levelName)}</span>`;
   $("j-sub").textContent = j.good
     ? `${plural(j.good, "good morning")} so far${j.next ? ` · ${j.next.days - j.good} more to "${j.next.title}"` : ""}`
     : "Your first on-time morning starts it.";
@@ -169,7 +179,7 @@ function renderJourney() {
     let head = "";
     if (st.level !== lastLevel) {
       lastLevel = st.level;
-      head = `<li class="lvl${st.reached ? " on" : ""}">Level ${st.level} · ${esc(st.levelName)}</li>`;
+      head = `<li class="lvl${st.reached ? " on" : ""}"><span class="rank">${esc(st.rank)}</span> Level ${st.level} · ${esc(st.levelName)}</li>`;
     }
     const cls = ["stage", st.reached && "reached", isCur && "current", isNext && "next"].filter(Boolean).join(" ");
     const tag = isCur ? "You are here" : isNext ? `${st.days - j.good} more to go` : "";
@@ -276,6 +286,7 @@ function renderSettings() {
     if (document.activeElement !== $(id)) $(id).value = st[key];
   }
   $("s-sound").checked = st.sound;
+  $("why-preview").textContent = st.why ? `“${st.why}”` : "Not written yet.";
 
   const tg = state.telegram;
   if (tg.connected) {
@@ -405,12 +416,15 @@ function showDone(prevStreak) {
   $("done-sub").textContent = `Checked in at ${t.record.time}` + (t.record.reps ? ` · ${plural(t.record.reps, "push-up")}` : "");
   $("done-coins").textContent = `+${t.coins}`;
   $("done-coins").nextElementSibling.textContent = t.coins ? `coins · ${t.coinReasons.join(", ")}` : "coins (late mornings earn none)";
+  $("done-why").hidden = !state.settings.why;
+  $("done-why").textContent = state.settings.why ? `“${state.settings.why}”` : "";
+  $("done-quote").innerHTML = `${esc(t.quote.text)}<cite>${esc(t.quote.who)}</cite>`;
   const m = s.hit;
   $("done-milestone").hidden = !m;
   $("done-milestone").className = `milestone-hit${s.levelUp ? " level" : ""}`;
   if (m) {
     $("done-milestone").innerHTML = s.levelUp
-      ? `<b>⬆️ Level ${m.level} · ${esc(m.levelName)}</b>Day ${m.days}: ${esc(m.title)}. ${esc(m.text)}<span>+20 coins level bonus</span>`
+      ? `<small>New level</small><b class="rank-up">${m.rank === "Agoge" ? "You've entered the Agoge" : `You are now a ${esc(m.rank)}`}</b>Level ${m.level} · ${esc(m.levelName)}. Day ${m.days}: ${esc(m.title)}. ${esc(m.text)}<span>+20 coins level bonus</span>`
       : `<b>🧠 Day ${m.days} · ${esc(m.title)}</b>${esc(m.text)}<span>How it may feel: ${esc(m.feel)}</span>`;
   }
   const g = s.coins.goal;
@@ -553,6 +567,18 @@ $("day-dialog").addEventListener("close", () => {
   if ($("day-dialog").returnValue === "save") {
     act("POST", "/api/days", { date: $("d-date").value, time: $("d-time").value }, "Saved");
   }
+});
+
+function openWhyDialog() {
+  $("why-input").value = state.settings.why || "";
+  $("why-dialog").showModal();
+  $("why-input").focus();
+}
+$("why-banner").onclick = openWhyDialog;
+$("why-edit-settings").onclick = openWhyDialog;
+$("why-chips").onclick = (e) => { if (e.target.tagName === "BUTTON") $("why-input").value = e.target.textContent; };
+$("why-dialog").addEventListener("close", () => {
+  if ($("why-dialog").returnValue === "save") act("POST", "/api/settings", { why: $("why-input").value }, "Saved. See you at dawn.");
 });
 
 let timeScope = "all";
