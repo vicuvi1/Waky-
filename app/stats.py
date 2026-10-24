@@ -8,48 +8,110 @@ LEVELS = {1: "Waking up", 2: "Adjusting", 3: "Body clock locked in", 4: "The hab
 # Who you are at each level: the Spartan path from recruit to legend.
 RANKS = {1: "Recruit", 2: "Agoge", 3: "Hoplite", 4: "Spartan", 5: "Legend"}
 
+# What each level means, shown as the level's banner.
+LEVEL_INFO = {
+    1: "The hardest part. Your body is still fighting the change, so every morning counts double.",
+    2: "Training. Your body clock starts following your new time instead of the old one.",
+    3: "You stand in the line. Energy comes earlier and more reliably, and mornings stop being a fight.",
+    4: "Getting up stops being a decision. It's simply what you do.",
+    5: "Not something you do any more. Who you are.",
+}
+
 # The journey counts good (on-time) mornings in total, not in a row: a bad day pauses it, never resets it.
-# (good mornings, level, title, what's happening, how it may feel)
+# (good mornings, level, title, what's happening, how it may feel, tip for that day)
 JOURNEY = [
     (1, 1, "First morning",
      "Your body clock is set mostly by when you wake up and see light. Today you sent it its first new signal.",
-     "Probably rough. That's normal."),
+     "Probably rough. That's normal.",
+     "Open the curtains or turn on a bright light as soon as you're up."),
     (2, 1, "The hard one",
      "Day 2 is often the toughest: the novelty is gone and you may be short on sleep. "
      "The grogginess (sleep inertia) usually fades 15–30 minutes after you're up.",
-     "Tired. Get light on your face and move."),
+     "Tired. Get light on your face and move.",
+     "Don't sleep in to \"catch up\". Getting up at the same time is what resets your clock."),
     (3, 1, "The pattern starts",
      "Every repeat strengthens the link between \"alarm\" and \"stand up\". Your brain starts treating it as the default.",
-     "Still effort, but less arguing with yourself."),
+     "Still effort, but less arguing with yourself.",
+     "Charge your phone across the room again tonight."),
+    (4, 1, "Proof",
+     "Four mornings is proof to yourself that you can. Self-trust is built from small promises you keep.",
+     "A bit proud, still tired.",
+     "Go to bed 15 minutes earlier tonight."),
     (5, 2, "Sleepy earlier",
      "Regular wake-ups and morning light move your evening melatonin (the sleep hormone) earlier. "
      "You'll start getting sleepy sooner at night.",
-     "Evenings feel sleepier. Go with it."),
+     "Evenings feel sleepier. Go with it.",
+     "When you feel sleepy in the evening, go to bed. Don't push through it."),
     (7, 2, "One week",
      "Your body clock has had a week of the same signal and has shifted toward your new time.",
-     "Mornings start feeling less like a fight."),
+     "Mornings start feeling less like a fight.",
+     "Look at your calendar: seven marks. Remember this on a hard morning."),
+    (9, 2, "The weekend test",
+     "Weekends are where most people slip. Sleeping in two hours shifts your body clock like flying across "
+     "time zones, which is why it's called \"social jet lag\".",
+     "Tempted to sleep in.",
+     "Keep weekends within an hour of your weekday time."),
     (10, 3, "Morning energy",
      "Your body's natural energy boost after waking (the cortisol rise) comes more reliably when your wake time is regular.",
-     "More energy in the first hour."),
+     "More energy in the first hour.",
+     "Get 5–10 minutes of outdoor light in the first hour."),
+    (12, 3, "Fewer arguments",
+     "You negotiate less with the alarm. A decision made in advance takes far less effort in the moment.",
+     "Less drama at 06:30.",
+     "Lay out your clothes the night before."),
     (14, 3, "Before the alarm",
      "With a steady rhythm, some mornings you'll wake a few minutes before the alarm. Your internal clock is doing the job.",
-     "Waking up feels more natural."),
+     "Waking up feels more natural.",
+     "If you wake before the alarm, get up. Don't go back to sleep."),
+    (17, 3, "Steadier afternoons",
+     "A regular sleep schedule tends to soften the afternoon slump that irregular sleep makes worse.",
+     "Fewer crashes after lunch.",
+     "Keep caffeine before noon so it doesn't push your bedtime later."),
     (21, 3, "Less willpower",
      "The behaviour is shifting from deliberate effort to routine. It costs noticeably less willpower.",
-     "Getting up is just what happens."),
+     "Getting up is just what happens.",
+     "Decide what the free morning hour is for."),
+    (25, 4, "Evenings reorganise",
+     "Your evenings start arranging themselves around the wake time: sleepier earlier, less pull to stay up.",
+     "Late nights feel less appealing.",
+     "Phone out of the bedroom an hour before bed."),
     (30, 4, "One month",
      "A month of steady sleep timing. Regular sleep schedules are linked to better mood, focus and sleep quality.",
-     "Clearer head, steadier days."),
+     "Clearer head, steadier days.",
+     "Claim a reward. You've earned it."),
+    (40, 4, "Mornings are yours",
+     "The early hours are now reliably yours: quiet time before the rest of the world wakes up.",
+     "Calm, ahead of the day.",
+     "Keep the first 30 minutes phone-free."),
     (45, 4, "Bad days don't break it",
      "Habit research found that missing a single day doesn't undo the progress. "
      "What matters is getting back on track the next morning.",
-     "Confident, even after an off day."),
+     "Confident, even after an off day.",
+     "If you slip, the rule is simple: never miss twice."),
+    (50, 4, "Fifty",
+     "Most attempts at a new routine fade in the first couple of weeks. You're at fifty.",
+     "Quietly confident.",
+     "Tell someone what you've built."),
+    (60, 4, "The new normal",
+     "This wake time is now your body's normal. Sleeping late starts to feel off rather than nice.",
+     "Sleeping in feels strange.",
+     "Keep the same time on holidays when you can."),
     (66, 4, "Automatic",
      "In the best-known study on habit formation, it took 66 days on average for a habit to feel automatic. You're there.",
-     "You don't decide to get up. You just do."),
+     "You don't decide to get up. You just do.",
+     "Nothing to change. Keep showing up."),
+    (75, 5, "Others notice",
+     "People around you see the change: the steadiness, the early start, the follow-through.",
+     "Steady.",
+     "Help someone else start."),
+    (90, 5, "A full season",
+     "Three months is a full season of mornings. Habits this established tend to survive travel and illness.",
+     "Solid.",
+     "Set your next goal for those mornings."),
     (100, 5, "Morning person",
      "Not a streak any more. It's who you are.",
-     "Proud. You earned this."),
+     "Proud. You earned this.",
+     "Claim the big reward."),
 ]
 
 COINS_ON_TIME = 10
@@ -116,7 +178,7 @@ def coins_by_day(days, grace):
     out = {}
     good_total = run = 0
     prev = None
-    level_starts = {min(n for n, lv, *_ in JOURNEY if lv == level) for level in LEVELS if level > 1}
+    level_starts = {level_start(level) for level in LEVELS if level > 1}
     for d in sorted(_on_time_dates(days, grace)):
         rec = days[d.isoformat()]
         good_total += 1
@@ -134,16 +196,27 @@ def coins_by_day(days, grace):
     return out
 
 
+def level_start(level):
+    return min(n for n, lv, *_ in JOURNEY if lv == level)
+
+
 def journey(good_total):
     stages = [
         {"days": n, "level": lv, "levelName": LEVELS[lv], "rank": RANKS[lv], "title": t, "text": txt, "feel": feel,
-         "reached": good_total >= n}
-        for n, lv, t, txt, feel in JOURNEY
+         "tip": tip, "reached": good_total >= n, "bonus": n == level_start(lv) and lv > 1}
+        for n, lv, t, txt, feel, tip in JOURNEY
     ]
     current = next((s for s in reversed(stages) if s["reached"]), None)
     upcoming = next((s for s in stages if not s["reached"]), None)
     level = current["level"] if current else 1
+    levels = [
+        {"level": lv, "rank": RANKS[lv], "name": LEVELS[lv], "text": LEVEL_INFO[lv],
+         "from": level_start(lv), "to": max(n for n, l, *_ in JOURNEY if l == lv),
+         "reached": good_total >= level_start(lv), "current": lv == level and good_total > 0}
+        for lv in LEVELS
+    ]
     return {
+        "levels": levels,
         "stages": stages,
         "current": current,
         "next": upcoming and {**upcoming, "from": current["days"] if current else 0},
@@ -215,6 +288,19 @@ def compute(data, today):
     j = journey(good_total)
     today_rec = days.get(today.isoformat())
     today_ontime = bool(today_rec and is_on_time(today_rec, grace))
+    next_good = good_total + 1
+    next_stage = next((st for st in j["stages"] if st["days"] == next_good), None)
+    # The streak the next on-time morning would make (today if not done yet, else tomorrow).
+    run_after = (streak + 1) if (not today_rec or today_ontime) else 1
+    week_bonus = COINS_WEEK_BONUS if run_after % 7 == 0 else 0
+    level_bonus = COINS_LEVEL_BONUS if next_stage and next_stage["bonus"] else 0
+    preview = {
+        "onTime": COINS_ON_TIME + week_bonus + level_bonus,
+        "early": COINS_EARLY + week_bonus + level_bonus,
+        "stage": next_stage,
+        "levelUp": bool(level_bonus),
+        "streak": run_after,
+    }
     hit = j["current"] if today_ontime and j["current"] and j["current"]["days"] == good_total else None
     prev_level = journey(good_total - 1)["level"] if today_ontime else j["level"]
     return {
@@ -239,4 +325,5 @@ def compute(data, today):
         "hit": hit,
         "levelUp": bool(hit and j["level"] > prev_level),
         "coins": {"balance": balance, "earned": earned, "spent": spent, "goal": goal},
+        "preview": preview,
     }

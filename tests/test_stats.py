@@ -92,6 +92,19 @@ class NumbersTest(unittest.TestCase):
         self.assertTrue(q1["text"] and q1["who"])
         self.assertNotEqual(q1["text"], q2["text"])  # A new quote each day.
 
+    def test_preview_shows_what_the_next_check_in_brings(self):
+        p = stats.compute(data(), TODAY)["preview"]
+        self.assertEqual((p["onTime"], p["early"], p["stage"]["days"], p["levelUp"]), (10, 15, 1, False))
+        # 4 good mornings: the next one is day 5, a new level (+20).
+        p = stats.compute(data(day(1), day(2), day(3), day(4)), TODAY)["preview"]
+        self.assertEqual((p["onTime"], p["early"], p["stage"]["rank"], p["levelUp"], p["streak"]), (30, 35, "Agoge", True, 5))
+
+    def test_every_stage_has_a_tip_and_levels_cover_the_path(self):
+        j = stats.compute(data(), TODAY)["journey"]
+        self.assertTrue(all(st["tip"] and st["feel"] for st in j["stages"]))
+        self.assertEqual([l["from"] for l in j["levels"]], [1, 5, 10, 25, 75])
+        self.assertEqual(j["levels"][-1]["to"], 100)
+
     def test_no_hit_when_today_not_checked_in(self):
         s = stats.compute(data(day(1), day(2), day(3)), TODAY)
         self.assertEqual(s["journey"]["current"]["days"], 3)

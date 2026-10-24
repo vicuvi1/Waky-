@@ -108,25 +108,34 @@ function renderToday() {
     const dayName = shown.toLocaleDateString("en-GB", { weekday: "long" });
     const editable = (time) =>
       `<button class="target editable" id="edit-time" title="Change wake-up time">${esc(time)}<span class="edit">Change</span></button>`;
-    hero.className = "hero card";
-    hero.innerHTML = missed ? `
-      <div>
-        <div class="eyebrow">Wake up tomorrow · ${dayName}</div>
-        ${editable(shownWeekend ? state.settings.weekend : state.settings.weekday)}
+    const pv = state.stats.preview;
+    const early = nowMin < target;
+    const prizeCoins = missed ? pv.onTime : early ? pv.early : pv.onTime;
+    const chips = [
+      `<span class="chip gold">🪙 +${prizeCoins} coins${!missed && early ? " (early bonus)" : ""}</span>`,
+      pv.stage ? `<span class="chip">🧠 Day ${pv.stage.days} · ${esc(pv.stage.title)}</span>` : "",
+      pv.levelUp ? `<span class="chip rank">⚔️ Become ${pv.stage.rank === "Agoge" ? "an Agoge trainee" : `a ${esc(pv.stage.rank)}`}</span>` : "",
+      pv.streak > 1 ? `<span class="chip">🔥 ${pv.streak}-day streak</span>` : "",
+    ].join("");
+    const frac = missed ? 1 : nowMin < target ? 1 : Math.max(0, (deadline - nowMin) / Math.max(1, state.settings.grace));
+    const calling = !missed && nowMin >= target - 30 && nowMin <= deadline;
+    hero.className = `hero card wake${calling ? " calling" : ""}`;
+    hero.innerHTML = `
+      <div class="hero-left">
+        <div class="eyebrow">${missed ? `Wake up tomorrow · ${dayName}` : `Wake-up target · ${dayName}`}</div>
+        ${editable(missed ? (shownWeekend ? state.settings.weekend : state.settings.weekday) : t.target)}
         ${status}
+        <div class="prize"><div class="prize-label">${missed ? "Tomorrow's prize" : "Waiting for you"}</div><div class="chips-row">${chips}</div></div>
       </div>
-      <div class="cta">
-        <button class="btn ghost" id="start">Check in for today anyway</button>
-        <span class="muted small">Set your phone alarm before bed</span>
-      </div>` : `
-      <div>
-        <div class="eyebrow">Wake-up target · ${dayName}</div>
-        ${editable(t.target)}
-        ${status}
-      </div>
-      <div class="cta">
-        <button class="btn primary${nowMin >= target - 30 && nowMin <= deadline ? " calling" : ""}" id="start">I'm up ☀️</button>
-        <button class="btn ghost small" id="start-cam">Or check in with ${state.settings.reps} push-ups</button>
+      <div class="cta wake-cta">
+        ${missed ? `<button class="btn ghost" id="start">Check in for today anyway</button>
+          <span class="muted small">Set your phone alarm before bed</span>` : `
+        <button class="wake-btn" id="start" aria-label="I'm up">
+          <span class="rays"></span>
+          ${ring(frac, 104, "wake-ring")}
+          <span class="sun"><b>I'M UP</b><small>+${prizeCoins} 🪙</small></span>
+        </button>
+        <button class="btn ghost small" id="start-cam">Or check in with ${state.settings.reps} push-ups</button>`}
       </div>`;
     $("start").onclick = checkinNow;
     if ($("start-cam")) $("start-cam").onclick = () => startSession("checkin");
@@ -179,30 +188,91 @@ function renderToday() {
   $("week-sub").textContent = past ? `${good} of ${past} on time` : "Nothing logged yet this week";
 }
 
+const ROMAN = ["I", "II", "III", "IV", "V"];
+
+function ring(frac, r = 54, cls = "") {
+  const c = 2 * Math.PI * r;
+  return `<svg class="ring-svg ${cls}" viewBox="0 0 ${2 * r + 12} ${2 * r + 12}">
+    <circle class="ring-track" cx="${r + 6}" cy="${r + 6}" r="${r}"/>
+    <circle class="ring-fill" cx="${r + 6}" cy="${r + 6}" r="${r}" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - Math.max(0, Math.min(1, frac)))}"/>
+  </svg>`;
+}
+
 function renderJourney() {
   const j = state.stats.journey;
-  $("j-level").innerHTML = `<span class="rank-big">${esc(j.rank)}</span> <span class="muted">Level ${j.level} · ${esc(j.levelName)}</span>`;
-  $("j-sub").textContent = j.good
-    ? `${plural(j.good, "good morning")} so far${j.next ? ` · ${j.next.days - j.good} more to "${j.next.title}"` : ""}`
-    : "Your first on-time morning starts it.";
-  $("j-levels").innerHTML = [1, 2, 3, 4, 5].map((n) => `<i class="${n <= j.level && j.good ? "on" : ""}" title="Level ${n}"></i>`).join("");
+  const lv = j.levels.find((l) => l.level === j.level);
+  const nextLv = j.levels.find((l) => l.level === j.level + 1);
+  const span = nextLv ? nextLv.from - lv.from : 1;
+  const inLevel = j.good ? (nextLv ? (j.good - lv.from + 1) / span : 1) : 0;
+
+  $("j-hero").innerHTML = `
+    <div class="medal">
+      ${ring(inLevel, 70, "medal-ring")}
+      <div class="medal-core"><span>${ROMAN[j.level - 1]}</span></div>
+    </div>
+    <div class="jh-main">
+      <div class="label">Your journey · Level ${j.level} of 5</div>
+      <h1 class="jh-rank">${esc(j.rank)}</h1>
+      <div class="jh-name">${esc(j.levelName)}</div>
+      <p class="jh-text">${esc(lv.text)}</p>
+    </div>
+    <div class="jh-stats">
+      <div><b>${j.good}</b><span>good ${j.good === 1 ? "morning" : "mornings"}</span></div>
+      <div><b>${j.next ? j.next.days - j.good : 0}</b><span>to ${j.next ? `"${esc(j.next.title)}"` : "the end"}</span></div>
+      <div><b>${nextLv ? nextLv.from - j.good : "✓"}</b><span>${nextLv ? `to ${esc(nextLv.rank)}` : "Legend reached"}</span></div>
+    </div>`;
+
+  $("j-ranks").innerHTML = j.levels.map((l) => `
+    <div class="rank-card ${l.current ? "current" : l.reached ? "reached" : "locked"}">
+      <div class="rc-num">${ROMAN[l.level - 1]}</div>
+      <div class="rc-rank">${esc(l.rank)}</div>
+      <div class="rc-name">${esc(l.name)}</div>
+      <div class="rc-days">${l.reached || l.current ? (l.current ? "You are here" : "✓ Reached") : `🔒 Day ${l.from}`}</div>
+    </div>`).join("");
+
   let lastLevel = 0;
-  $("timeline").innerHTML = j.stages.map((st) => {
+  $("timeline").innerHTML = j.stages.map((st, i) => {
     const isCur = j.current && st.days === j.current.days;
     const isNext = j.next && st.days === j.next.days;
     let head = "";
     if (st.level !== lastLevel) {
       lastLevel = st.level;
-      head = `<li class="lvl${st.reached ? " on" : ""}"><span class="rank">${esc(st.rank)}</span> Level ${st.level} · ${esc(st.levelName)}</li>`;
+      const l = j.levels[st.level - 1];
+      head = `<li class="lvl-banner ${l.reached ? "on" : ""}">
+        <div class="lb-num">${ROMAN[st.level - 1]}</div>
+        <div><div class="lb-rank">${esc(l.rank)} <span>· ${esc(l.name)} · days ${l.from}–${l.to}</span></div>
+        <p>${esc(l.text)}</p></div></li>`;
     }
     const cls = ["stage", st.reached && "reached", isCur && "current", isNext && "next"].filter(Boolean).join(" ");
-    const tag = isCur ? "You are here" : isNext ? `${st.days - j.good} more to go` : "";
-    return `${head}<li class="${cls}" style="--i:${j.stages.indexOf(st)}"><div class="card">
-      <div class="s-top"><span class="s-day">Day ${st.days}</span><span class="s-title">${esc(st.title)}</span>${tag ? `<span class="s-tag">${tag}</span>` : ""}</div>
-      <p>${esc(st.text)}</p>
-      <p class="s-feel">How it may feel: ${esc(st.feel)}</p>
-    </div></li>`;
+    const tag = isCur ? "You are here" : isNext ? `Next · ${st.days - j.good} more` : st.reached ? "✓" : "";
+    return `${head}<li class="${cls}" style="--i:${i}">
+      <div class="s-medal">${st.days}</div>
+      <div class="card">
+        <div class="s-top"><span class="s-day">Day ${st.days}</span><span class="s-title">${esc(st.title)}</span>
+          ${st.bonus ? `<span class="s-bonus">+20 🪙 level bonus</span>` : ""}${tag ? `<span class="s-tag">${tag}</span>` : ""}</div>
+        <p>${esc(st.text)}</p>
+        <div class="s-meta"><span>💭 ${esc(st.feel)}</span><span>💡 ${esc(st.tip)}</span></div>
+      </div></li>`;
   }).join("");
+
+  const nx = j.next, cur = j.current;
+  const pct = nx ? Math.max(4, (100 * (j.good - nx.from)) / (nx.days - nx.from)) : 100;
+  $("j-side").innerHTML = `
+    <div class="card side-next">
+      <div class="label">Coming up</div>
+      ${nx ? `<div class="sn-day">Day ${nx.days}</div><div class="sn-title">${esc(nx.title)}</div>
+        <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <div class="muted small">${nx.days - j.good} more good ${nx.days - j.good === 1 ? "morning" : "mornings"}${nx.bonus ? " · unlocks a new rank" : ""}</div>`
+      : `<div class="sn-title">You've walked the whole path.</div>`}
+    </div>
+    <div class="card side-tip">
+      <div class="label">💡 For tonight</div>
+      <p>${esc((cur || j.stages[0]).tip)}</p>
+    </div>
+    <div class="card side-rule">
+      <div class="label">The rule</div>
+      <p>Good mornings count in total, not in a row. A bad day pauses the journey. It never sends you back.</p>
+    </div>`;
 }
 
 function renderRewards() {
