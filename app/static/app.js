@@ -9,6 +9,20 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 let state = null;
 
+// Numbers roll up to their new value instead of jumping.
+function countTo(el, to) {
+  const from = Number(el.dataset.v ?? 0);
+  el.dataset.v = to;
+  if (from === to || matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = to; return; }
+  const start = performance.now(), dur = 900;
+  const step = (now) => {
+    const k = Math.min(1, (now - start) / dur);
+    el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 // ---------- api ----------
 
 async function api(method, path, body) {
@@ -111,7 +125,7 @@ function renderToday() {
         ${status}
       </div>
       <div class="cta">
-        <button class="btn primary" id="start">I'm up ☀️</button>
+        <button class="btn primary${nowMin >= target - 30 && nowMin <= deadline ? " calling" : ""}" id="start">I'm up ☀️</button>
         <button class="btn ghost small" id="start-cam">Or check in with ${state.settings.reps} push-ups</button>
       </div>`;
     $("start").onclick = checkinNow;
@@ -119,7 +133,7 @@ function renderToday() {
     $("edit-time").onclick = () => openTimeDialog(shownWeekend);
   }
 
-  $("streak").textContent = s.streak;
+  countTo($("streak"), s.streak);
   $("streak-unit").textContent = s.streak === 1 ? "day" : "days";
   $("streak-best").textContent = s.best ? `Best: ${plural(s.best, "day")}` : "Your first check-in starts it";
 
@@ -147,7 +161,7 @@ function renderToday() {
       <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>` : "<b>Journey complete</b>Keep going."}</div>`;
 
   const c = s.coins;
-  $("coin-balance").textContent = c.balance;
+  countTo($("coin-balance"), c.balance);
   if (c.goal) {
     $("goal-bar").style.width = `${Math.max(4, Math.min(100, (100 * c.balance) / c.goal.cost))}%`;
     $("goal-sub").textContent = `${c.balance} / ${c.goal.cost} to ${c.goal.emoji} ${c.goal.name}`;
@@ -183,7 +197,7 @@ function renderJourney() {
     }
     const cls = ["stage", st.reached && "reached", isCur && "current", isNext && "next"].filter(Boolean).join(" ");
     const tag = isCur ? "You are here" : isNext ? `${st.days - j.good} more to go` : "";
-    return `${head}<li class="${cls}"><div class="card">
+    return `${head}<li class="${cls}" style="--i:${j.stages.indexOf(st)}"><div class="card">
       <div class="s-top"><span class="s-day">Day ${st.days}</span><span class="s-title">${esc(st.title)}</span>${tag ? `<span class="s-tag">${tag}</span>` : ""}</div>
       <p>${esc(st.text)}</p>
       <p class="s-feel">How it may feel: ${esc(st.feel)}</p>
@@ -193,7 +207,7 @@ function renderJourney() {
 
 function renderRewards() {
   const c = state.stats.coins;
-  $("r-balance").textContent = c.balance;
+  countTo($("r-balance"), c.balance);
   $("r-earned").textContent = `${c.earned} earned · ${c.spent} spent`;
   const rewards = [...state.rewards].sort((a, b) => a.cost - b.cost);
   $("shop").innerHTML = rewards.length ? rewards.map((r) => {
@@ -228,11 +242,11 @@ function renderProgress() {
   $("p-rate").textContent = s.rate == null ? "–" : `${s.rate}%`;
   $("p-avg").textContent = s.avg ?? "–";
 
-  $("calendar").innerHTML = s.calendar.map((d) => {
+  $("calendar").innerHTML = s.calendar.map((d, i) => {
     const day = Number(d.date.slice(8));
     const label = new Date(d.date + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
     const tip = d.time ? `${label} · up at ${d.time}` : d.status === "missed" ? `${label} · missed` : "";
-    return `<div class="c ${d.status}"${tip ? ` data-tip="${esc(tip)}"` : ""}>${day}</div>`;
+    return `<div class="c ${d.status}" style="--i:${i}"${tip ? ` data-tip="${esc(tip)}"` : ""}>${day}</div>`;
   }).join("");
 
   $("chart").innerHTML = chartSvg(s.chart);
@@ -258,7 +272,7 @@ function chartSvg(points) {
   lo = Math.floor(lo / 15) * 15; hi = Math.ceil(hi / 15) * 15;
   const x = (i) => L + (i * (W - L - R)) / (points.length - 1);
   const y = (m) => T + ((m - lo) * (H - T - B)) / (hi - lo || 1); // Earlier = higher.
-  const step = hi - lo > 120 ? 60 : 30;
+  const step = hi - lo > 600 ? 180 : hi - lo > 240 ? 60 : 30;
   let out = `<svg viewBox="0 0 ${W} ${H}">`;
   for (let m = Math.ceil(lo / step) * step; m <= hi; m += step) {
     out += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(m)}" y2="${y(m)}"/><text class="axis" x="${L - 8}" y="${y(m) + 4}" text-anchor="end">${fromMin(m)}</text>`;
@@ -498,6 +512,7 @@ function confetti(canvas, count) {
 function showView(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
+  document.querySelectorAll(".view .bar-fill").forEach((b) => { const w = b.style.width; b.style.width = "0"; requestAnimationFrame(() => requestAnimationFrame(() => { b.style.width = w; })); });
   scrollTo(0, 0);
 }
 document.querySelectorAll(".tab").forEach((tab) => { tab.onclick = () => showView(tab.dataset.view); });
