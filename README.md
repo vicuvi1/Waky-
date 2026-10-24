@@ -1,65 +1,83 @@
-# 👑 WAKY: Spartan King's Dawn Citadel
+# Waky
 
-An elite morning wake-up verification protocol and discipline tracking desktop application, inspired by the Spartan Citadel aesthetic and integrated with Telegram.
+Get up, walk to your desk, do 20 push-ups in front of the webcam. Day done.
 
----
+Waky doesn't try to be your alarm: your phone's alarm is better at that. Waky is the part
+after the alarm. It proves you got out of bed, keeps your streak, and shows how consistent
+you are. If you haven't checked in by your wake-up time, a Telegram bot nags you.
 
-## ⚡ The Morning Protocol
+## How it works
 
-```mermaid
-flowchart LR
-    A["🌅 Wake Up at Dawn"] --> B["👑 Open WAKY on Desktop"]
-    B --> C["📹 Record 5-Second Video Proof"]
-    C --> D["🤖 Video Auto-Delivered to @wakyyyy_bot"]
-    D --> E["🏆 Day Conquered & Consistency Stats Updated"]
-```
+1. **Phone alarm rings.** Use your phone's normal clock app.
+2. **Push-ups at the desk.** Open Waky and press *Start*. The webcam counts your push-ups with
+   pose detection ([MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker)).
+   It only counts full reps with your body horizontal, so standing arm-bends don't work. If the
+   camera can't see you, you can count by hand; that day is marked "counted by hand".
+3. **Checked in.** Your wake-up time is saved, the streak goes up, and the check-in is posted and
+   pinned in your Telegram chat.
+4. **No check-in?** At your target + 15 minutes, the nag bot messages you, up to three times.
 
-1. **Wake Up at Target Time**: Default `07:00 AM` (customizable).
-2. **Align & Record**: Launch `WAKY` from your desktop. Align your face with the Cyberpunk Spartan HUD reticle.
-3. **5-Second Verification**: 3-2-1 countdown, followed by 5 seconds of smooth video capture.
-4. **Instant Telegram Sync**: The 5-second video proof and morning status report are automatically delivered to `@wakyyyy_bot`.
-5. **Day Conquered**: Streak advances, daily heatmap lights up, and consistency metrics update instantly.
+A day is **on time** if you check in within the grace window (default 15 minutes) after your
+target. The streak counts on-time days in a row.
 
----
+## Run it (Windows)
 
-## 🧠 Brain & Biology Reboot Milestones
+Needs Python 3.10+ and Edge or Chrome. No packages to install.
 
-Waking up early physically alters your brain chemistry and endocrine system:
-
-* **Day 1: The Spark of Willpower** — Cortisol Awakening Response (CAR) triggers; morning snooze reflex crushed.
-* **Day 3: Habit Circuit Forming** — Basal ganglia encodes the 5s loop; morning brain fog drops by 35%.
-* **Day 7: Circadian Master Clock Sync** — Suprachiasmatic nucleus (SCN) locks to dawn; core temperature rises naturally before alarm.
-* **Day 14: The Spartan Gaze & Peak Testosterone** — Deep slow-wave sleep (SWS) synchronized; morning testosterone peak maximized between 06:00 and 08:00 AM.
-* **Day 21: Neural Pathway Myelination** — Friction to rising drops to near zero; habit fortress established.
-* **Day 30: Sovereign King's Transmutation** — Complete identity shift in the Default Mode Network (DMN); dawn sovereignty locked in.
-
----
-
-## 📊 Consistency Telemetry & Analytics
-
-* **Master Consistency Index**: Reliability score based on on-time arrivals, streak momentum, and variance.
-* **14-Day Wake Trend Graph**: Visual bar chart showing daily wake times vs. target alarm with minutes saved.
-* **30-Day Dawn Conquest Heatmap**: Calendar matrix tracking daily early, on-time, and late statuses.
-* **Early Hours Saved**: Total cumulative productive hours acquired before the world awakens.
-
----
-
-## 🛠️ Architecture & Tech Stack
-
-* **Frontend**: HTML5, CSS3 Glassmorphism, Canvas Ambient Particles, Web Audio API Synthesizer (Spartan war drums & fanfare), WebRTC `getUserMedia` with `MediaRecorder`.
-* **Backend**: Standalone C# Launcher & HTTP Server compiled via `.NET Framework` `csc.exe`.
-* **Browser Runtime**: Chromium / Microsoft Edge in `--app` standalone mode.
-* **Telegram Integration**: Telegram Bot API (`sendVideo`, `sendMessage`, `getUpdates`) linked to `@wakyyyy_bot`.
-
----
-
-## 🚀 Desktop Deployment
-
-Run the included deployment script to place launchers on your desktop:
 ```powershell
-powershell -ExecutionPolicy Bypass -File "desktop\deploy_desktop.ps1"
+powershell -ExecutionPolicy Bypass -File launch\install.ps1
 ```
-Launch via:
-* `WAKY.lnk` (Sovereign King's Crown Icon)
-* `WAKY.exe` (Native Standalone Executable)
-* `WAKY.bat` (Direct Batch Launcher)
+
+That puts a **Waky** shortcut on the desktop and in Startup. Or run `python app\server.py` directly.
+
+The app is a small local server (`app/server.py`, port 48990) plus an app window. It shuts down
+10 minutes after you close the window.
+
+### Settings
+
+- Wake-up times (weekdays and weekends), grace window, push-up count, sounds: in the app.
+- Telegram: paste your bot token in *Settings → Telegram*, send `/start` to the bot, press Connect.
+  The token is stored in `data/secrets.json`, never in git.
+- Optional `.env` (see `.env.example`): `WAKY_BACKUP_DIR` copies `waky.json` to another folder
+  (e.g. Google Drive) after every change.
+
+Your data is one file, `data/waky.json`. History can be edited and deleted in *Progress → History*.
+
+## Nag bot (server)
+
+`bot/nag.py` runs 24/7 on a server, so it works while the PC is off. It's one file, standard
+library only, no database. It doesn't talk to the PC: it reads the pinned message in your chat
+and checks whether today's check-in is there.
+
+```bash
+sudo mkdir -p /opt/waky && sudo chown ubuntu /opt/waky
+git clone https://github.com/vicuvi1/Waky-.git /opt/waky
+cp /opt/waky/bot/.env.example /opt/waky/bot/.env   # fill in token, chat id, times
+sudo cp /opt/waky/bot/waky-nag.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now waky-nag
+```
+
+The wake-up times in `bot/.env` must match the ones in the app.
+
+## Tests
+
+```bash
+python -m unittest discover -s tests
+node --test tests/pushups.test.mjs
+```
+
+## Layout
+
+```
+app/server.py        local server: API, storage, Telegram check-in, app window
+app/stats.py         streaks, averages, calendar, milestones
+app/store.py         data file (atomic writes, backup copy, damaged-file guard)
+app/telegram.py      Bot API calls
+app/static/          the UI (plain HTML/CSS/JS, no build step)
+  pushups.js         rep counter + pose checks (tested)
+  camera.js          webcam + MediaPipe
+bot/nag.py           the reminder bot
+launch/              shortcut installer, launcher, icon
+```
+
+The old v1 (Expo app, "Spartan" desktop app) is kept under the `v1-archive` tag.
