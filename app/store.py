@@ -7,7 +7,7 @@ import threading
 import time
 from pathlib import Path
 
-DEFAULT_SETTINGS = {"weekday": "06:30", "weekend": "07:00", "grace": 15, "reps": 20, "sound": True}
+DEFAULT_SETTINGS = {"weekday": "06:30", "weekend": "06:30", "grace": 15, "reps": 20, "sound": True}
 
 
 class Store:
