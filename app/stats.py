@@ -2,7 +2,11 @@
 
 from datetime import date, timedelta
 
+from quotes import quote_for
+
 LEVELS = {1: "Waking up", 2: "Adjusting", 3: "Body clock locked in", 4: "The habit", 5: "Identity"}
+# Who you are at each level: the Spartan path from recruit to legend.
+RANKS = {1: "Recruit", 2: "Agoge", 3: "Hoplite", 4: "Spartan", 5: "Legend"}
 
 # The journey counts good (on-time) mornings in total, not in a row: a bad day pauses it, never resets it.
 # (good mornings, level, title, what's happening, how it may feel)
@@ -132,7 +136,7 @@ def coins_by_day(days, grace):
 
 def journey(good_total):
     stages = [
-        {"days": n, "level": lv, "levelName": LEVELS[lv], "title": t, "text": txt, "feel": feel,
+        {"days": n, "level": lv, "levelName": LEVELS[lv], "rank": RANKS[lv], "title": t, "text": txt, "feel": feel,
          "reached": good_total >= n}
         for n, lv, t, txt, feel in JOURNEY
     ]
@@ -145,6 +149,7 @@ def journey(good_total):
         "next": upcoming and {**upcoming, "from": current["days"] if current else 0},
         "level": level,
         "levelName": LEVELS[level],
+        "rank": RANKS[level],
         "good": good_total,
     }
 
@@ -221,6 +226,7 @@ def compute(data, today):
             "ontime": today_ontime,
             "coins": coins.get(today.isoformat(), (0, []))[0],
             "coinReasons": coins.get(today.isoformat(), (0, []))[1],
+            "quote": quote_for(today),
         },
         "streak": streak,
         "best": best,

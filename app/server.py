@@ -132,6 +132,8 @@ class App:
             s["reps"] = _int(body["reps"], s["reps"], 1, 200)
         if "sound" in body:
             s["sound"] = bool(body["sound"])
+        if "why" in body:
+            s["why"] = " ".join(str(body["why"]).split())[:160]
         self.store.save(data)
         return self.state()
 
@@ -247,8 +249,12 @@ def checkin_text(data, today):
         lines.append(f"🪙 +{s['today']['coins']} coins · balance {s['coins']['balance']}")
     if s["streak"]:
         lines.append(f"🔥 {s['streak']}-day streak")
+    if s["levelUp"]:
+        lines.append(f"⚔️ New level {s['hit']['level']}: {s['hit']['rank']} · {s['hit']['levelName']}")
     if s["hit"]:
         lines.append(f"🧠 Day {s['hit']['days']} · {s['hit']['title']}")
+    if data["settings"].get("why"):
+        lines.append(f"\n“{data['settings']['why']}”")
     return "\n".join(lines)
 
 

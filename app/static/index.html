@@ -7,7 +7,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cinzel:wght@600;700;800&family=Cormorant+Garamond:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -31,6 +31,8 @@
         <p id="today-date" class="muted"></p>
       </div>
 
+      <button class="why-banner" id="why-banner" title="Edit your why"></button>
+
       <div class="hero card" id="hero"></div>
 
       <button class="card journey-card" id="journey-card" data-goto="journey"></button>
@@ -53,6 +55,8 @@
           <div class="muted small" id="week-sub"></div>
         </div>
       </div>
+
+      <figure class="card quote-card" id="quote-card"></figure>
     </section>
 
     <!-- JOURNEY -->
@@ -152,6 +156,12 @@
           <p class="muted small">Your phone's alarm wakes you. Charge the phone at your desk so you have to get up to turn it off, then check in here.</p>
         </div>
 
+        <div class="card why-card">
+          <h2>Your why</h2>
+          <p class="why-preview" id="why-preview"></p>
+          <button class="btn ghost small" id="why-edit-settings">Edit</button>
+        </div>
+
         <div class="card">
           <h2>Telegram</h2>
           <div id="tg-box"></div>
@@ -196,6 +206,7 @@
     <div class="done-card">
       <div class="check"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg></div>
       <h1 id="done-title">You're up.</h1>
+      <p class="done-why" id="done-why" hidden></p>
       <p id="done-sub" class="muted"></p>
       <div class="done-row">
         <div class="done-stat"><span id="done-coins">+10</span><small>coins</small></div>
@@ -203,6 +214,7 @@
       </div>
       <div class="milestone-hit" id="done-milestone" hidden></div>
       <p class="muted small" id="done-goal"></p>
+      <blockquote class="done-quote" id="done-quote"></blockquote>
       <p class="water">Now go drink a glass of water. 💧</p>
       <button class="btn primary" id="done-close">Done</button>
     </div>
@@ -228,6 +240,24 @@
         <button type="button" data-scope="all">Every day</button>
         <button type="button" data-scope="weekday">Mon–Fri</button>
         <button type="button" data-scope="weekend">Sat–Sun</button>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn primary" value="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="why-dialog">
+    <form method="dialog" class="form">
+      <h2>Why do you get up?</h2>
+      <p class="muted small">One sentence, in your own words. You'll see it every morning.</p>
+      <textarea id="why-input" rows="3" maxlength="160" placeholder="I am the man who changes my family's destiny."></textarea>
+      <div class="chips" id="why-chips">
+        <button type="button">I am the man who changes my family's destiny.</button>
+        <button type="button">I rise before the world so my family never has to worry.</button>
+        <button type="button">Discipline today. Freedom tomorrow.</button>
+        <button type="button">The man I'm becoming doesn't stay in bed.</button>
       </div>
       <div class="dialog-actions">
         <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
