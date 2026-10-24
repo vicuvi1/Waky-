@@ -97,7 +97,16 @@ main { max-width: 1120px; margin: 0 auto; padding: 28px 32px 48px; }
 .hero.done::after { background: radial-gradient(circle, rgba(52, 211, 153, .16), transparent 65%); }
 .hero .eyebrow { color: var(--muted); font-weight: 500; }
 .hero .target { font-size: 76px; font-weight: 800; letter-spacing: -0.05em; line-height: 1; margin: 6px 0 10px; font-variant-numeric: tabular-nums; }
-.hero .status { font-size: 15px; }
+.hero .target.editable {
+  display: flex; align-items: center; gap: 14px; cursor: pointer; border: 0; background: none;
+  padding: 0; color: var(--text); font: inherit; font-size: 76px; font-weight: 800; letter-spacing: -0.05em;
+}
+.hero .target.editable .edit {
+  font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--muted); border: 1px solid var(--line);
+  border-radius: 99px; padding: 4px 12px; transition: color .2s, border-color .2s;
+}
+.hero .target.editable:hover .edit { color: var(--sun); border-color: var(--sun); }
+.hero .status { font-size: 15px; display: block; }
 .hero .status.late { color: var(--late); }
 .hero .status.ok { color: var(--ontime); }
 .hero .cta { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; z-index: 1; }
@@ -249,6 +258,10 @@ main { max-width: 1120px; margin: 0 auto; padding: 28px 32px 48px; }
 /* ---------- dialog / toast ---------- */
 dialog { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; width: 360px; }
 dialog::backdrop { background: rgba(0, 0, 0, .6); backdrop-filter: blur(4px); }
+.form input.time-big { font-size: 40px; font-weight: 800; text-align: center; padding: 14px; letter-spacing: -0.03em; }
+.seg { display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--line); padding: 4px; border-radius: 12px; }
+.seg button { flex: 1; border: 0; background: none; padding: 8px; border-radius: 9px; cursor: pointer; color: var(--muted); font-weight: 600; font-size: 13px; }
+.seg button.on { background: var(--sun); color: #1a0d03; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface-2); border: 1px solid var(--line);

@@ -8,7 +8,7 @@ Config comes from environment variables (or a .env file next to this script):
   WAKY_BOT_TOKEN   bot token from @BotFather            (required)
   WAKY_CHAT_ID     your chat id; the app shows it        (required)
   WAKY_WEEKDAY     weekday wake-up time                  default 06:30
-  WAKY_WEEKEND     weekend wake-up time                  default 07:00
+  WAKY_WEEKEND     weekend wake-up time                  default 06:30
   WAKY_GRACE       minutes after the target that still count as on time   default 15
   WAKY_TZ          your time zone                        default Europe/Chisinau
   WAKY_NAGS        how many reminders at most            default 3
@@ -46,7 +46,7 @@ def config():
         "token": os.environ["WAKY_BOT_TOKEN"],
         "chat_id": int(os.environ["WAKY_CHAT_ID"]),
         "weekday": os.environ.get("WAKY_WEEKDAY", "06:30"),
-        "weekend": os.environ.get("WAKY_WEEKEND", "07:00"),
+        "weekend": os.environ.get("WAKY_WEEKEND", "06:30"),
         "grace": int(os.environ.get("WAKY_GRACE", 15)),
         "tz": ZoneInfo(os.environ.get("WAKY_TZ", "Europe/Chisinau")),
         "nags": int(os.environ.get("WAKY_NAGS", 3)),

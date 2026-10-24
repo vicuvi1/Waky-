@@ -169,6 +169,22 @@
     </form>
   </dialog>
 
+  <dialog id="time-dialog">
+    <form method="dialog" class="form">
+      <h2>Wake-up time</h2>
+      <input type="time" id="t-time" class="time-big" required>
+      <div class="seg" id="t-scope">
+        <button type="button" data-scope="all">Every day</button>
+        <button type="button" data-scope="weekday">Mon–Fri</button>
+        <button type="button" data-scope="weekend">Sat–Sun</button>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn primary" value="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" hidden></div>
 
   <script type="module" src="app.js"></script>

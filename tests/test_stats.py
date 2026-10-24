@@ -11,7 +11,7 @@ from server import App, BadRequest, checkin_text  # noqa: E402
 from store import DEFAULT_SETTINGS, Store  # noqa: E402
 
 TODAY = date(2026, 10, 22)  # A Thursday
-SETTINGS = {**DEFAULT_SETTINGS}
+SETTINGS = {**DEFAULT_SETTINGS, "weekend": "07:00"}
 
 
 def day(offset, time="06:30", target="06:30"):

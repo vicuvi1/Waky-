@@ -87,13 +87,16 @@ function renderToday() {
     else if (!missed) status = `<span class="status late">Past your on-time window. Check in anyway.</span>`;
     else status = `<span class="status">No check-in this morning. Tomorrow is a fresh one.</span>`;
 
-    const tomorrow = new Date(now.getTime() + 864e5);
-    const tWeekend = [0, 6].includes(tomorrow.getDay());
+    const shown = missed ? new Date(now.getTime() + 864e5) : now;
+    const shownWeekend = [0, 6].includes(shown.getDay());
+    const dayName = shown.toLocaleDateString("en-GB", { weekday: "long" });
+    const editable = (time) =>
+      `<button class="target editable" id="edit-time" title="Change wake-up time">${esc(time)}<span class="edit">Change</span></button>`;
     hero.className = "hero card";
     hero.innerHTML = missed ? `
       <div>
-        <div class="eyebrow">Tomorrow · ${tWeekend ? "Weekend" : "Weekday"}</div>
-        <div class="target">${esc(tWeekend ? state.settings.weekend : state.settings.weekday)}</div>
+        <div class="eyebrow">Wake up tomorrow · ${dayName}</div>
+        ${editable(shownWeekend ? state.settings.weekend : state.settings.weekday)}
         ${status}
       </div>
       <div class="cta">
@@ -101,8 +104,8 @@ function renderToday() {
         <span class="muted small">Set your phone alarm before bed</span>
       </div>` : `
       <div>
-        <div class="eyebrow">Wake-up target · ${t.weekend ? "Weekend" : "Weekday"}</div>
-        <div class="target">${esc(t.target)}</div>
+        <div class="eyebrow">Wake-up target · ${dayName}</div>
+        ${editable(t.target)}
         ${status}
       </div>
       <div class="cta">
@@ -110,6 +113,7 @@ function renderToday() {
         <span class="muted small">Camera counts them for you</span>
       </div>`;
     $("start").onclick = () => startSession("checkin");
+    $("edit-time").onclick = () => openTimeDialog(shownWeekend);
   }
 
   $("streak").textContent = s.streak;
@@ -122,7 +126,9 @@ function renderToday() {
     $("next-title").textContent = s.next.title;
     $("next-bar").style.width = `${Math.max(4, (100 * done) / span)}%`;
     const left = s.next.days - s.streak;
-    $("next-sub").textContent = `${plural(left, "more day")} on time to reach day ${s.next.days}`;
+    $("next-sub").textContent = s.streak
+      ? `${plural(left, "more day")} on time to reach day ${s.next.days}`
+      : "Get up on time once to start your streak";
   } else {
     $("next-title").textContent = "All milestones reached";
     $("next-bar").style.width = "100%";
@@ -451,6 +457,26 @@ $("day-dialog").addEventListener("close", () => {
   if ($("day-dialog").returnValue === "save") {
     act("POST", "/api/days", { date: $("d-date").value, time: $("d-time").value }, "Saved");
   }
+});
+
+let timeScope = "all";
+function setTimeScope(scope) {
+  timeScope = scope;
+  document.querySelectorAll("#t-scope button").forEach((b) => b.classList.toggle("on", b.dataset.scope === scope));
+}
+function openTimeDialog(weekend) {
+  const { weekday, weekend: weekendTime } = state.settings;
+  setTimeScope(weekday === weekendTime ? "all" : weekend ? "weekend" : "weekday");
+  $("t-time").value = weekend ? weekendTime : weekday;
+  $("time-dialog").showModal();
+}
+document.querySelectorAll("#t-scope button").forEach((b) => { b.onclick = () => setTimeScope(b.dataset.scope); });
+$("time-dialog").addEventListener("close", () => {
+  if ($("time-dialog").returnValue !== "save") return;
+  const time = $("t-time").value;
+  const body = timeScope === "all" ? { weekday: time, weekend: time } : { [timeScope]: time };
+  const label = { all: "every day", weekday: "Mon–Fri", weekend: "Sat–Sun" }[timeScope];
+  act("POST", "/api/settings", body, `Wake-up set to ${time}, ${label}`);
 });
 
 function tick() {
