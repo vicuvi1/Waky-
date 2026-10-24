@@ -33,7 +33,7 @@ h2 { font-size: 15px; font-weight: 600; }
 /* ---------- top bar ---------- */
 .topbar {
   display: flex; align-items: center; gap: 24px;
-  max-width: 1120px; margin: 0 auto; padding: 18px 32px 14px;
+  max-width: 1480px; margin: 0 auto; padding: 18px 40px 14px;
   position: sticky; top: 0; z-index: 20;
   background: rgba(10, 10, 13, .82); backdrop-filter: blur(14px);
   box-shadow: 0 0 0 100vmax rgba(10, 10, 13, .82); clip-path: inset(0 -100vmax);
@@ -49,7 +49,7 @@ h2 { font-size: 15px; font-weight: 600; }
 .tab.active { background: var(--surface-2); color: var(--text); }
 .clock { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 500; min-width: 56px; text-align: right; }
 
-main { max-width: 1120px; margin: 0 auto; padding: 28px 32px 48px; }
+main { max-width: 1480px; margin: 0 auto; padding: 28px 40px 48px; }
 .view { display: none; }
 .view.active { display: block; animation: rise .35s ease both; }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -406,3 +406,83 @@ button.card { text-align: left; color: inherit; font: inherit; cursor: pointer; 
 .milestone-hit small { display: block; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 .milestone-hit b.rank-up { font-family: var(--roman); font-size: 26px; color: var(--gold); letter-spacing: .06em; margin: 4px 0 8px; }
 @media (max-width: 860px) { .why-banner { font-size: 26px; } .quote-card blockquote { font-size: 21px; } }
+
+/* ---------- wide layout: two columns on big screens ---------- */
+.today-grid { display: block; }
+@media (min-width: 1200px) {
+  .today-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(360px, 1fr); gap: 18px; align-items: start; }
+  .col-main > :first-child, .col-side > :first-child { margin-top: 18px; }
+  .col-side .side-stats { grid-template-columns: 1fr 1fr; margin-top: 18px; }
+  .col-side .week-card { grid-column: 1 / -1; min-height: 0; }
+  .col-side .quote-card { text-align: left; padding: 28px; }
+  .col-side .quote-card blockquote { font-size: 27px; margin: 10px 0 14px; }
+  .hero { padding: 44px 40px; }
+  .hero .target, .hero .target.editable { font-size: 96px; }
+  .why-banner { font-size: 38px; padding: 30px 34px; }
+}
+@media (min-width: 1200px) {
+  #view-progress .grid-2, #view-rewards .grid-2 { gap: 18px; }
+  .timeline { max-width: 1000px; }
+}
+
+/* ---------- motion ---------- */
+@keyframes rise-in { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+.view.active .reveal, .view.active .stage, .view.active .reward, .view.active .tile { animation: rise-in .6s cubic-bezier(.2, .8, .2, 1) both; }
+.view.active .reveal:nth-child(1) { animation-delay: .05s; }
+.view.active .reveal:nth-child(2) { animation-delay: .12s; }
+.view.active .reveal:nth-child(3) { animation-delay: .19s; }
+.view.active .col-side .reveal { animation-delay: .22s; }
+.view.active .col-side .reveal:nth-child(2) { animation-delay: .29s; }
+.view.active .col-side .reveal:nth-child(3) { animation-delay: .36s; }
+.view.active .col-side .quote-card { animation-delay: .45s; }
+.view.active .stage:nth-child(n) { animation-delay: calc(var(--i, 0) * 45ms); }
+
+/* Slow ambient sunrise light behind everything. */
+body::before {
+  content: ""; position: fixed; inset: -20% -10% auto; height: 70vh; z-index: -1; pointer-events: none;
+  background: radial-gradient(40% 60% at 30% 40%, rgba(255, 138, 61, .10), transparent 70%),
+              radial-gradient(35% 55% at 75% 30%, rgba(233, 196, 106, .07), transparent 70%);
+  animation: drift 22s ease-in-out infinite alternate;
+}
+@keyframes drift { from { transform: translate3d(-3%, 0, 0) scale(1); } to { transform: translate3d(3%, 3%, 0) scale(1.08); } }
+
+/* The hero's sun glow breathes. */
+.hero::after { animation: breathe 6s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { opacity: .7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.12); } }
+
+/* A gold light sweeps across your why. */
+.why-banner { overflow: hidden; }
+.why-banner::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -50%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 236, 190, .12), transparent);
+  animation: sweep 7s ease-in-out 1s infinite;
+}
+@keyframes sweep { 0% { left: -50%; } 35%, 100% { left: 120%; } }
+
+/* The check-in button calls you when it's time. */
+.btn.primary.calling { animation: call 2.2s ease-in-out infinite; }
+@keyframes call { 0%, 100% { box-shadow: 0 8px 30px -8px rgba(255, 138, 61, .55); } 50% { box-shadow: 0 0 0 10px rgba(255, 138, 61, .12), 0 8px 40px -4px rgba(255, 138, 61, .8); } }
+
+/* The level badge catches the light. */
+.journey-card .jc-badge { position: relative; overflow: hidden; }
+.journey-card .jc-badge::after {
+  content: ""; position: absolute; inset: -40%; background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, .45) 50%, transparent 60%);
+  animation: glint 5s ease-in-out 1.2s infinite;
+}
+@keyframes glint { 0% { transform: translateX(-60%); } 30%, 100% { transform: translateX(60%); } }
+
+.stat-card, .reward, .tile { transition: transform .25s cubic-bezier(.2, .8, .2, 1), border-color .2s; }
+.stat-card:hover, .reward:hover, .tile:hover { transform: translateY(-2px); }
+.week .d i { transition: transform .3s; }
+.week .d.ontime i, .week .d.late i { animation: pop .5s cubic-bezier(.3, 1.6, .5, 1) both; }
+@keyframes pop { from { transform: scale(.4); opacity: 0; } }
+.calendar .c { animation: pop .4s cubic-bezier(.3, 1.6, .5, 1) both; animation-delay: calc(var(--i, 0) * 12ms); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Big monitors: scale the whole app up so it fills the screen instead of floating in it. */
+@media (min-width: 1700px) and (min-height: 900px) { html { zoom: 1.14; } }
+@media (min-width: 2200px) and (min-height: 1100px) { html { zoom: 1.3; } }
+@media (min-width: 1200px) { .calendar .c { aspect-ratio: auto; height: 46px; } }

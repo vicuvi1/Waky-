@@ -31,32 +31,38 @@
         <p id="today-date" class="muted"></p>
       </div>
 
-      <button class="why-banner" id="why-banner" title="Edit your why"></button>
+      <div class="today-grid">
+      <div class="col-main">
+      <button class="why-banner reveal" id="why-banner" title="Edit your why"></button>
 
-      <div class="hero card" id="hero"></div>
+      <div class="hero card reveal" id="hero"></div>
 
-      <button class="card journey-card" id="journey-card" data-goto="journey"></button>
+      <button class="card journey-card reveal" id="journey-card" data-goto="journey"></button>
+      </div>
 
-      <div class="grid-3">
-        <div class="card stat-card">
+      <div class="col-side">
+      <div class="grid-3 side-stats">
+        <div class="card stat-card reveal">
           <div class="label">Streak</div>
           <div class="big"><span id="streak">0</span><small id="streak-unit">days</small></div>
           <div class="muted small" id="streak-best"></div>
         </div>
-        <button class="card stat-card clickable" data-goto="rewards">
+        <button class="card stat-card clickable reveal" data-goto="rewards">
           <div class="label">Coins</div>
           <div class="big"><span id="coin-balance">0</span><small>🪙</small></div>
           <div class="bar"><div class="bar-fill" id="goal-bar"></div></div>
           <div class="muted small" id="goal-sub"></div>
         </button>
-        <div class="card stat-card">
+        <div class="card stat-card week-card reveal">
           <div class="label">This week</div>
           <div class="week" id="week"></div>
           <div class="muted small" id="week-sub"></div>
         </div>
       </div>
 
-      <figure class="card quote-card" id="quote-card"></figure>
+      <figure class="card quote-card reveal" id="quote-card"></figure>
+      </div>
+      </div>
     </section>
 
     <!-- JOURNEY -->
