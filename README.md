@@ -1,6 +1,6 @@
 # Waky
 
-Get up, walk to your desk, do 20 push-ups in front of the webcam. Day done.
+Get up, walk to your desk, press "I'm up". Earn coins, level up, claim rewards you picked.
 
 Waky doesn't try to be your alarm: your phone's alarm is better at that. Waky is the part
 after the alarm. It proves you got out of bed, keeps your streak, and shows how consistent
@@ -8,14 +8,14 @@ you are. If you haven't checked in by your wake-up time, a Telegram bot nags you
 
 ## How it works
 
-1. **Phone alarm rings.** Use your phone's normal clock app.
-2. **Push-ups at the desk.** Open Waky and press *Start*. The webcam counts your push-ups with
-   pose detection ([MediaPipe](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker)).
-   It only counts full reps with your body horizontal, so standing arm-bends don't work. If the
-   camera can't see you, you can count by hand; that day is marked "counted by hand".
-3. **Checked in.** Your wake-up time is saved, the streak goes up, and the check-in is posted and
-   pinned in your Telegram chat.
-4. **No check-in?** At your target + 15 minutes, the nag bot messages you, up to three times.
+1. **Phone alarm rings.** Charge the phone at your desk, so you have to get up to turn it off.
+2. **Press "I'm up"** in Waky at the desk. (Optional: check in with push-ups counted by the webcam instead.)
+3. **Coins.** +10 for on time, +15 for before your target, +5 every 7 days in a row, +20 for a new level.
+   Late mornings earn nothing but never cost coins. Spend them in the reward shop on rewards you set yourself.
+4. **Journey.** A timeline of levels (Waking up → Adjusting → Body clock locked in → The habit → Identity),
+   each day explaining what's changing in your body and brain. It counts good mornings in total, so a bad
+   day pauses it but never sends you back.
+5. **No check-in?** At your target + 15 minutes, the nag bot messages you on Telegram, up to three times.
 
 A day is **on time** if you check in within the grace window (default 15 minutes) after your
 target. The streak counts on-time days in a row.

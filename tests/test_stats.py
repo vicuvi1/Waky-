@@ -56,7 +56,7 @@ class NumbersTest(unittest.TestCase):
     def test_empty(self):
         s = stats.compute(data(), TODAY)
         self.assertEqual((s["streak"], s["best"], s["rate"], s["avg"]), (0, 0, None, None))
-        self.assertEqual(s["next"]["days"], 1)
+        self.assertEqual(s["journey"]["next"]["days"], 1)
 
     def test_calendar_is_five_weeks_ending_sunday(self):
         s = stats.compute(data(day(1)), TODAY)
@@ -69,13 +69,53 @@ class NumbersTest(unittest.TestCase):
         self.assertEqual(by_date[(TODAY - timedelta(days=2)).isoformat()], "empty")
         self.assertEqual(by_date[(TODAY + timedelta(days=1)).isoformat()], "future")
 
-    def test_milestones(self):
-        recs = [day(i) for i in range(7)]
+    def test_journey_counts_total_good_mornings_not_streak(self):
+        # 5 good mornings with gaps, plus a late one: still day 5 of the journey.
+        recs = [day(0), day(2), day(4), day(6), day(8), day(9, "08:00")]
         s = stats.compute(data(*recs), TODAY)
-        self.assertEqual(s["hit"]["days"], 7)
-        self.assertEqual(s["next"]["days"], 14)
-        self.assertEqual(s["next"]["from"], 7)
-        self.assertTrue(all(m["reached"] for m in s["milestones"] if m["days"] <= 7))
+        j = s["journey"]
+        self.assertEqual(j["good"], 5)
+        self.assertEqual(j["current"]["days"], 5)
+        self.assertEqual(j["level"], 2)
+        self.assertEqual(j["next"]["days"], 7)
+        self.assertEqual(j["next"]["from"], 5)
+        self.assertEqual(s["hit"]["days"], 5)
+        self.assertTrue(s["levelUp"])  # Day 5 starts level 2.
+
+    def test_no_hit_when_today_not_checked_in(self):
+        s = stats.compute(data(day(1), day(2), day(3)), TODAY)
+        self.assertEqual(s["journey"]["current"]["days"], 3)
+        self.assertIsNone(s["hit"])
+        self.assertFalse(s["levelUp"])
+
+    def test_empty_journey(self):
+        j = stats.compute(data(), TODAY)["journey"]
+        self.assertIsNone(j["current"])
+        self.assertEqual((j["level"], j["next"]["days"]), (1, 1))
+
+
+class CoinsTest(unittest.TestCase):
+    def test_on_time_early_and_late(self):
+        d = data(day(2, "06:40"), day(1, "06:20"), day(0, "07:30"))
+        s = stats.compute(d, TODAY)
+        self.assertEqual(s["coins"]["earned"], 25)  # 10 on time + 15 early + 0 late
+        self.assertEqual(s["today"]["coins"], 0)
+
+    def test_week_bonus_and_level_bonus(self):
+        recs = [day(i, "06:40") for i in range(7)]
+        coins = stats.coins_by_day(dict(recs), 15)
+        by_day = [coins[k][0] for k in sorted(coins)]
+        # Day 5 is a new level (+20), day 7 in a row is the week bonus (+5).
+        self.assertEqual(by_day, [10, 10, 10, 10, 30, 10, 15])
+
+    def test_spending_and_goal(self):
+        d = data(day(1, "06:40"), day(0, "06:40"))
+        d["rewards"] = [{"id": "a", "emoji": "🍕", "name": "Pizza", "cost": 60},
+                        {"id": "b", "emoji": "🎮", "name": "Games", "cost": 15}]
+        d["spent"] = [{"id": "s", "name": "Games", "emoji": "🎮", "cost": 15, "date": "2026-10-21"}]
+        c = stats.compute(d, TODAY)["coins"]
+        self.assertEqual((c["earned"], c["spent"], c["balance"]), (20, 15, 5))
+        self.assertEqual(c["goal"]["id"], "b")  # The cheapest reward not yet affordable.
 
     def test_weekend_target(self):
         self.assertEqual(stats.target_for(date(2026, 10, 24), SETTINGS), "07:00")
@@ -91,11 +131,33 @@ class AppTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_checkin_once_per_day_and_backup(self):
-        first = self.app.checkin({"reps": 20})
-        again = self.app.checkin({"reps": 99})
+        first = self.app.checkin({"mode": "camera", "reps": 20})
+        again = self.app.checkin({})
         today = date.today().isoformat()
         self.assertEqual(again["days"][today]["reps"], 20)
         self.assertEqual(first["days"][today]["mode"], "camera")
+
+    def test_button_checkin_needs_no_push_ups(self):
+        s = self.app.checkin({"mode": "button"})
+        rec = s["days"][date.today().isoformat()]
+        self.assertEqual((rec["mode"], rec["reps"]), ("button", 0))
+
+    def test_rewards_and_redeem(self):
+        s = self.app.state()
+        self.assertEqual(len(s["rewards"]), 4)  # Defaults for a new user.
+        s = self.app.add_reward({"emoji": "🍣", "name": "Sushi", "cost": 5})
+        sushi = next(r for r in s["rewards"] if r["name"] == "Sushi")
+        with self.assertRaises(BadRequest):
+            self.app.redeem({"id": sushi["id"]})  # 0 coins
+        self.app.upsert_day({"date": "2026-01-05", "time": "06:00"})  # +15 early
+        s = self.app.redeem({"id": sushi["id"]})
+        self.assertEqual(s["stats"]["coins"]["balance"], 10)
+        s = self.app.undo_redeem(s["spent"][-1]["id"])
+        self.assertEqual(s["stats"]["coins"]["balance"], 15)
+        s = self.app.delete_reward(sushi["id"])
+        self.assertNotIn("Sushi", [r["name"] for r in s["rewards"]])
+        with self.assertRaises(BadRequest):
+            self.app.add_reward({"name": "  "})
         self.assertTrue((Path(self.tmp.name) / "backup" / "waky.json").exists())
 
     def test_edit_and_delete_day(self):
@@ -116,7 +178,7 @@ class AppTest(unittest.TestCase):
     def test_token_not_in_backup(self):
         self.app.store.save_secrets({"token": "123:abc"})
         self.app.checkin({})
-        backup = (Path(self.tmp.name) / "backup" / "waky.json").read_text()
+        backup = (Path(self.tmp.name) / "backup" / "waky.json").read_text(encoding="utf-8")
         self.assertNotIn("123:abc", backup)
 
     def test_damaged_file_is_set_aside(self):
@@ -129,7 +191,9 @@ class AppTest(unittest.TestCase):
         text = checkin_text(d, TODAY)
         self.assertTrue(text.startswith("✅ Up at 06:34"))
         self.assertIn("3-day streak", text)
-        self.assertIn("Milestone: Three in a row", text)
+        self.assertIn("+10 coins", text)
+        self.assertIn("Day 3 · The pattern starts", text)
+        self.assertNotIn("push-ups", text.replace("20 push-ups", ""))
 
 
 if __name__ == "__main__":

@@ -58,6 +58,8 @@ class App:
         return {
             "settings": data["settings"],
             "days": data["days"],
+            "rewards": data["rewards"],
+            "spent": data["spent"][-20:],
             "stats": stats.compute(data, date.today()),
             "telegram": {
                 "connected": bool(tg.get("chat_id") and self.store.secrets().get("token")),
@@ -80,8 +82,8 @@ class App:
             data["days"][key] = {
                 "time": now.strftime("%H:%M"),
                 "target": stats.target_for(now.date(), data["settings"]),
-                "reps": _int(body.get("reps"), data["settings"]["reps"], 1, 500),
-                "mode": "manual" if body.get("mode") == "manual" else "camera",
+                "reps": _int(body.get("reps"), 0, 0, 500),
+                "mode": body.get("mode") if body.get("mode") in ("camera", "manual") else "button",
                 "sent": False,
             }
             self.store.save(data)
@@ -130,6 +132,47 @@ class App:
             s["reps"] = _int(body["reps"], s["reps"], 1, 200)
         if "sound" in body:
             s["sound"] = bool(body["sound"])
+        self.store.save(data)
+        return self.state()
+
+    # ---- rewards ----
+
+    def add_reward(self, body):
+        name = str(body.get("name") or "").strip()[:80]
+        if not name:
+            raise BadRequest("Give the reward a name.")
+        data = self.store.load()
+        data["rewards"].append({
+            "id": f"r{int(time.time() * 1000)}",
+            "emoji": str(body.get("emoji") or "🎁").strip()[:4] or "🎁",
+            "name": name,
+            "cost": _int(body.get("cost"), 50, 1, 100000),
+        })
+        self.store.save(data)
+        return self.state()
+
+    def delete_reward(self, reward_id):
+        data = self.store.load()
+        data["rewards"] = [r for r in data["rewards"] if r["id"] != reward_id]
+        self.store.save(data)
+        return self.state()
+
+    def redeem(self, body):
+        data = self.store.load()
+        reward = next((r for r in data["rewards"] if r["id"] == body.get("id")), None)
+        if not reward:
+            raise BadRequest("That reward doesn't exist any more.")
+        balance = stats.compute(data, date.today())["coins"]["balance"]
+        if reward["cost"] > balance:
+            raise BadRequest(f"Not enough coins yet: {balance} of {reward['cost']}.")
+        data["spent"].append({"id": f"s{int(time.time() * 1000)}", "name": reward["name"],
+                              "emoji": reward["emoji"], "cost": reward["cost"], "date": date.today().isoformat()})
+        self.store.save(data)
+        return self.state()
+
+    def undo_redeem(self, spent_id):
+        data = self.store.load()
+        data["spent"] = [s for s in data["spent"] if s["id"] != spent_id]
         self.store.save(data)
         return self.state()
 
@@ -197,11 +240,15 @@ def checkin_text(data, today):
         when = "on time" if late <= 0 else f"{late} min after target, still on time"
     else:
         when = f"{late} min late"
-    lines = [f"✅ Up at {rec['time']} · {when}", f"💪 {rec['reps']} push-ups" + (" (counted by hand)" if rec["mode"] == "manual" else "")]
+    lines = [f"✅ Up at {rec['time']} · {when}"]
+    if rec.get("reps"):
+        lines.append(f"💪 {rec['reps']} push-ups" + (" (counted by hand)" if rec["mode"] == "manual" else ""))
+    if s["today"]["coins"]:
+        lines.append(f"🪙 +{s['today']['coins']} coins · balance {s['coins']['balance']}")
     if s["streak"]:
         lines.append(f"🔥 {s['streak']}-day streak")
     if s["hit"]:
-        lines.append(f"🏆 Milestone: {s['hit']['title']}")
+        lines.append(f"🧠 Day {s['hit']['days']} · {s['hit']['title']}")
     return "\n".join(lines)
 
 
@@ -235,6 +282,8 @@ def make_handler(app):
                 "/api/days": app.upsert_day,
                 "/api/telegram": app.connect_telegram,
                 "/api/settings": app.update_settings,
+                "/api/rewards": app.add_reward,
+                "/api/redeem": app.redeem,
             })
 
         def do_DELETE(self):
@@ -243,6 +292,10 @@ def make_handler(app):
                 return self._json(app.delete_day(self.path.rsplit("/", 1)[1]))
             if self.path == "/api/telegram":
                 return self._json(app.disconnect_telegram())
+            if self.path.startswith("/api/rewards/"):
+                return self._json(app.delete_reward(self.path.rsplit("/", 1)[1]))
+            if self.path.startswith("/api/spent/"):
+                return self._json(app.undo_redeem(self.path.rsplit("/", 1)[1]))
             self._json({"error": "Not found"}, 404)
 
         def _route(self, routes):

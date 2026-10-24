@@ -52,6 +52,8 @@ function toast(msg, error = false) {
 
 function render() {
   renderToday();
+  renderJourney();
+  renderRewards();
   renderProgress();
   renderSettings();
 }
@@ -73,7 +75,7 @@ function renderToday() {
       <div>
         <div class="eyebrow">Done for today</div>
         <div class="target">${esc(t.record.time)}</div>
-        <div class="status ${t.ontime ? "ok" : "late"}">${how} · ${plural(t.record.reps, "push-up")}</div>
+        <div class="status ${t.ontime ? "ok" : "late"}">${how}${t.record.reps ? ` · ${plural(t.record.reps, "push-up")}` : ""}${t.coins ? ` · +${t.coins} coins` : ""}</div>
       </div>
       <svg class="hero-check ${t.ontime ? "" : "late"}" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg>`;
   } else {
@@ -109,10 +111,11 @@ function renderToday() {
         ${status}
       </div>
       <div class="cta">
-        <button class="btn primary" id="start">Start ${state.settings.reps} push-ups</button>
-        <span class="muted small">Camera counts them for you</span>
+        <button class="btn primary" id="start">I'm up ☀️</button>
+        <button class="btn ghost small" id="start-cam">Or check in with ${state.settings.reps} push-ups</button>
       </div>`;
-    $("start").onclick = () => startSession("checkin");
+    $("start").onclick = checkinNow;
+    if ($("start-cam")) $("start-cam").onclick = () => startSession("checkin");
     $("edit-time").onclick = () => openTimeDialog(shownWeekend);
   }
 
@@ -120,19 +123,27 @@ function renderToday() {
   $("streak-unit").textContent = s.streak === 1 ? "day" : "days";
   $("streak-best").textContent = s.best ? `Best: ${plural(s.best, "day")}` : "Your first check-in starts it";
 
-  if (s.next) {
-    const span = s.next.days - s.next.from;
-    const done = s.streak - s.next.from;
-    $("next-title").textContent = s.next.title;
-    $("next-bar").style.width = `${Math.max(4, (100 * done) / span)}%`;
-    const left = s.next.days - s.streak;
-    $("next-sub").textContent = s.streak
-      ? `${plural(left, "more day")} on time to reach day ${s.next.days}`
-      : "Get up on time once to start your streak";
+  const j = s.journey;
+  const cur = j.current, nxt = j.next;
+  const pct = nxt ? Math.max(4, (100 * (j.good - nxt.from)) / (nxt.days - nxt.from)) : 100;
+  $("journey-card").innerHTML = `
+    <div class="jc-badge">${j.level}</div>
+    <div>
+      <div class="jc-eyebrow">Level ${j.level} · ${esc(j.levelName)}${cur ? ` · day ${cur.days}` : ""}</div>
+      <div class="jc-title">${cur ? esc(cur.title) : "Your journey starts with one good morning"}</div>
+      <div class="jc-text">${esc(cur ? cur.text : "Get up on time once and your body clock gets its first new signal.")}</div>
+    </div>
+    <div class="jc-next">${nxt ? `Next: <b>Day ${nxt.days} · ${esc(nxt.title)}</b>${plural(nxt.days - j.good, "more good morning")}
+      <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>` : "<b>Journey complete</b>Keep going."}</div>`;
+
+  const c = s.coins;
+  $("coin-balance").textContent = c.balance;
+  if (c.goal) {
+    $("goal-bar").style.width = `${Math.max(4, Math.min(100, (100 * c.balance) / c.goal.cost))}%`;
+    $("goal-sub").textContent = `${c.balance} / ${c.goal.cost} to ${c.goal.emoji} ${c.goal.name}`;
   } else {
-    $("next-title").textContent = "All milestones reached";
-    $("next-bar").style.width = "100%";
-    $("next-sub").textContent = "Keep the streak alive.";
+    $("goal-bar").style.width = "100%";
+    $("goal-sub").textContent = state.rewards.length ? "You can afford every reward 🎉" : "Add rewards in the Rewards tab";
   }
 
   const week = s.calendar.slice(-7);
@@ -142,6 +153,56 @@ function renderToday() {
   const good = week.filter((d) => d.status === "ontime").length;
   const past = week.filter((d) => !["future", "empty"].includes(d.status) && d.status !== "pending").length;
   $("week-sub").textContent = past ? `${good} of ${past} on time` : "Nothing logged yet this week";
+}
+
+function renderJourney() {
+  const j = state.stats.journey;
+  $("j-level").textContent = `Level ${j.level} · ${j.levelName}`;
+  $("j-sub").textContent = j.good
+    ? `${plural(j.good, "good morning")} so far${j.next ? ` · ${j.next.days - j.good} more to "${j.next.title}"` : ""}`
+    : "Your first on-time morning starts it.";
+  $("j-levels").innerHTML = [1, 2, 3, 4, 5].map((n) => `<i class="${n <= j.level && j.good ? "on" : ""}" title="Level ${n}"></i>`).join("");
+  let lastLevel = 0;
+  $("timeline").innerHTML = j.stages.map((st) => {
+    const isCur = j.current && st.days === j.current.days;
+    const isNext = j.next && st.days === j.next.days;
+    let head = "";
+    if (st.level !== lastLevel) {
+      lastLevel = st.level;
+      head = `<li class="lvl${st.reached ? " on" : ""}">Level ${st.level} · ${esc(st.levelName)}</li>`;
+    }
+    const cls = ["stage", st.reached && "reached", isCur && "current", isNext && "next"].filter(Boolean).join(" ");
+    const tag = isCur ? "You are here" : isNext ? `${st.days - j.good} more to go` : "";
+    return `${head}<li class="${cls}"><div class="card">
+      <div class="s-top"><span class="s-day">Day ${st.days}</span><span class="s-title">${esc(st.title)}</span>${tag ? `<span class="s-tag">${tag}</span>` : ""}</div>
+      <p>${esc(st.text)}</p>
+      <p class="s-feel">How it may feel: ${esc(st.feel)}</p>
+    </div></li>`;
+  }).join("");
+}
+
+function renderRewards() {
+  const c = state.stats.coins;
+  $("r-balance").textContent = c.balance;
+  $("r-earned").textContent = `${c.earned} earned · ${c.spent} spent`;
+  const rewards = [...state.rewards].sort((a, b) => a.cost - b.cost);
+  $("shop").innerHTML = rewards.length ? rewards.map((r) => {
+    const ready = c.balance >= r.cost;
+    return `<div class="reward${ready ? " ready" : ""}">
+      <button class="icon-btn del" data-del-reward="${esc(r.id)}" title="Remove">✕</button>
+      <div class="emoji">${esc(r.emoji)}</div>
+      <div class="name">${esc(r.name)}</div>
+      <div class="cost">${r.cost} 🪙</div>
+      <div class="bar"><div class="bar-fill" style="width:${Math.max(3, Math.min(100, (100 * c.balance) / r.cost))}%"></div></div>
+      <button class="btn ${ready ? "primary" : "ghost"} small" data-redeem="${esc(r.id)}" ${ready ? "" : "disabled"}>${ready ? "Claim it" : `${r.cost - c.balance} more to go`}</button>
+    </div>`;
+  }).join("") : `<div class="empty-note">No rewards yet. Add something you really want.</div>`;
+  const spent = [...state.spent].reverse();
+  $("spent").innerHTML = spent.length ? spent.map((x) => `<div class="row">
+      <div class="when">${esc(x.emoji)} <b>${esc(x.name)}</b> <span class="muted small">· ${new Date(x.date + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span></div>
+      <span class="muted small">−${x.cost} 🪙</span>
+      <div class="acts"><button class="icon-btn" data-undo="${esc(x.id)}">Undo</button></div>
+    </div>`).join("") : `<div class="empty-note">Nothing claimed yet. Enjoy it when you get there.</div>`;
 }
 
 function formatGap(min) {
@@ -166,16 +227,12 @@ function renderProgress() {
 
   $("chart").innerHTML = chartSvg(s.chart);
 
-  $("milestones").innerHTML = s.milestones.map((m) => {
-    const cls = m.reached ? "reached" : s.next && s.next.days === m.days ? "next" : "";
-    return `<li class="${cls}"><div class="badge">${m.days}</div><div><b>${esc(m.title)}</b><p>${esc(m.text)}</p></div></li>`;
-  }).join("");
 
   const rows = Object.entries(state.days).sort(([a], [b]) => b.localeCompare(a));
   $("history").innerHTML = rows.length ? rows.map(([date, r]) => {
     const ontime = toMin(r.time) <= toMin(r.target) + state.settings.grace;
     const label = new Date(date + "T12:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-    const how = r.mode === "manual" ? " · counted by hand" : r.mode === "added" ? " · added by hand" : "";
+    const how = { manual: " · push-ups counted by hand", camera: ` · ${r.reps} push-ups`, added: " · added by hand" }[r.mode] || "";
     return `<div class="row">
       <div class="when"><span class="t">${esc(r.time)}</span> <span class="muted small">· ${label} · target ${esc(r.target)}${how}</span></div>
       <span class="tag ${ontime ? "ontime" : "late"}">${ontime ? "On time" : "Late"}</span>
@@ -247,6 +304,14 @@ function renderSettings() {
     };
   }
   $("data-note").textContent = `Data: ${state.dataDir}` + (state.backupDir ? ` · Backup copy: ${state.backupDir}` : "");
+}
+
+// ---------- check-in ----------
+
+async function checkinNow() {
+  const prevStreak = state.stats.streak;
+  const ok = await act("POST", "/api/checkin", { mode: "button" });
+  if (ok) { sound("done"); showDone(prevStreak); }
 }
 
 // ---------- push-up session ----------
@@ -337,15 +402,24 @@ function showDone(prevStreak) {
   const s = state.stats;
   const t = s.today;
   $("done-title").textContent = t.ontime ? "You're up." : "You're up. Late, but up.";
-  $("done-sub").textContent = `Checked in at ${t.record.time} · ${plural(t.record.reps, "push-up")}`;
+  $("done-sub").textContent = `Checked in at ${t.record.time}` + (t.record.reps ? ` · ${plural(t.record.reps, "push-up")}` : "");
+  $("done-coins").textContent = `+${t.coins}`;
+  $("done-coins").nextElementSibling.textContent = t.coins ? `coins · ${t.coinReasons.join(", ")}` : "coins (late mornings earn none)";
   const m = s.hit;
   $("done-milestone").hidden = !m;
-  if (m) $("done-milestone").innerHTML = `<b>🏆 Day ${m.days} · ${esc(m.title)}</b>${esc(m.text)}`;
+  $("done-milestone").className = `milestone-hit${s.levelUp ? " level" : ""}`;
+  if (m) {
+    $("done-milestone").innerHTML = s.levelUp
+      ? `<b>⬆️ Level ${m.level} · ${esc(m.levelName)}</b>Day ${m.days}: ${esc(m.title)}. ${esc(m.text)}<span>+20 coins level bonus</span>`
+      : `<b>🧠 Day ${m.days} · ${esc(m.title)}</b>${esc(m.text)}<span>How it may feel: ${esc(m.feel)}</span>`;
+  }
+  const g = s.coins.goal;
+  $("done-goal").textContent = g ? `${s.coins.balance} / ${g.cost} coins to ${g.emoji} ${g.name}` : `${s.coins.balance} coins: you can claim any reward`;
   $("done").hidden = false;
   $("done-streak-label").textContent = s.streak ? "day streak" : "Streak reset. On time tomorrow starts a new one.";
   $("done-streak").hidden = !s.streak;
   countUp($("done-streak"), Math.min(prevStreak, s.streak), s.streak);
-  confetti($("confetti"), m ? 220 : 120);
+  if (t.ontime) confetti($("confetti"), m ? 220 : 120);
 }
 
 function countUp(el, from, to) {
@@ -407,12 +481,34 @@ function confetti(canvas, count) {
 
 // ---------- events ----------
 
-document.querySelectorAll(".tab").forEach((tab) => {
-  tab.onclick = () => {
-    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === tab));
-    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${tab.dataset.view}`));
-  };
-});
+function showView(name) {
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
+  document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
+  scrollTo(0, 0);
+}
+document.querySelectorAll(".tab").forEach((tab) => { tab.onclick = () => showView(tab.dataset.view); });
+document.querySelectorAll("[data-goto]").forEach((el) => { el.onclick = () => showView(el.dataset.goto); });
+
+$("shop").onclick = (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  if (btn.dataset.redeem) {
+    const r = state.rewards.find((x) => x.id === btn.dataset.redeem);
+    if (r && confirm(`Claim ${r.emoji} ${r.name} for ${r.cost} coins?`)) {
+      act("POST", "/api/redeem", { id: r.id }, `Enjoy it! ${r.emoji}`);
+    }
+  }
+  if (btn.dataset.delReward && confirm("Remove this reward?")) act("DELETE", `/api/rewards/${btn.dataset.delReward}`, null, "Removed");
+};
+$("spent").onclick = (e) => {
+  const id = e.target.dataset.undo;
+  if (id) act("DELETE", `/api/spent/${id}`, null, "Coins returned");
+};
+$("add-reward").onsubmit = async (e) => {
+  e.preventDefault();
+  const ok = await act("POST", "/api/rewards", { emoji: $("nr-emoji").value, name: $("nr-name").value, cost: $("nr-cost").value }, "Reward added");
+  if (ok) $("nr-name").value = "";
+};
 
 $("session-close").onclick = closeSession;
 $("session-manual").onclick = () => {

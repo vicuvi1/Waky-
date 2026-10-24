@@ -15,6 +15,8 @@
     <div class="brand"><img src="icon.svg" alt=""><span>waky</span></div>
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="today">Today</button>
+      <button class="tab" data-view="journey">Journey</button>
+      <button class="tab" data-view="rewards">Rewards</button>
       <button class="tab" data-view="progress">Progress</button>
       <button class="tab" data-view="settings">Settings</button>
     </nav>
@@ -31,23 +33,74 @@
 
       <div class="hero card" id="hero"></div>
 
+      <button class="card journey-card" id="journey-card" data-goto="journey"></button>
+
       <div class="grid-3">
         <div class="card stat-card">
           <div class="label">Streak</div>
           <div class="big"><span id="streak">0</span><small id="streak-unit">days</small></div>
           <div class="muted small" id="streak-best"></div>
         </div>
-        <div class="card stat-card" id="next-card">
-          <div class="label">Next milestone</div>
-          <div class="next-title" id="next-title"></div>
-          <div class="bar"><div class="bar-fill" id="next-bar"></div></div>
-          <div class="muted small" id="next-sub"></div>
-        </div>
+        <button class="card stat-card clickable" data-goto="rewards">
+          <div class="label">Coins</div>
+          <div class="big"><span id="coin-balance">0</span><small>🪙</small></div>
+          <div class="bar"><div class="bar-fill" id="goal-bar"></div></div>
+          <div class="muted small" id="goal-sub"></div>
+        </button>
         <div class="card stat-card">
           <div class="label">This week</div>
           <div class="week" id="week"></div>
           <div class="muted small" id="week-sub"></div>
         </div>
+      </div>
+    </section>
+
+    <!-- JOURNEY -->
+    <section class="view" id="view-journey">
+      <div class="journey-head card">
+        <div>
+          <div class="label">Your journey</div>
+          <h1 id="j-level">Level 1 · Waking up</h1>
+          <p class="muted" id="j-sub"></p>
+        </div>
+        <div class="levels" id="j-levels"></div>
+      </div>
+      <p class="muted small j-note">Counts good mornings in total, not in a row. A bad day pauses the journey, it never sends you back.</p>
+      <ol class="timeline" id="timeline"></ol>
+    </section>
+
+    <!-- REWARDS -->
+    <section class="view" id="view-rewards">
+      <div class="grid-2 top">
+        <div class="card balance-card">
+          <div class="label">Your coins</div>
+          <div class="balance"><span id="r-balance">0</span> 🪙</div>
+          <p class="muted small" id="r-earned"></p>
+        </div>
+        <div class="card">
+          <div class="label">How you earn</div>
+          <ul class="earn">
+            <li><b>+10</b> up on time</li>
+            <li><b>+15</b> up before your target</li>
+            <li><b>+5</b> bonus every 7 days in a row</li>
+            <li><b>+20</b> when you reach a new level</li>
+            <li class="muted">Late mornings earn nothing, but never cost coins.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Reward shop</h2><span class="muted small">You set the rewards and prices</span></div>
+        <div class="shop" id="shop"></div>
+        <form class="add-reward" id="add-reward">
+          <input id="nr-emoji" value="🎁" maxlength="4" aria-label="Emoji">
+          <input id="nr-name" placeholder="New reward, e.g. Sushi night" required>
+          <input id="nr-cost" type="number" min="1" value="50" aria-label="Cost">
+          <button class="btn primary small">Add</button>
+        </form>
+      </div>
+      <div class="card spent-card">
+        <div class="card-head"><h2>Recently claimed</h2></div>
+        <div class="history" id="spent"></div>
       </div>
     </section>
 
@@ -76,15 +129,9 @@
         </div>
       </div>
 
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h2>Milestones</h2></div>
-          <ol class="milestones" id="milestones"></ol>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2>History</h2><button class="btn ghost small" id="add-day">Add a day</button></div>
-          <div class="history" id="history"></div>
-        </div>
+      <div class="card history-card">
+        <div class="card-head"><h2>History</h2><button class="btn ghost small" id="add-day">Add a day</button></div>
+        <div class="history" id="history"></div>
       </div>
     </section>
 
@@ -98,11 +145,11 @@
             <label>Weekends<input type="time" id="s-weekend"></label>
             <label>Counts as on time if you check in within
               <span class="inline"><input type="number" id="s-grace" min="0" max="120"> minutes</span></label>
-            <label>Push-ups to check in
+            <label>Push-ups (when you use the camera)
               <span class="stepper"><button data-step="-5">−</button><input type="number" id="s-reps" min="1" max="200"><button data-step="5">+</button></span></label>
             <label class="switch-row">Sounds<input type="checkbox" id="s-sound" class="switch"></label>
           </div>
-          <p class="muted small">Your phone's alarm wakes you. Waky is where you prove you got up.</p>
+          <p class="muted small">Your phone's alarm wakes you. Charge the phone at your desk so you have to get up to turn it off, then check in here.</p>
         </div>
 
         <div class="card">
@@ -112,8 +159,8 @@
       </div>
 
       <div class="card">
-        <h2>Camera</h2>
-        <p class="muted">Put the camera so it sees you <b>from the side</b>, whole body, on the floor. A laptop on a chair works well.</p>
+        <h2>Camera (optional)</h2>
+        <p class="muted">Want proof? Check in with push-ups instead of the button. Put the camera so it sees you <b>from the side</b>, whole body, on the floor. A laptop on a chair works well.</p>
         <button class="btn ghost" id="cam-test">Test the camera</button>
       </div>
 
@@ -150,8 +197,12 @@
       <div class="check"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg></div>
       <h1 id="done-title">You're up.</h1>
       <p id="done-sub" class="muted"></p>
-      <div class="done-streak"><span id="done-streak">1</span><small id="done-streak-label">day streak</small></div>
+      <div class="done-row">
+        <div class="done-stat"><span id="done-coins">+10</span><small>coins</small></div>
+        <div class="done-stat"><span id="done-streak">1</span><small id="done-streak-label">day streak</small></div>
+      </div>
       <div class="milestone-hit" id="done-milestone" hidden></div>
+      <p class="muted small" id="done-goal"></p>
       <p class="water">Now go drink a glass of water. 💧</p>
       <button class="btn primary" id="done-close">Done</button>
     </div>
