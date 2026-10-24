@@ -1,16 +1,63 @@
-"""Streaks, averages and milestones, computed from the saved days."""
+"""Streaks, coins and the journey, computed from the saved days."""
 
 from datetime import date, timedelta
 
-MILESTONES = [
-    (1, "Day one", "You got up. That's the whole game, repeated."),
-    (3, "Three in a row", "The first days are the hardest. You're past them."),
-    (7, "One week", "A steady wake time is the strongest signal your body clock gets. It's starting to adjust."),
-    (14, "Two weeks", "Mornings start to feel less brutal. Your body is learning to expect this time."),
-    (21, "Three weeks", "Getting up is becoming the default, not a fight."),
-    (30, "One month", "Thirty mornings. This is who you are now, not something you're trying."),
-    (66, "66 days", "On average it takes about 66 days for a habit to feel automatic. You're there."),
-    (100, "100 days", "Triple digits. Most people never get here."),
+LEVELS = {1: "Waking up", 2: "Adjusting", 3: "Body clock locked in", 4: "The habit", 5: "Identity"}
+
+# The journey counts good (on-time) mornings in total, not in a row: a bad day pauses it, never resets it.
+# (good mornings, level, title, what's happening, how it may feel)
+JOURNEY = [
+    (1, 1, "First morning",
+     "Your body clock is set mostly by when you wake up and see light. Today you sent it its first new signal.",
+     "Probably rough. That's normal."),
+    (2, 1, "The hard one",
+     "Day 2 is often the toughest: the novelty is gone and you may be short on sleep. "
+     "The grogginess (sleep inertia) usually fades 15–30 minutes after you're up.",
+     "Tired. Get light on your face and move."),
+    (3, 1, "The pattern starts",
+     "Every repeat strengthens the link between \"alarm\" and \"stand up\". Your brain starts treating it as the default.",
+     "Still effort, but less arguing with yourself."),
+    (5, 2, "Sleepy earlier",
+     "Regular wake-ups and morning light move your evening melatonin (the sleep hormone) earlier. "
+     "You'll start getting sleepy sooner at night.",
+     "Evenings feel sleepier. Go with it."),
+    (7, 2, "One week",
+     "Your body clock has had a week of the same signal and has shifted toward your new time.",
+     "Mornings start feeling less like a fight."),
+    (10, 3, "Morning energy",
+     "Your body's natural energy boost after waking (the cortisol rise) comes more reliably when your wake time is regular.",
+     "More energy in the first hour."),
+    (14, 3, "Before the alarm",
+     "With a steady rhythm, some mornings you'll wake a few minutes before the alarm. Your internal clock is doing the job.",
+     "Waking up feels more natural."),
+    (21, 3, "Less willpower",
+     "The behaviour is shifting from deliberate effort to routine. It costs noticeably less willpower.",
+     "Getting up is just what happens."),
+    (30, 4, "One month",
+     "A month of steady sleep timing. Regular sleep schedules are linked to better mood, focus and sleep quality.",
+     "Clearer head, steadier days."),
+    (45, 4, "Bad days don't break it",
+     "Habit research found that missing a single day doesn't undo the progress. "
+     "What matters is getting back on track the next morning.",
+     "Confident, even after an off day."),
+    (66, 4, "Automatic",
+     "In the best-known study on habit formation, it took 66 days on average for a habit to feel automatic. You're there.",
+     "You don't decide to get up. You just do."),
+    (100, 5, "Morning person",
+     "Not a streak any more. It's who you are.",
+     "Proud. You earned this."),
+]
+
+COINS_ON_TIME = 10
+COINS_EARLY = 15  # Checked in before the target time.
+COINS_WEEK_BONUS = 5  # Every 7th on-time day in a row.
+COINS_LEVEL_BONUS = 20  # Reaching a new level.
+
+DEFAULT_REWARDS = [
+    {"id": "r1", "emoji": "🎮", "name": "1 hour of gaming, guilt-free", "cost": 20},
+    {"id": "r2", "emoji": "🎬", "name": "Movie night", "cost": 40},
+    {"id": "r3", "emoji": "🍕", "name": "Pizza or shawarma", "cost": 60},
+    {"id": "r4", "emoji": "🎁", "name": "Something I've wanted to buy", "cost": 300},
 ]
 
 
@@ -58,6 +105,48 @@ def best_streak(days, grace):
         best = max(best, run)
         prev = d
     return best
+
+
+def coins_by_day(days, grace):
+    """Coins earned on each on-time day: {date: (coins, reasons)}."""
+    out = {}
+    good_total = run = 0
+    prev = None
+    level_starts = {min(n for n, lv, *_ in JOURNEY if lv == level) for level in LEVELS if level > 1}
+    for d in sorted(_on_time_dates(days, grace)):
+        rec = days[d.isoformat()]
+        good_total += 1
+        run = run + 1 if prev and d - prev == timedelta(days=1) else 1
+        prev = d
+        early = to_minutes(rec["time"]) < to_minutes(rec["target"])
+        coins, reasons = (COINS_EARLY, ["early"]) if early else (COINS_ON_TIME, ["on time"])
+        if run % 7 == 0:
+            coins += COINS_WEEK_BONUS
+            reasons.append(f"{run} days in a row")
+        if good_total in level_starts:
+            coins += COINS_LEVEL_BONUS
+            reasons.append("new level")
+        out[d.isoformat()] = (coins, reasons)
+    return out
+
+
+def journey(good_total):
+    stages = [
+        {"days": n, "level": lv, "levelName": LEVELS[lv], "title": t, "text": txt, "feel": feel,
+         "reached": good_total >= n}
+        for n, lv, t, txt, feel in JOURNEY
+    ]
+    current = next((s for s in reversed(stages) if s["reached"]), None)
+    upcoming = next((s for s in stages if not s["reached"]), None)
+    level = current["level"] if current else 1
+    return {
+        "stages": stages,
+        "current": current,
+        "next": upcoming and {**upcoming, "from": current["days"] if current else 0},
+        "level": level,
+        "levelName": LEVELS[level],
+        "good": good_total,
+    }
 
 
 def _day_status(record, d, grace, today, first_day):
@@ -110,21 +199,28 @@ def compute(data, today):
             "ontime": bool(rec and is_on_time(rec, grace)),
         })
 
-    milestones = [
-        {"days": n, "title": t, "text": txt, "reached": best >= n}
-        for n, t, txt in MILESTONES
-    ]
-    upcoming = next((m for m in milestones if m["days"] > streak), None)
-    prev_days = max([m["days"] for m in milestones if m["days"] <= streak], default=0)
+    coins = coins_by_day(days, grace)
+    earned = sum(c for c, _ in coins.values())
+    spent = sum(s["cost"] for s in data.get("spent", []))
+    balance = earned - spent
+    rewards = sorted(data.get("rewards", []), key=lambda r: r["cost"])
+    goal = next((r for r in rewards if r["cost"] > balance), None)
 
+    good_total = len(coins)
+    j = journey(good_total)
     today_rec = days.get(today.isoformat())
+    today_ontime = bool(today_rec and is_on_time(today_rec, grace))
+    hit = j["current"] if today_ontime and j["current"] and j["current"]["days"] == good_total else None
+    prev_level = journey(good_total - 1)["level"] if today_ontime else j["level"]
     return {
         "today": {
             "date": today.isoformat(),
             "target": target_for(today, settings),
             "weekend": today.weekday() >= 5,
             "record": today_rec,
-            "ontime": bool(today_rec and is_on_time(today_rec, grace)),
+            "ontime": today_ontime,
+            "coins": coins.get(today.isoformat(), (0, []))[0],
+            "coinReasons": coins.get(today.isoformat(), (0, []))[1],
         },
         "streak": streak,
         "best": best,
@@ -133,7 +229,8 @@ def compute(data, today):
         "total": len(days),
         "calendar": calendar,
         "chart": chart,
-        "milestones": milestones,
-        "next": upcoming and {**upcoming, "from": prev_days},
-        "hit": next((m for m in milestones if m["days"] == streak), None),
+        "journey": j,
+        "hit": hit,
+        "levelUp": bool(hit and j["level"] > prev_level),
+        "coins": {"balance": balance, "earned": earned, "spent": spent, "goal": goal},
     }

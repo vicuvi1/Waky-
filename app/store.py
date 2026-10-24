@@ -7,6 +7,8 @@ import threading
 import time
 from pathlib import Path
 
+from stats import DEFAULT_REWARDS
+
 DEFAULT_SETTINGS = {"weekday": "06:30", "weekend": "06:30", "grace": 15, "reps": 20, "sound": True}
 
 
@@ -31,6 +33,8 @@ class Store:
             data["settings"] = {**DEFAULT_SETTINGS, **data.get("settings", {})}
             data.setdefault("days", {})
             data.setdefault("telegram", {})
+            data.setdefault("rewards", [dict(r) for r in DEFAULT_REWARDS])
+            data.setdefault("spent", [])
             return data
 
     def save(self, data):
