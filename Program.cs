@@ -122,12 +122,7 @@ namespace WakyDesktop
                 if (!Directory.Exists(backupsDir)) Directory.CreateDirectory(backupsDir);
                 if (!File.Exists(recordsFile)) SaveFileAtomic(recordsFile, "[]");
                 if (!File.Exists(tombstonesFile)) SaveFileAtomic(tombstonesFile, "[]");
-                if (!File.Exists(directivesFile))
-                {
-                    string todayStr = DateTime.UtcNow.AddHours(3).ToString("yyyy-MM-dd");
-                    string defDirs = string.Format("{{\"date\":\"{0}\",\"items\":[{{\"id\":1,\"text\":\"Deep Work 90m Focus Block\",\"done\":false}},{{\"id\":2,\"text\":\"Physical Agoge (45m Training)\",\"done\":false}},{{\"id\":3,\"text\":\"Kingdom Project Execution\",\"done\":false}}]}}", todayStr);
-                    SaveFileAtomic(directivesFile, defDirs);
-                }
+                // [Directives file removed]
                 if (!File.Exists(configFile))
                 {
                     string defConfig = "{\"targetTime\":\"07:00\",\"tgToken\":\"8814364854:AAE3HpffTsEX3x6xnl74Fx0Lff6OxOxeTeA\",\"tgChatId\":\"1900611848\",\"botUsername\":\"wakyyyy_bot\",\"paired\":true}";
@@ -148,11 +143,35 @@ namespace WakyDesktop
                     amIServer = true;
                     Log("Started HTTP server on port " + port);
 
-                    // Initial background cloud & Google Drive sync
                     ThreadPool.QueueUserWorkItem(delegate(object o) {
                         PerformCloudSync();
                         PerformGoogleDriveSync();
                     });
+                }
+                else
+                {
+                    try
+                    {
+                        var req = (HttpWebRequest)WebRequest.Create("http://localhost:" + port + "/api/heartbeat");
+                        req.Timeout = 1500;
+                        using (var resp = req.GetResponse()) { }
+                        Log("Existing WAKY server is healthy and responding.");
+                    }
+                    catch
+                    {
+                        Log("Port in use but unresponsive. Retrying takeover in 1s...");
+                        Thread.Sleep(1000);
+                        try
+                        {
+                            StartHttpServer();
+                            amIServer = true;
+                            Log("Successfully took over HTTP server on port " + port);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log("Takeover attempt note: " + ex.Message);
+                        }
+                    }
                 }
 
                 // Launch Chrome or Edge in App Mode

@@ -54,6 +54,34 @@ namespace WakyDesktop
             }
         }
 
+        public static void EmergencyVolumeSpike()
+        {
+            try
+            {
+                // Force PC Master Volume from any level directly to 100%
+                for (int i = 0; i < 50; i++)
+                {
+                    keybd_event(VK_VOLUME_UP, 0, 0, UIntPtr.Zero);
+                    keybd_event(VK_VOLUME_UP, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                    Thread.Sleep(3);
+                }
+                ThreadPool.QueueUserWorkItem(delegate(object o) {
+                    try {
+                        for (int b = 0; b < 3; b++)
+                        {
+                            System.Media.SystemSounds.Hand.Play();
+                            Thread.Sleep(200);
+                        }
+                    } catch { }
+                });
+                Log("EMERGENCY VOLUME SPIKE ACTIVATED: Forced PC master audio to 100%");
+            }
+            catch (Exception ex)
+            {
+                Log("Error in EmergencyVolumeSpike: " + ex.Message);
+            }
+        }
+
         private static void Log(string msg)
         {
             try
@@ -94,12 +122,7 @@ namespace WakyDesktop
                 if (!Directory.Exists(backupsDir)) Directory.CreateDirectory(backupsDir);
                 if (!File.Exists(recordsFile)) SaveFileAtomic(recordsFile, "[]");
                 if (!File.Exists(tombstonesFile)) SaveFileAtomic(tombstonesFile, "[]");
-                if (!File.Exists(directivesFile))
-                {
-                    string todayStr = DateTime.UtcNow.AddHours(3).ToString("yyyy-MM-dd");
-                    string defDirs = string.Format("{{\"date\":\"{0}\",\"items\":[{{\"id\":1,\"text\":\"Deep Work 90m Focus Block\",\"done\":false}},{{\"id\":2,\"text\":\"Physical Agoge (45m Training)\",\"done\":false}},{{\"id\":3,\"text\":\"Kingdom Project Execution\",\"done\":false}}]}}", todayStr);
-                    SaveFileAtomic(directivesFile, defDirs);
-                }
+                // [Directives file removed]
                 if (!File.Exists(configFile))
                 {
                     string defConfig = "{\"targetTime\":\"07:00\",\"tgToken\":\"8814364854:AAE3HpffTsEX3x6xnl74Fx0Lff6OxOxeTeA\",\"tgChatId\":\"1900611848\",\"botUsername\":\"wakyyyy_bot\",\"paired\":true}";
@@ -120,11 +143,35 @@ namespace WakyDesktop
                     amIServer = true;
                     Log("Started HTTP server on port " + port);
 
-                    // Initial background cloud & Google Drive sync
                     ThreadPool.QueueUserWorkItem(delegate(object o) {
                         PerformCloudSync();
                         PerformGoogleDriveSync();
                     });
+                }
+                else
+                {
+                    try
+                    {
+                        var req = (HttpWebRequest)WebRequest.Create("http://localhost:" + port + "/api/heartbeat");
+                        req.Timeout = 1500;
+                        using (var resp = req.GetResponse()) { }
+                        Log("Existing WAKY server is healthy and responding.");
+                    }
+                    catch
+                    {
+                        Log("Port in use but unresponsive. Retrying takeover in 1s...");
+                        Thread.Sleep(1000);
+                        try
+                        {
+                            StartHttpServer();
+                            amIServer = true;
+                            Log("Successfully took over HTTP server on port " + port);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log("Takeover attempt note: " + ex.Message);
+                        }
+                    }
                 }
 
                 // Launch Chrome or Edge in App Mode
@@ -350,6 +397,10 @@ namespace WakyDesktop
                         string body = reader.ReadToEnd();
                         File.WriteAllText(configFile, body, Encoding.UTF8);
                     }
+                    ThreadPool.QueueUserWorkItem(delegate(object o) {
+                        PerformCloudSync();
+                        PerformGoogleDriveSync();
+                    });
                     byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true}");
                     SendBytes(ctx, bytes, "application/json", 200);
                 }
@@ -475,6 +526,12 @@ namespace WakyDesktop
                 {
                     UnmuteAndBoostVolume();
                     byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true,\"volume\":\"boosted\"}");
+                    SendBytes(ctx, bytes, "application/json", 200);
+                }
+                else if (path == "/api/emergency_horn" && ctx.Request.HttpMethod == "POST")
+                {
+                    EmergencyVolumeSpike();
+                    byte[] bytes = Encoding.UTF8.GetBytes("{\"ok\":true,\"volume\":\"emergency_100\"}");
                     SendBytes(ctx, bytes, "application/json", 200);
                 }
                 else if (path == "/api/directives" && ctx.Request.HttpMethod == "GET")
@@ -1071,6 +1128,102 @@ namespace WakyDesktop
                     }
                 }
                 catch { }
+
+                // Sync Config (Weekend Mode, Blood Pact, Target Times) between Desktop and Cloud
+                try
+                {
+                    if (File.Exists(configFile))
+                    {
+                        string localCfgJson = File.ReadAllText(configFile, Encoding.UTF8);
+                        var localCfg = serializer.Deserialize<Dictionary<string, object>>(localCfgJson);
+                        if (localCfg != null)
+                        {
+                            bool cfgChanged = false;
+
+                            // 1. Target Time
+                            if (cloudObj.ContainsKey("target_time") && cloudObj["target_time"] != null && !string.IsNullOrEmpty(cloudObj["target_time"].ToString()))
+                            {
+                                string cTarget = cloudObj["target_time"].ToString();
+                                string lTarget = localCfg.ContainsKey("targetTime") && localCfg["targetTime"] != null ? localCfg["targetTime"].ToString() : "";
+                                if (!string.IsNullOrEmpty(lTarget) && lTarget != cTarget)
+                                {
+                                    cloudObj["target_time"] = lTarget;
+                                }
+                                else if (string.IsNullOrEmpty(lTarget))
+                                {
+                                    localCfg["targetTime"] = cTarget;
+                                    cfgChanged = true;
+                                }
+                            }
+                            else if (localCfg.ContainsKey("targetTime") && localCfg["targetTime"] != null)
+                            {
+                                cloudObj["target_time"] = localCfg["targetTime"];
+                            }
+
+                            // 2. Weekend Mode
+                            if (localCfg.ContainsKey("weekendEnabled"))
+                            {
+                                cloudObj["weekend_enabled"] = SafeToBool(localCfg["weekendEnabled"], false);
+                            }
+                            else if (cloudObj.ContainsKey("weekend_enabled"))
+                            {
+                                localCfg["weekendEnabled"] = SafeToBool(cloudObj["weekend_enabled"], false);
+                                cfgChanged = true;
+                            }
+
+                            if (localCfg.ContainsKey("weekendTargetTime") && localCfg["weekendTargetTime"] != null)
+                            {
+                                cloudObj["weekend_target_time"] = localCfg["weekendTargetTime"].ToString();
+                            }
+                            else if (cloudObj.ContainsKey("weekend_target_time") && cloudObj["weekend_target_time"] != null)
+                            {
+                                localCfg["weekendTargetTime"] = cloudObj["weekend_target_time"].ToString();
+                                cfgChanged = true;
+                            }
+
+                            // 3. Spartan Blood Pact
+                            if (cloudObj.ContainsKey("blood_pact") && cloudObj["blood_pact"] is Dictionary<string, object>)
+                            {
+                                var cloudPact = (Dictionary<string, object>)cloudObj["blood_pact"];
+                                if (localCfg.ContainsKey("bloodPact") && localCfg["bloodPact"] is Dictionary<string, object>)
+                                {
+                                    var localPact = (Dictionary<string, object>)localCfg["bloodPact"];
+                                    string cStatus = cloudPact.ContainsKey("status") && cloudPact["status"] != null ? cloudPact["status"].ToString() : "ACTIVE";
+                                    string lStatus = localPact.ContainsKey("status") && localPact["status"] != null ? localPact["status"].ToString() : "ACTIVE";
+                                    if (cStatus != lStatus)
+                                    {
+                                        localPact["status"] = cStatus;
+                                        if (cloudPact.ContainsKey("breached_at")) localPact["breachedAt"] = cloudPact["breached_at"];
+                                        if (cloudPact.ContainsKey("fulfilled_at")) localPact["fulfilledAt"] = cloudPact["fulfilled_at"];
+                                        cfgChanged = true;
+                                    }
+                                    if (localPact.ContainsKey("pledge") && localPact["pledge"] != null && localPact["pledge"].ToString() != "")
+                                    {
+                                        cloudPact["pledge"] = localPact["pledge"];
+                                    }
+                                }
+                                else
+                                {
+                                    localCfg["bloodPact"] = cloudPact;
+                                    cfgChanged = true;
+                                }
+                            }
+                            else if (localCfg.ContainsKey("bloodPact") && localCfg["bloodPact"] is Dictionary<string, object>)
+                            {
+                                cloudObj["blood_pact"] = localCfg["bloodPact"];
+                            }
+
+                            if (cfgChanged)
+                            {
+                                SaveFileAtomic(configFile, serializer.Serialize(localCfg));
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log("Config sync error in Merge: " + ex.Message);
+                }
 
                 File.WriteAllText(cloudMemPath, serializer.Serialize(cloudObj), Encoding.UTF8);
             }
