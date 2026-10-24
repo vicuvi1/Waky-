@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Waky</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="icon.svg" alt=""><span>waky</span></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="today">Today</button>
+      <button class="tab" data-view="progress">Progress</button>
+      <button class="tab" data-view="settings">Settings</button>
+    </nav>
+    <div class="clock" id="clock">--:--</div>
+  </header>
+
+  <main>
+    <!-- TODAY -->
+    <section class="view active" id="view-today">
+      <div class="hello">
+        <h1 id="greeting">Good morning</h1>
+        <p id="today-date" class="muted"></p>
+      </div>
+
+      <div class="hero card" id="hero"></div>
+
+      <div class="grid-3">
+        <div class="card stat-card">
+          <div class="label">Streak</div>
+          <div class="big"><span id="streak">0</span><small id="streak-unit">days</small></div>
+          <div class="muted small" id="streak-best"></div>
+        </div>
+        <div class="card stat-card" id="next-card">
+          <div class="label">Next milestone</div>
+          <div class="next-title" id="next-title"></div>
+          <div class="bar"><div class="bar-fill" id="next-bar"></div></div>
+          <div class="muted small" id="next-sub"></div>
+        </div>
+        <div class="card stat-card">
+          <div class="label">This week</div>
+          <div class="week" id="week"></div>
+          <div class="muted small" id="week-sub"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section class="view" id="view-progress">
+      <div class="grid-4">
+        <div class="card tile"><div class="label">Current streak</div><div class="tile-num" id="p-streak">0</div></div>
+        <div class="card tile"><div class="label">Best streak</div><div class="tile-num" id="p-best">0</div></div>
+        <div class="card tile"><div class="label">On time · 30 days</div><div class="tile-num" id="p-rate">–</div></div>
+        <div class="card tile"><div class="label">Average wake-up · 14 days</div><div class="tile-num" id="p-avg">–</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>Last 5 weeks</h2>
+            <div class="legend"><i class="dot ontime"></i>On time <i class="dot late"></i>Late <i class="dot missed"></i>Missed</div>
+          </div>
+          <div class="cal-days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+          <div class="calendar" id="calendar"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Wake-up time · 14 days</h2>
+            <div class="legend"><i class="line"></i>Target</div>
+          </div>
+          <div id="chart" class="chart"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h2>Milestones</h2></div>
+          <ol class="milestones" id="milestones"></ol>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>History</h2><button class="btn ghost small" id="add-day">Add a day</button></div>
+          <div class="history" id="history"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="view-settings">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Wake-up</h2>
+          <div class="form">
+            <label>Weekdays<input type="time" id="s-weekday"></label>
+            <label>Weekends<input type="time" id="s-weekend"></label>
+            <label>Counts as on time if you check in within
+              <span class="inline"><input type="number" id="s-grace" min="0" max="120"> minutes</span></label>
+            <label>Push-ups to check in
+              <span class="stepper"><button data-step="-5">−</button><input type="number" id="s-reps" min="1" max="200"><button data-step="5">+</button></span></label>
+            <label class="switch-row">Sounds<input type="checkbox" id="s-sound" class="switch"></label>
+          </div>
+          <p class="muted small">Your phone's alarm wakes you. Waky is where you prove you got up.</p>
+        </div>
+
+        <div class="card">
+          <h2>Telegram</h2>
+          <div id="tg-box"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Camera</h2>
+        <p class="muted">Put the camera so it sees you <b>from the side</b>, whole body, on the floor. A laptop on a chair works well.</p>
+        <button class="btn ghost" id="cam-test">Test the camera</button>
+      </div>
+
+      <p class="muted small data-note" id="data-note"></p>
+    </section>
+  </main>
+
+  <!-- PUSH-UP SESSION -->
+  <div class="session" id="session" hidden>
+    <video id="video" playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="session-top">
+      <button class="btn ghost" id="session-close">Cancel</button>
+      <div class="pill" id="session-hint">Starting camera…</div>
+      <button class="btn ghost small" id="session-manual" hidden>Camera can't see me</button>
+    </div>
+    <div class="counter">
+      <svg viewBox="0 0 200 200" class="ring">
+        <circle cx="100" cy="100" r="88" class="ring-bg"/>
+        <circle cx="100" cy="100" r="88" class="ring-fg" id="ring-fg"/>
+      </svg>
+      <div class="count"><span id="count">0</span><small id="count-of">/ 20</small></div>
+    </div>
+    <div class="manual-pad" id="manual-pad" hidden>
+      <button class="btn primary big-tap" id="manual-tap">+1 push-up</button>
+      <p class="muted small">Counted by hand. It's marked that way in your history.</p>
+    </div>
+  </div>
+
+  <!-- DONE -->
+  <div class="done" id="done" hidden>
+    <canvas id="confetti"></canvas>
+    <div class="done-card">
+      <div class="check"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg></div>
+      <h1 id="done-title">You're up.</h1>
+      <p id="done-sub" class="muted"></p>
+      <div class="done-streak"><span id="done-streak">1</span><small id="done-streak-label">day streak</small></div>
+      <div class="milestone-hit" id="done-milestone" hidden></div>
+      <p class="water">Now go drink a glass of water. 💧</p>
+      <button class="btn primary" id="done-close">Done</button>
+    </div>
+  </div>
+
+  <dialog id="day-dialog">
+    <form method="dialog" class="form">
+      <h2 id="day-dialog-title">Add a day</h2>
+      <label>Date<input type="date" id="d-date" required></label>
+      <label>Woke up at<input type="time" id="d-time" required></label>
+      <div class="dialog-actions">
+        <button class="btn ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn primary" id="d-save" value="save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
