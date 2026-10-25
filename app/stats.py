@@ -137,7 +137,7 @@ def still_up_state(rec, day, today, now_min):
     due_min = to_minutes(due)
     if now_min < due_min:
         return "waiting"
-    return "open" if now_min <= due_min + STILL_UP_WINDOW else "missed"
+    return "open" if now_min <= due_min + rec.get("stillUpWindow", STILL_UP_WINDOW) else "missed"
 
 DEFAULT_REWARDS = game.DEFAULT_REWARDS
 
@@ -363,7 +363,7 @@ def compute(data, today, now_min=None):
             "stillUp": {
                 "state": still_up_state(today_rec, today, today, now_min) if today_rec else "none",
                 "due": today_rec.get("stillUpDue") if today_rec else None,
-                "deadline": from_minutes(to_minutes(today_rec["stillUpDue"]) + STILL_UP_WINDOW)
+                "deadline": from_minutes(to_minutes(today_rec["stillUpDue"]) + today_rec.get("stillUpWindow", STILL_UP_WINDOW))
                 if today_rec and today_rec.get("stillUpDue") else None,
             },
         },

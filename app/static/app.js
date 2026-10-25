@@ -512,6 +512,17 @@ function renderSettings() {
   $("s-sound").checked = st.sound;
   $("s-pcalarm").checked = st.pcAlarm;
   $("s-stillup").checked = st.stillUp;
+  if (!$("s-alarmSound").options.length) {
+    $("s-alarmSound").innerHTML = Object.entries(state.sounds).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+  }
+  for (const key of SETTING_SELECTS) {
+    if (document.activeElement !== $(`s-${key}`)) $(`s-${key}`).value = String(st[key]);
+  }
+  $("pcalarm-form").classList.toggle("off", !st.pcAlarm);
+  $("stillup-form").classList.toggle("off", !st.stillUp);
+  $("stillup-desc").textContent = st.stillUp
+    ? `${st.stillUpAfter} minutes after you check in, Waky chimes and asks if you're still up. Answer at the PC within ${st.stillUpWindow} minutes: +5 coins. Miss it: that morning pays half.`
+    : "Off. Turn it on to make sure you don't go back to bed after checking in.";
   const pa = state.pcAlarm;
   $("pcalarm-status").innerHTML = !st.pcAlarm ? `<span class="muted">Off</span>`
     : pa.error ? `<span class="err">${esc(pa.error)}</span>`
@@ -940,6 +951,10 @@ $("alarm-stop-test").onclick = () => act("POST", "/api/alarm", { action: "stop" 
 $("alarm-test").onclick = () => act("POST", "/api/alarm", { action: "test" }, "Ringing for 15 seconds");
 $("su-yes").onclick = () => act("POST", "/api/stillup", {}, "Still up! +5 coins").then((ok) => ok && confetti($("chest-confetti"), 90));
 $("s-pcalarm").onchange = (e) => saveSetting("pcAlarm", e.target.checked);
+const SETTING_SELECTS = ["alarmOffset", "alarmSound", "alarmRamp", "alarmVolume", "alarmMax", "stillUpAfter", "stillUpWindow"];
+for (const key of SETTING_SELECTS) {
+  $(`s-${key}`).onchange = (e) => saveSetting(key, key === "alarmSound" ? e.target.value : Number(e.target.value));
+}
 $("s-stillup").onchange = (e) => saveSetting("stillUp", e.target.checked);
 setInterval(() => {
   $("alarm-clock").textContent = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });

@@ -20,8 +20,9 @@ class FakeRinger:
         self.ringing = False
         self.chimes = 0
 
-    def start(self, max_minutes=20):
+    def start(self, max_minutes=20, sound="sunrise", ramp_seconds=60):
         self.ringing = True
+        self.last = {"max": max_minutes, "sound": sound, "ramp": ramp_seconds}
 
     def stop(self, generation=None):
         self.ringing = False
@@ -59,13 +60,13 @@ class StillUpRulesTest(unittest.TestCase):
 class AppAlarmTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.old = (pc_alarm.volume_up, server.pc_alarm.Ringer)
-        pc_alarm.volume_up = lambda *a: None  # Never press the real volume keys in tests.
+        self.old = (pc_alarm.set_volume, server.pc_alarm.Ringer)
+        pc_alarm.set_volume = lambda *a: None  # Never press the real volume keys in tests.
         server.pc_alarm.Ringer = FakeRinger
         self.app = App(Store(self.tmp.name), background=False)
 
     def tearDown(self):
-        pc_alarm.volume_up, server.pc_alarm.Ringer = self.old
+        pc_alarm.set_volume, server.pc_alarm.Ringer = self.old
         self.tmp.cleanup()
 
     def test_alarm_rings_until_check_in(self):
@@ -106,6 +107,34 @@ class AppAlarmTest(unittest.TestCase):
         s = self.app.still_up({})
         self.assertEqual(s["stats"]["today"]["stillUp"]["state"], "done")
 
+    def test_alarm_uses_your_settings(self):
+        volumes = []
+        server.pc_alarm.set_volume = volumes.append
+        self.app.update_settings({"alarmSound": "beeps", "alarmRamp": 90, "alarmMax": 5, "alarmVolume": 60})
+        self.app.start_alarm()
+        self.assertEqual(self.app.ringer.last, {"max": 5, "sound": "beeps", "ramp": 90})
+        import time
+        time.sleep(0.1)  # The volume is set in a background thread.
+        self.assertEqual(volumes, [60])
+
+    def test_settings_are_clamped(self):
+        s = self.app.update_settings({"alarmOffset": -99, "alarmVolume": 500, "stillUpAfter": 1,
+                                      "alarmSound": "air-horn"})["settings"]
+        self.assertEqual((s["alarmOffset"], s["alarmVolume"], s["stillUpAfter"], s["alarmSound"]), (-15, 100, 5, "sunrise"))
+
+    def test_still_up_timing_is_saved_per_day(self):
+        self.app.update_settings({"stillUpAfter": 30, "stillUpWindow": 5})
+        s = self.app.checkin({})
+        r = s["days"][date.today().isoformat()]
+        self.assertEqual(r["stillUpWindow"], 5)
+        due = datetime.strptime(r["stillUpDue"], "%H:%M")
+        now = datetime.now()
+        self.assertAlmostEqual((due.hour * 60 + due.minute) - (now.hour * 60 + now.minute), 30, delta=1)
+        # Changing the window later doesn't change that day's deadline.
+        self.app.update_settings({"stillUpWindow": 20})
+        self.assertEqual(self.app.state()["stats"]["today"]["stillUp"]["deadline"],
+                         stats.from_minutes(stats.to_minutes(r["stillUpDue"]) + 5))
+
     def test_still_up_can_be_turned_off(self):
         self.app.update_settings({"stillUp": False})
         s = self.app.checkin({})
@@ -122,6 +151,14 @@ class TaskTest(unittest.TestCase):
         self.assertIn("<Sunday />", xml)
         self.assertIn("--alarm", xml)
         self.assertEqual(pc_alarm.alarm_time("00:00"), "23:59")
+        self.assertEqual(pc_alarm.alarm_time("06:30", 5), "06:35")
+        self.assertIn("T06:20:00", pc_alarm.task_xml("06:30", "07:00", offset=-10))
+
+    def test_every_sound_renders(self):
+        for name in pc_alarm.SOUNDS:
+            frames = pc_alarm._chime(0.5, lambda t: 1.0, name)
+            self.assertEqual(len(frames), int(0.5 * pc_alarm.RATE) * 2)
+            self.assertTrue(any(frames))
 
 
 if __name__ == "__main__":
