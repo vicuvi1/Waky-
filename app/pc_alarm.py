@@ -31,6 +31,14 @@ except ImportError:  # Not on Windows (tests on other systems): no sound, no tas
     winsound = None
 
 
+def later(seconds, fn):
+    """Run fn after a delay in the background; never keeps the program alive on exit."""
+    t = threading.Timer(seconds, fn)
+    t.daemon = True
+    t.start()
+    return t
+
+
 # ---- the Windows task ----
 
 def alarm_time(hhmm, offset_minutes=-1):
@@ -39,12 +47,13 @@ def alarm_time(hhmm, offset_minutes=-1):
     return t.strftime("%H:%M")
 
 
-def task_xml(weekday, weekend, vbs=VBS, offset=-1):
+def task_xml(weekday, weekend, vbs=VBS, offset=-1, sunrise=0):
     start = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
     def trigger(hhmm, days):
         names = "".join(f"<{d} />" for d in days)
-        return (f"<CalendarTrigger><StartBoundary>{start}T{alarm_time(hhmm, offset)}:00</StartBoundary><Enabled>true</Enabled>"
+        # With a screen sunrise the PC wakes that many minutes before the sound.
+        return (f"<CalendarTrigger><StartBoundary>{start}T{alarm_time(hhmm, offset - sunrise)}:00</StartBoundary><Enabled>true</Enabled>"
                 f"<ScheduleByWeek><DaysOfWeek>{names}</DaysOfWeek><WeeksInterval>1</WeeksInterval></ScheduleByWeek>"
                 f"</CalendarTrigger>")
 
@@ -70,12 +79,12 @@ def _run(args, timeout=30):
     return subprocess.run(args, capture_output=True, text=True, timeout=timeout, creationflags=NO_WINDOW)
 
 
-def install(weekday, weekend, offset=-1):
+def install(weekday, weekend, offset=-1, sunrise=0):
     """Create or update the task. Returns (ok, message)."""
     if sys.platform != "win32":
         return False, "The PC alarm only works on Windows."
     with tempfile.NamedTemporaryFile("w", suffix=".xml", delete=False, encoding="utf-16") as f:
-        f.write(task_xml(weekday, weekend, offset=offset))
+        f.write(task_xml(weekday, weekend, offset=offset, sunrise=sunrise))
         path = f.name
     try:
         out = _run(["schtasks", "/Create", "/TN", TASK, "/XML", path, "/F"])
@@ -100,6 +109,15 @@ def next_run():
                 "if ($i -and $i.NextRunTime) { $i.NextRunTime.ToString('yyyy-MM-ddTHH:mm') }"])
     value = out.stdout.strip()
     return value or None
+
+
+def full_brightness():
+    """Turn a laptop screen to full brightness (does nothing on desktop monitors)."""
+    if sys.platform != "win32":
+        return
+    _run(["powershell", "-NoProfile", "-Command",
+          "Get-CimInstance -Namespace root/WMI -ClassName WmiMonitorBrightnessMethods -ErrorAction SilentlyContinue | "
+          "Invoke-CimMethod -MethodName WmiSetBrightness -Arguments @{Timeout=0; Brightness=100} -ErrorAction SilentlyContinue"])
 
 
 # ---- volume ----
@@ -207,8 +225,8 @@ class Ringer:
                 if self.ringing and self.generation == gen:
                     winsound.PlaySound(str(loop), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_LOOP)
 
-        threading.Timer(ramp_seconds, louder).start()
-        threading.Timer(max_minutes * 60, lambda: self.stop(gen)).start()
+        later(ramp_seconds, louder)
+        later(max_minutes * 60, lambda: self.stop(gen))
 
     def stop(self, generation=None):
         if not winsound:

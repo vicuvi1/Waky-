@@ -26,7 +26,11 @@ you are. If you haven't checked in by your wake-up time, a Telegram bot nags you
 7. **Bedtime.** Bedtime is your wake-up time minus your sleep goal (8 h by default). Before it, Waky chimes, shows
    a wind-down prompt and messages you on Telegram. Press "Going to bed" (+5 coins on time) and put the PC to
    sleep from the same card, so the alarm can wake it. Progress shows hours slept per night against your goal.
-8. **No check-in?** At your target + 15 minutes, the nag bot messages you on Telegram, up to three times.
+8. **Extras.** A Spartan avatar that gets new gear with each rank; a one-tap mood after check-in, and insights
+   once there's enough data ("you feel good after 7 h 30 min or more"); a screen sunrise before the alarm sound;
+   themes unlocked by rank; a monthly recap story; and Windows notifications (with working buttons) when the
+   Waky window is closed.
+9. **No check-in?** At your target + 15 minutes, the nag bot messages you on Telegram, up to three times.
 
 A day is **on time** if you check in within the grace window (default 15 minutes) after your
 target. The streak counts on-time days in a row.

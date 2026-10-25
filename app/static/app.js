@@ -80,6 +80,10 @@ function render() {
   renderAlarm();
   renderStillUp();
   renderNight();
+  renderAvatar();
+  renderMood();
+  renderInsights();
+  renderThemes();
 }
 
 function renderToday() {
@@ -102,6 +106,7 @@ function renderToday() {
         <div class="status ${t.ontime ? "ok" : "late"}">${how}${t.record.reps ? ` · ${plural(t.record.reps, "push-up")}` : ""}${t.coins ? ` · +${t.coins} coins` : ""}</div>
         ${stillUpLine(t.stillUp, t.record, t.ontime)}
         ${s.sleep.last ? `<div class="su-line sleep-line">😴 Slept ${fmtDur(s.sleep.last)}</div>` : ""}
+        <div class="mood-ask inline">${moodButtons(t.record.mood)}</div>
       </div>
       <svg class="hero-check ${t.ontime ? "" : "late"}" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg>`;
   } else {
@@ -225,7 +230,8 @@ function renderJourney() {
   $("j-hero").innerHTML = `
     <div class="medal">
       ${ring(inLevel, 70, "medal-ring")}
-      <div class="medal-core"><span>${ROMAN[j.level - 1]}</span></div>
+      <div class="medal-core avatar-core">${spartanSvg(j.good ? j.level : 1)}</div>
+      <div class="medal-num">${ROMAN[j.level - 1]}</div>
     </div>
     <div class="jh-main">
       <div class="label">Your journey · Level ${j.level} of 5</div>
@@ -514,6 +520,7 @@ function renderSettings() {
   $("s-sound").checked = st.sound;
   $("s-pcalarm").checked = st.pcAlarm;
   $("s-bedtimeOn").checked = st.bedtimeOn;
+  $("s-notifications").checked = st.notifications;
   $("bed-form").classList.toggle("off", !st.bedtimeOn);
   const bedFor = (wake) => fromMin(((toMin(wake) - st.sleepGoal) % 1440 + 1440) % 1440);
   $("bed-times").innerHTML = st.bedtimeOn
@@ -684,6 +691,7 @@ function showDone(prevStreak) {
   if (t.stillUp.state === "waiting") extras.push(`🕒 At ${t.stillUp.due} Waky asks if you're still up. Be at your desk: +5 coins.`);
   $("done-extras").innerHTML = extras.map((x) => `<div>${esc(x)}</div>`).join("");
   $("done-open").hidden = !s.game.unopened;
+  $("done-mood").innerHTML = `<div class="muted small">How do you feel?</div>${moodButtons(t.record.mood)}`;
   const g = s.coins.goal;
   $("done-goal").textContent = g ? `${s.coins.balance} / ${g.cost} coins to ${g.emoji} ${g.name}` : `${s.coins.balance} coins: you can claim any reward`;
   $("done").hidden = false;
@@ -931,7 +939,12 @@ function renderAlarm() {
   const ringing = a.active || (wantsAlarm && !state.stats.today.record && !renderAlarm.dismissed);
   $("alarm").hidden = !ringing;
   if (!ringing) return;
-  $("alarm-label").textContent = a.test ? "Test alarm" : "Time to get up";
+  const sunrise = a.phase === "sunrise";
+  $("alarm").classList.toggle("sunrising", sunrise);
+  $("alarm").style.setProperty("--sunrise", `${a.sunriseSeconds || 60}s`);
+  $("alarm-label").textContent = sunrise ? `Good morning · the alarm sounds at ${(a.ringAt || "").slice(0, 5)}`
+    : a.test ? "Test alarm" : "Time to get up";
+  $("alarm-up").querySelector("small").textContent = sunrise ? "up before the sound" : "stop the alarm";
   $("alarm-why").textContent = state.settings.why ? `“${state.settings.why}”` : state.stats.today.quote.text;
   $("alarm-stop-test").hidden = !a.test;
   $("alarm-up").hidden = !!a.test;
@@ -959,7 +972,9 @@ $("alarm-stop-test").onclick = () => act("POST", "/api/alarm", { action: "stop" 
 $("alarm-test").onclick = () => act("POST", "/api/alarm", { action: "test" }, "Ringing for 15 seconds");
 $("su-yes").onclick = () => act("POST", "/api/stillup", {}, "Still up! +5 coins").then((ok) => ok && confetti($("chest-confetti"), 90));
 $("s-pcalarm").onchange = (e) => saveSetting("pcAlarm", e.target.checked);
-const SETTING_SELECTS = ["alarmOffset", "alarmSound", "alarmRamp", "alarmVolume", "alarmMax", "stillUpAfter", "stillUpWindow", "sleepGoal", "bedRemind"];
+const SETTING_SELECTS = ["alarmOffset", "alarmSound", "alarmRamp", "alarmVolume", "alarmMax", "stillUpAfter", "stillUpWindow", "sleepGoal", "bedRemind", "sunrise"];
+$("s-notifications").onchange = (e) => saveSetting("notifications", e.target.checked);
+$("notify-test").onclick = () => api("POST", "/api/notify-test", {}).then(() => toast("Sent: look at the bottom-right corner")).catch((e) => toast(e.message, true));
 $("s-bedtimeOn").onchange = (e) => saveSetting("bedtimeOn", e.target.checked);
 for (const key of SETTING_SELECTS) {
   $(`s-${key}`).onchange = (e) => saveSetting(key, key === "alarmSound" ? e.target.value : Number(e.target.value));
@@ -1061,6 +1076,167 @@ function renderSleep() {
   }).join("") + (sl.nights ? "" : `<div class="sleep-empty">Press "Going to bed" at night and check in in the morning: your sleep shows up here.</div>`);
 }
 
+// ---------- Spartan avatar ----------
+
+function spartanSvg(level) {
+  const gold = level >= 5;
+  const metal = gold ? "url(#gGold)" : "url(#gBronze)";
+  const tunic = level >= 2 ? "#9f1d1d" : "#c9b48a";
+  const parts = [];
+  parts.push(`<defs>
+    <linearGradient id="gBronze" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0c27b"/><stop offset="1" stop-color="#8a5a22"/></linearGradient>
+    <linearGradient id="gGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1b8"/><stop offset=".5" stop-color="#f5c44a"/><stop offset="1" stop-color="#a86d12"/></linearGradient>
+    <radialGradient id="gAura"><stop offset="0" stop-color="rgba(245,196,74,.55)"/><stop offset="1" stop-color="rgba(245,196,74,0)"/></radialGradient></defs>`);
+  if (gold) parts.push(`<circle cx="60" cy="74" r="62" fill="url(#gAura)" class="av-aura"/>`);
+  if (level >= 4) parts.push(`<path d="M34 58 Q60 50 86 58 L98 148 Q60 158 22 148 Z" fill="#7f1414"/>`); // cloak
+  // legs and sandals
+  parts.push(`<rect x="46" y="112" width="11" height="34" rx="4" fill="#d9a77a"/><rect x="63" y="112" width="11" height="34" rx="4" fill="#d9a77a"/>`);
+  parts.push(`<rect x="44" y="142" width="15" height="6" rx="3" fill="#5b3a1e"/><rect x="61" y="142" width="15" height="6" rx="3" fill="#5b3a1e"/>`);
+  // tunic / body
+  parts.push(`<path d="M40 60 Q60 54 80 60 L84 116 Q60 122 36 116 Z" fill="${tunic}"/>`);
+  if (level >= 3) parts.push(`<path d="M42 62 Q60 56 78 62 L79 92 Q60 98 41 92 Z" fill="${metal}" stroke="rgba(0,0,0,.25)"/>`); // breastplate
+  if (level >= 2) parts.push(`<rect x="38" y="94" width="44" height="6" rx="2" fill="${metal}"/>`); // belt
+  // arms
+  parts.push(`<rect x="26" y="62" width="11" height="40" rx="5" fill="#d9a77a" transform="rotate(12 31 62)"/>`);
+  parts.push(`<rect x="83" y="62" width="11" height="40" rx="5" fill="#d9a77a" transform="rotate(-12 88 62)"/>`);
+  // spear (right hand)
+  if (level >= 3) parts.push(`<line x1="98" y1="10" x2="96" y2="150" stroke="#6b4423" stroke-width="3.5" stroke-linecap="round"/><path d="M98 2 L104 18 L92 18 Z" fill="${metal}"/>`);
+  // head
+  parts.push(`<circle cx="60" cy="38" r="15" fill="#e2b48a"/>`);
+  if (level >= 3) {
+    if (level >= 4) parts.push(`<path d="M42 26 Q60 0 78 26 Q60 16 42 26 Z" fill="${gold ? "#f5c44a" : "#c41e1e"}"/>`); // crest
+    parts.push(`<path d="M44 40 Q44 20 60 20 Q76 20 76 40 L76 50 L68 50 L68 38 L52 38 L52 50 L44 50 Z" fill="${metal}" stroke="rgba(0,0,0,.25)"/>`); // helmet
+  } else {
+    parts.push(`<path d="M46 34 Q60 18 74 34 Q60 28 46 34 Z" fill="#4a3020"/>`); // hair
+    parts.push(`<circle cx="55" cy="40" r="1.6" fill="#2a1a10"/><circle cx="65" cy="40" r="1.6" fill="#2a1a10"/>`);
+  }
+  // shield (left arm)
+  if (level >= 2) {
+    const r = level >= 3 ? 22 : 15;
+    parts.push(`<circle cx="26" cy="92" r="${r}" fill="${metal}" stroke="rgba(0,0,0,.3)" stroke-width="2"/>`);
+    if (level >= 3) parts.push(`<path d="M18 102 L26 82 L34 102" fill="none" stroke="#7f1414" stroke-width="4" stroke-linejoin="round"/>`); // Λ
+  }
+  return `<svg class="spartan" viewBox="0 0 120 160" aria-hidden="true">${parts.join("")}</svg>`;
+}
+
+function renderAvatar() {
+  const j = state.stats.journey;
+  const level = j.good ? j.level : 1;
+  const next = j.levels.find((l) => l.level === j.level + 1);
+  const gear = ["Plain tunic", "Red tunic, belt and a small shield", "Bronze helmet, breastplate, spear and the Λ shield", "A red crest and the Spartan cloak", "Golden armour"][level - 1];
+  $("avatar-card").innerHTML = `
+    <div class="av-figure">${spartanSvg(level)}</div>
+    <div class="av-info"><div class="label">Your Spartan</div>
+      <div class="av-rank">${esc(j.rank)}</div>
+      <div class="muted small">${gear}</div>
+      ${next ? `<div class="av-next">Next look at <b>${esc(next.rank)}</b> · ${next.from - j.good} more good mornings</div>` : `<div class="av-next">Fully armed. Legend.</div>`}
+    </div>`;
+}
+
+// ---------- mood ----------
+
+const MOODS = { tired: ["😴", "Tired"], okay: ["🙂", "Okay"], great: ["⚡", "Great"] };
+
+function moodButtons(current) {
+  return `<div class="moods">${Object.entries(MOODS).map(([k, [e, label]]) =>
+    `<button class="mood ${current === k ? "on" : ""}" data-mood="${k}"><span>${e}</span>${label}</button>`).join("")}</div>`;
+}
+
+function renderMood() {}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-mood]");
+  if (b) act("POST", "/api/mood", { mood: b.dataset.mood }, `${MOODS[b.dataset.mood][0]} Noted`).then(() => {
+    if (!$("done").hidden) $("done-mood").innerHTML = `<div class="muted small">How do you feel?</div>${moodButtons(b.dataset.mood)}`;
+  });
+});
+
+function renderInsights() {
+  const ins = state.insights;
+  $("mood-counts").textContent = ins.logged ? Object.entries(ins.counts).map(([k, n]) => `${MOODS[k][0]} ${n}`).join("  ") : "";
+  $("insights").innerHTML = ins.lines.length
+    ? ins.lines.map((l) => `<p class="insight">${esc(l)}</p>`).join("")
+    : `<p class="muted">Tap how you feel after each check-in. After ${ins.needed} mornings with sleep hours, Waky tells you what helps you wake up feeling great.</p>
+       <div class="bar"><div class="bar-fill" style="width:${Math.max(4, (100 * Math.min(ins.logged, ins.needed)) / ins.needed)}%"></div></div>
+       <p class="muted small">${ins.logged} of ${ins.needed} logged</p>`;
+  $("recap-months").innerHTML = state.recapMonths.length
+    ? state.recapMonths.map((m) => `<button class="btn ghost small" data-recap="${m}">${new Date(m + "-15").toLocaleDateString("en-GB", { month: "long", year: "numeric" })}</button>`).join("")
+    : `<p class="muted small">Your first recap appears after your first month.</p>`;
+}
+
+// ---------- themes ----------
+
+function renderThemes() {
+  const level = state.stats.journey.good ? state.stats.journey.level : 1;
+  document.body.dataset.theme = state.settings.theme || "dawn";
+  const RANK = ["Recruit", "Agoge", "Hoplite", "Spartan", "Legend"];
+  $("themes").innerHTML = Object.entries(state.themes).map(([id, t]) => {
+    const open = level >= t.level;
+    return `<button class="theme-swatch sw-${id} ${state.settings.theme === id ? "on" : ""} ${open ? "" : "locked"}" data-theme-pick="${id}" ${open ? "" : "disabled"}>
+      <i></i><b>${esc(t.name)}</b><span>${open ? (state.settings.theme === id ? "In use" : "Use") : `🔒 ${RANK[t.level - 1]}`}</span></button>`;
+  }).join("");
+}
+
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-theme-pick]");
+  if (t) act("POST", "/api/settings", { theme: t.dataset.themePick }, "Theme changed");
+});
+
+// ---------- monthly recap story ----------
+
+let story = null;
+
+async function openRecap(month) {
+  let r;
+  try { r = await api("GET", `/api/recap?month=${month}`); } catch (e) { toast(e.message, true); return; }
+  const RAR = { common: "Common", rare: "Rare", epic: "Epic", legendary: "Legendary" };
+  const moods = r.moods.great + r.moods.okay + r.moods.tired;
+  const slides = [
+    `<div class="st-kicker">Your month</div><div class="st-huge">${esc(r.label)}</div><p>${r.rankFrom === r.rankTo ? `You held the line as <b>${esc(r.rankTo)}</b>.` : `You rose from <b>${esc(r.rankFrom)}</b> to <b>${esc(r.rankTo)}</b>.`}</p>`,
+    `<div class="st-kicker">Mornings on time</div><div class="st-huge">${r.onTime}<small>/${r.mornings}</small></div><p>${r.mornings ? `${Math.round((100 * r.onTime) / Math.max(1, r.mornings))}% of the mornings you checked in.` : "No check-ins this month."}</p>`,
+    r.earliest ? `<div class="st-kicker">Your earliest morning</div><div class="st-huge">${esc(r.earliest.time)}</div><p>${new Date(r.earliest.date + "T12:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</p>` : null,
+    `<div class="st-kicker">Longest streak</div><div class="st-huge">${r.longestStreak}<small> days</small></div><p>${r.longestStreak >= 7 ? "A full week and more. That's a Spartan." : "Next month: beat it."}</p>`,
+    r.avgSleep ? `<div class="st-kicker">Sleep</div><div class="st-huge">${r.sleepHours}<small> h</small></div><p>${fmtDur(r.avgSleep)} a night on average.</p>` : null,
+    `<div class="st-kicker">Treasury</div><div class="st-huge">+${r.coins}<small> coins</small></div><p>${r.chests ? `${r.chests} chests opened${r.bestChest ? `, the best one ${RAR[r.bestChest]}` : ""}.` : "No chests opened."}</p>`,
+    moods ? `<div class="st-kicker">How you felt</div><div class="st-moods"><div>⚡<b>${r.moods.great}</b></div><div>🙂<b>${r.moods.okay}</b></div><div>😴<b>${r.moods.tired}</b></div></div>` : null,
+    `<div class="st-kicker">For next month</div><blockquote>${esc(r.quote.text)}</blockquote><cite>${esc(r.quote.who)}</cite>`,
+  ].filter(Boolean);
+  story = { slides, i: 0, timer: null };
+  $("story").hidden = false;
+  showSlide(0);
+}
+
+function showSlide(i) {
+  if (!story) return;
+  if (i >= story.slides.length) return closeStory();
+  story.i = Math.max(0, i);
+  $("story-bars").innerHTML = story.slides.map((_, k) => `<i class="${k < story.i ? "full" : k === story.i ? "run" : ""}"></i>`).join("");
+  $("story-slide").innerHTML = `<div class="st-inner">${story.slides[story.i]}</div>`;
+  clearTimeout(story.timer);
+  story.timer = setTimeout(() => showSlide(story.i + 1), 4800);
+}
+
+function closeStory() {
+  if (story) clearTimeout(story.timer);
+  story = null;
+  $("story").hidden = true;
+}
+
+$("story-next").onclick = () => story && showSlide(story.i + 1);
+$("story-prev").onclick = () => story && showSlide(story.i - 1);
+$("story-close").onclick = closeStory;
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-recap]"); if (b) openRecap(b.dataset.recap); });
+
+// On the first days of a month, show last month's recap once.
+function maybeAutoRecap() {
+  const now = new Date();
+  if (now.getDate() > 3) return;
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 15).toISOString().slice(0, 7);
+  if (!state.recapMonths.includes(prev) || seen(`recap-${prev}`)) return;
+  remember(`recap-${prev}`);
+  setTimeout(() => openRecap(prev), 1500);
+}
+
 let timeScope = "all";
 function setTimeScope(scope) {
   timeScope = scope;
@@ -1089,4 +1265,4 @@ tick();
 setInterval(() => refresh().catch(() => {}), 60000); // Also tells the server the window is still open.
 setInterval(() => { if (!$("offline").hidden) refresh().catch(() => {}); }, 5000);
 addEventListener("focus", () => refresh().catch(() => {}));
-refresh().catch((e) => toast(e.message, true));
+refresh().then(maybeAutoRecap).catch((e) => toast(e.message, true));

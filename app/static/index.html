@@ -43,6 +43,7 @@
       </div>
 
       <div class="col-side">
+      <button class="card avatar-card reveal" id="avatar-card" data-goto="journey"></button>
       <div class="grid-3 side-stats">
         <div class="card stat-card reveal">
           <div class="label">Streak</div>
@@ -148,6 +149,18 @@
         </div>
       </div>
 
+      <div class="grid-2">
+        <div class="card insights-card">
+          <div class="card-head"><h2>🧠 What your mornings say</h2><span class="muted small" id="mood-counts"></span></div>
+          <div id="insights"></div>
+        </div>
+        <div class="card recap-card">
+          <div class="card-head"><h2>📊 Monthly recap</h2></div>
+          <p class="muted small">Your month as a short story: best morning, longest streak, sleep, coins, rank.</p>
+          <div class="recap-months" id="recap-months"></div>
+        </div>
+      </div>
+
       <div class="card sleep-card">
         <div class="card-head"><h2>😴 Sleep · 14 nights</h2>
           <div class="legend"><i class="line"></i>Goal</div></div>
@@ -188,6 +201,7 @@
               <label>Gets louder over<select id="s-alarmRamp"><option value="10">10 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="90">1.5 minutes</option><option value="120">2 minutes</option><option value="180">3 minutes</option></select></label>
               <label>Set PC volume to<select id="s-alarmVolume"><option value="0">Don't change it</option><option value="40">40%</option><option value="60">60%</option><option value="80">80%</option><option value="100">100%</option></select></label>
             </div>
+            <label>Screen sunrise first<select id="s-sunrise"><option value="0">Off</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option></select></label>
             <label>Stops by itself after<select id="s-alarmMax"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
           </div>
           <p class="small" id="pcalarm-status"></p>
@@ -211,6 +225,18 @@
             <label>Remind me<select id="s-bedRemind"><option value="0">No reminder</option><option value="15">15 min before</option><option value="30">30 min before</option><option value="45">45 min before</option><option value="60">1 hour before</option><option value="90">1.5 hours before</option></select></label>
           </div>
           <p class="small bed-times" id="bed-times"></p>
+        </div>
+
+        <div class="card set-card">
+          <h2>🎨 Theme</h2>
+          <p class="muted small">New looks unlock as your rank grows.</p>
+          <div class="themes" id="themes"></div>
+        </div>
+
+        <div class="card set-card">
+          <div class="card-head"><h2>🔔 Windows notifications</h2><input type="checkbox" id="s-notifications" class="switch" aria-label="Notifications on"></div>
+          <p class="muted small">When the Waky window is closed, bedtime and still-up reminders pop up in the corner of the screen, with buttons that work right there.</p>
+          <button class="btn ghost small" id="notify-test">Send a test notification</button>
         </div>
 
         <div class="card set-card why-card">
@@ -283,6 +309,7 @@
       </div>
       <div class="milestone-hit" id="done-milestone" hidden></div>
       <div class="done-extras" id="done-extras"></div>
+      <div class="mood-ask" id="done-mood"></div>
       <p class="muted small" id="done-goal"></p>
       <blockquote class="done-quote" id="done-quote"></blockquote>
       <p class="water">Now go drink a glass of water. 💧</p>
@@ -384,6 +411,13 @@
         <button class="btn primary" id="bp-bed">🌙 Going to bed now</button>
       </div>
     </div>
+  </div>
+
+  <div class="story" id="story" hidden>
+    <div class="story-bars" id="story-bars"></div>
+    <button class="story-close" id="story-close" aria-label="Close">✕</button>
+    <div class="story-slide" id="story-slide"></div>
+    <div class="story-nav"><span id="story-prev"></span><span id="story-next"></span></div>
   </div>
 
   <div class="offline" id="offline" hidden>Reconnecting to Waky…</div>

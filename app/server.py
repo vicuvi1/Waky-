@@ -20,13 +20,20 @@ import urllib.request
 import webbrowser
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from html import escape as html_escape
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 sys.path.insert(0, str(Path(__file__).parent))
 
 import game  # noqa: E402
+import insights  # noqa: E402
+import notify  # noqa: E402
+import recap  # noqa: E402
+import secrets as secrets_lib  # noqa: E402
 import night  # noqa: E402
 import pc_alarm  # noqa: E402
+from pc_alarm import later  # noqa: E402
 import stats  # noqa: E402
 import telegram  # noqa: E402
 import updater  # noqa: E402
@@ -39,6 +46,14 @@ UPDATE_CHECK_SECONDS = 6 * 3600
 EXIT_RESTART = 3  # The child asks the supervisor to start it again (after an update).
 log = logging.getLogger("waky")
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+# Looks you unlock with your rank.
+THEMES = {
+    "dawn": {"name": "Dawn", "level": 1},
+    "bronze": {"name": "Bronze", "level": 2},
+    "moonlight": {"name": "Moonlight", "level": 3},
+    "marble": {"name": "Gold & marble", "level": 4},
+    "legend": {"name": "Legend", "level": 5},
+}
 
 
 def load_env(path):
@@ -67,6 +82,9 @@ class App:
         self.alarm = {"active": False, "test": False}
         self.pc_alarm = {"armed": False, "next": None, "error": None}
         self.manage_pc_alarm = False  # Only the real app (not tests or demos) owns the Windows task.
+        self.act_key = secrets_lib.token_urlsafe(16)  # Guards the notification-button links.
+        self.port = 48990
+        self.notifications = False  # Only the real app shows Windows notifications.
 
     # ---- state ----
 
@@ -79,6 +97,9 @@ class App:
             "rewards": data["rewards"],
             "tiers": game.TIERS,
             "sounds": {k: v["name"] for k, v in pc_alarm.SOUNDS.items()},
+            "themes": THEMES,
+            "insights": insights.insights(data["days"], data["nights"]),
+            "recapMonths": recap.months_with_data(data["days"]),
             "spent": data["spent"][-20:],
             "stats": stats.compute(data, date.today(), now_minutes()),
             "telegram": {
@@ -128,13 +149,29 @@ class App:
         if not test and date.today().isoformat() in data["days"]:
             return self.state()  # Already up today: nothing to ring for.
         s = data["settings"]
-        self.alarm = {"active": True, "test": test}
-        log.info("alarm %s", "test" if test else "ringing")
-        threading.Thread(target=pc_alarm.set_volume, args=(s["alarmVolume"],), daemon=True).start()
-        self.ringer.start(max_minutes=0.25 if test else s["alarmMax"], sound=s["alarmSound"],
-                          ramp_seconds=min(s["alarmRamp"], 12) if test else s["alarmRamp"])
-        if test:
-            threading.Timer(15, lambda: self.stop_alarm(only_test=True)).start()
+        sunrise_seconds = (8 if test else s["sunrise"] * 60) if s["sunrise"] else 0
+        ring_at = datetime.now() + timedelta(seconds=sunrise_seconds)
+        self.alarm = {"active": True, "test": test, "phase": "sunrise" if sunrise_seconds else "ring",
+                      "ringAt": ring_at.strftime("%H:%M:%S"), "sunriseSeconds": sunrise_seconds}
+        self.alarm_generation = getattr(self, "alarm_generation", 0) + 1
+        gen = self.alarm_generation
+        log.info("alarm %s%s", "test" if test else "started", f", sunrise {sunrise_seconds}s" if sunrise_seconds else "")
+        threading.Thread(target=pc_alarm.full_brightness, daemon=True).start()
+
+        def ring():
+            if not self.alarm["active"] or self.alarm_generation != gen:
+                return  # Checked in during the sunrise, or a newer alarm took over.
+            self.alarm["phase"] = "ring"
+            threading.Thread(target=pc_alarm.set_volume, args=(s["alarmVolume"],), daemon=True).start()
+            self.ringer.start(max_minutes=0.25 if test else s["alarmMax"], sound=s["alarmSound"],
+                              ramp_seconds=min(s["alarmRamp"], 12) if test else s["alarmRamp"])
+            if test:
+                later(15, lambda: self.stop_alarm(only_test=True))
+
+        if sunrise_seconds:
+            later(sunrise_seconds, ring)
+        else:
+            ring()
         return self.state()
 
     def stop_alarm(self, only_test=False):
@@ -143,6 +180,7 @@ class App:
         if self.alarm["active"]:
             log.info("alarm stopped")
         self.alarm = {"active": False, "test": False}
+        self.alarm_generation = getattr(self, "alarm_generation", 0) + 1
         self.ringer.stop()
         return self.state()
 
@@ -165,7 +203,7 @@ class App:
         s = self.store.load()["settings"]
         try:
             if s.get("pcAlarm"):
-                ok, msg = pc_alarm.install(s["weekday"], s["weekend"], s["alarmOffset"])
+                ok, msg = pc_alarm.install(s["weekday"], s["weekend"], s["alarmOffset"], s["sunrise"])
                 self.pc_alarm = {"armed": ok, "next": pc_alarm.next_run() if ok else None, "error": None if ok else msg}
             else:
                 pc_alarm.remove()
@@ -173,6 +211,67 @@ class App:
         except Exception as e:  # Never let the alarm setup take Waky down.
             log.exception("pc alarm setup")
             self.pc_alarm = {"armed": False, "next": None, "error": str(e)}
+
+    # ---- mood ----
+
+    def set_mood(self, body):
+        mood = body.get("mood")
+        if mood not in insights.MOODS:
+            raise BadRequest("Pick tired, okay or great.")
+        data = self.store.load()
+        rec = data["days"].get(date.today().isoformat())
+        if not rec:
+            raise BadRequest("Check in first, then tell Waky how you feel.")
+        rec["mood"] = mood
+        self.store.save(data)
+        return self.state()
+
+    def month_recap(self, ym):
+        data = self.store.load()
+        if not re.match(r"^\d{4}-\d{2}$", ym or ""):
+            raise BadRequest("Use a month like 2026-10.")
+        return recap.month_recap(data, ym)
+
+    # ---- notifications ----
+
+    def window_open(self):
+        return time.time() - self.last_seen < 75  # The window refreshes every minute.
+
+    def notify(self, title, body, actions=(), sticky=False):
+        """A Windows notification, only when the Waky window isn't open (then the window shows it)."""
+        if not self.notifications or self.window_open():
+            return
+        if not self.store.load()["settings"].get("notifications", True):
+            return
+        links = [(label, f"http://127.0.0.1:{self.port}/act?do={do}&k={self.act_key}") for label, do in actions]
+        notify.show(title, body, links, sticky)
+
+    def test_notification(self, body):
+        links = [("Open Waky", f"http://127.0.0.1:{self.port}/act?do=open&k={self.act_key}")]
+        if not notify.show("✓ Waky notifications work", "Bedtime and still-up reminders will show up like this.", links):
+            raise BadRequest("Windows notifications aren't available here.")
+        return {"ok": True}
+
+    def act(self, query):
+        """A button pressed in a notification."""
+        if query.get("k") != self.act_key:
+            return "This link has expired. Open Waky instead."
+        action = query.get("do")
+        try:
+            if action == "bed":
+                with self.write_lock:
+                    self.going_to_bed({})
+                return "🌙 Going to bed: saved. Good night!"
+            if action == "stillup":
+                with self.write_lock:
+                    self.still_up({})
+                return "✓ Still up: +5 coins."
+            if action == "open":
+                open_window(f"http://127.0.0.1:{self.port}", self.store.dir)
+                return "Opening Waky…"
+        except BadRequest as e:
+            return str(e)
+        return "Unknown action."
 
     # ---- bedtime ----
 
@@ -224,6 +323,12 @@ class App:
             flags[f"{t['morning']}:remind"] = True  # A nudge at bedtime replaces a missed reminder.
             self.store.save(data)
         self.ringer.chime()
+        if t["state"] == "remind":
+            self.notify(f"🌙 Bedtime in {t['minutesLeft']} min", f"Bedtime {t['bedtime']}, alarm {t['wake']}. "
+                        "Screens off soon, phone to the desk.", [("🌙 Going to bed", "bed")], sticky=True)
+        else:
+            self.notify("🛏️ Time for bed", f"It's {t['bedtime']}. Press Going to bed, then let the PC sleep.",
+                        [("🌙 Going to bed", "bed")], sticky=True)
         token, chat_id = self.store.secrets().get("token"), data["telegram"].get("chat_id")
         if token and chat_id:
             text = (f"🌙 Bedtime in {t['minutesLeft']} min ({t['bedtime']}). Screens off soon, phone to the desk. "
@@ -265,6 +370,9 @@ class App:
             rec["stillUpPinged"] = True
             self.store.save(data)
         self.ringer.chime()
+        deadline_text = stats.from_minutes(stats.to_minutes(rec["stillUpDue"]) + rec.get("stillUpWindow", stats.STILL_UP_WINDOW))
+        self.notify("🕒 Still up?", f"Prove you didn't go back to bed. Answer before {deadline_text}: +5 coins.",
+                    [("✓ I'm up", "stillup")], sticky=True)
         token, chat_id = self.store.secrets().get("token"), data["telegram"].get("chat_id")
         if token and chat_id:
             deadline = stats.from_minutes(stats.to_minutes(rec["stillUpDue"]) + rec.get("stillUpWindow", stats.STILL_UP_WINDOW))
@@ -344,20 +452,28 @@ class App:
             s["reps"] = _int(body["reps"], s["reps"], 1, 200)
         if "sound" in body:
             s["sound"] = bool(body["sound"])
-        for key in ("pcAlarm", "stillUp", "bedtimeOn"):
+        if "theme" in body:
+            need = THEMES.get(body["theme"], {}).get("level")
+            if need is None:
+                raise BadRequest("Unknown theme.")
+            level = stats.compute(data, date.today(), now_minutes())["journey"]["level"]
+            if level < need:
+                raise BadRequest(f"That theme unlocks when you become {stats.RANKS[need]}.")
+            s["theme"] = body["theme"]
+        for key in ("pcAlarm", "stillUp", "bedtimeOn", "notifications"):
             if key in body:
                 s[key] = bool(body[key])
         if body.get("alarmSound") in pc_alarm.SOUNDS:
             s["alarmSound"] = body["alarmSound"]
         for key, lo, hi in (("alarmOffset", -15, 15), ("alarmRamp", 10, 180), ("alarmVolume", 0, 100),
                             ("alarmMax", 1, 60), ("stillUpAfter", 5, 60), ("stillUpWindow", 3, 30),
-                            ("sleepGoal", 360, 600), ("bedRemind", 0, 120)):
+                            ("sleepGoal", 360, 600), ("bedRemind", 0, 120), ("sunrise", 0, 20)):
             if key in body:
                 s[key] = _int(body[key], s[key], lo, hi)
         if "why" in body:
             s["why"] = " ".join(str(body["why"]).split())[:160]
         self.store.save(data)
-        if {"weekday", "weekend", "pcAlarm", "alarmOffset"} & set(body):
+        if {"weekday", "weekend", "pcAlarm", "alarmOffset", "sunrise"} & set(body):
             threading.Thread(target=self.sync_pc_alarm, daemon=True).start()
         return self.state()
 
@@ -378,7 +494,7 @@ class App:
         log.info("updated to %s (build %s), restarting", new["commit"], new["build"])
         self.update_info = {**self.update_info, **new, "behind": 0, "changes": []}
         if self.on_restart:
-            threading.Timer(0.5, self.on_restart).start()  # After this response has been sent.
+            later(0.5, self.on_restart)  # After this response has been sent.
         return {"updated": True, "version": new}
 
     # ---- rewards ----
@@ -553,6 +669,13 @@ def make_handler(app):
                     return self._json({"app": "waky", "commit": app.update_info.get("commit")})
                 if self.path == "/api/update":
                     return self._json(app.check_update())
+                if self.path.startswith("/api/recap"):
+                    try:
+                        return self._json(app.month_recap(self._query().get("month")))
+                    except BadRequest as e:
+                        return self._json({"error": str(e)}, 400)
+                if self.path.startswith("/act?"):
+                    return self._html(app.act(self._query()))
                 self._static()
             except Exception:
                 self._crash()
@@ -570,6 +693,8 @@ def make_handler(app):
                 "/api/alarm": app.alarm_action,
                 "/api/stillup": app.still_up,
                 "/api/bed": app.going_to_bed,
+                "/api/mood": app.set_mood,
+                "/api/notify-test": app.test_notification,
                 "/api/sleep-pc": app.sleep_pc,
             })
 
@@ -611,6 +736,20 @@ def make_handler(app):
                 self._json({"error": "Bad request"}, 400)
             except Exception:
                 self._crash()
+
+        def _query(self):
+            return {k: v[0] for k, v in parse_qs(urlparse(self.path).query).items()}
+
+        def _html(self, message):
+            raw = (f"<!doctype html><meta charset=utf-8><title>Waky</title>"
+                   f"<body style='background:#0a0a0d;color:#f4f4f6;font:600 22px system-ui;display:grid;place-items:center;height:90vh'>"
+                   f"<div>{html_escape(message)}<p style='font:400 14px system-ui;color:#8d8d99'>You can close this tab.</p></div>"
+                   f"<script>setTimeout(() => window.close(), 2500)</script>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
 
         def _crash(self):
             # One broken request must never take Waky down: log it and answer with an error.
@@ -778,6 +917,8 @@ def run_server(args, data_dir):
 
     app.on_restart = restart
     app.manage_pc_alarm = not args.data_dir  # Demo/test copies must never touch the real Windows task.
+    app.notifications = not args.data_dir
+    app.port = args.port
 
     def background():
         last_check = 0

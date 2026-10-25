@@ -60,14 +60,25 @@ class StillUpRulesTest(unittest.TestCase):
 class AppAlarmTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.old = (pc_alarm.set_volume, server.pc_alarm.Ringer)
+        self.old = (pc_alarm.set_volume, server.pc_alarm.Ringer, pc_alarm.full_brightness)
         pc_alarm.set_volume = lambda *a: None  # Never press the real volume keys in tests.
+        pc_alarm.full_brightness = lambda: None  # ...or change the real screen brightness.
         server.pc_alarm.Ringer = FakeRinger
         self.app = App(Store(self.tmp.name), background=False)
+        self.app.update_settings({"sunrise": 0})  # Ring straight away; the sunrise has its own test.
 
     def tearDown(self):
-        pc_alarm.set_volume, server.pc_alarm.Ringer = self.old
+        pc_alarm.set_volume, server.pc_alarm.Ringer, pc_alarm.full_brightness = self.old
         self.tmp.cleanup()
+
+    def test_sunrise_comes_before_the_sound(self):
+        self.app.update_settings({"sunrise": 10})
+        s = self.app.start_alarm()
+        self.assertEqual((s["alarm"]["phase"], s["alarm"]["sunriseSeconds"]), ("sunrise", 600))
+        self.assertFalse(self.app.ringer.ringing)  # Only light for now.
+        s = self.app.checkin({})  # Up during the sunrise: the sound never starts.
+        self.assertFalse(s["alarm"]["active"])
+        self.assertIn("T06:19:00", pc_alarm.task_xml("06:30", "06:30", offset=-1, sunrise=10))
 
     def test_alarm_rings_until_check_in(self):
         s = self.app.start_alarm()
