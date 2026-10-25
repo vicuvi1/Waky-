@@ -13,7 +13,9 @@ from game import DEFAULT_REWARDS, migrate_rewards
 KEEP_DAILY = 60
 
 DEFAULT_SETTINGS = {"weekday": "06:30", "weekend": "06:30", "grace": 15, "reps": 20, "sound": True, "why": "",
-                    "pcAlarm": True, "stillUp": True}
+                    "pcAlarm": True, "stillUp": True,
+                    "alarmOffset": -1, "alarmSound": "sunrise", "alarmRamp": 60, "alarmVolume": 80, "alarmMax": 20,
+                    "stillUpAfter": 20, "stillUpWindow": 10}
 
 
 class Store:

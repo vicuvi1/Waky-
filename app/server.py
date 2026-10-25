@@ -34,7 +34,6 @@ from store import Store  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = Path(__file__).resolve().parent / "static"
 IDLE_EXIT_SECONDS = 600
-STILL_UP_AFTER = 20  # Minutes after check-in.
 UPDATE_CHECK_SECONDS = 6 * 3600
 EXIT_RESTART = 3  # The child asks the supervisor to start it again (after an update).
 log = logging.getLogger("waky")
@@ -58,6 +57,8 @@ class App:
         self.last_seen = time.time()
         self.telegram_error = None
         self.send_lock = threading.Lock()
+        # Every load-change-save of the data file takes turns, so two quick changes can't overwrite each other.
+        self.write_lock = threading.RLock()
         self.update_info = {"behind": 0, "changes": [], "error": None, "checkedAt": None, **updater.version()}
         self.on_restart = None  # Set by the server: stops it so the supervisor starts the new version.
         self.started_at = time.time()
@@ -76,6 +77,7 @@ class App:
             "days": data["days"],
             "rewards": data["rewards"],
             "tiers": game.TIERS,
+            "sounds": {k: v["name"] for k, v in pc_alarm.SOUNDS.items()},
             "spent": data["spent"][-20:],
             "stats": stats.compute(data, date.today(), now_minutes()),
             "telegram": {
@@ -110,7 +112,8 @@ class App:
             }
             self.apply_power_ups(data, now.date(), rec)
             if data["settings"].get("stillUp"):
-                rec["stillUpDue"] = (now + timedelta(minutes=STILL_UP_AFTER)).strftime("%H:%M")
+                rec["stillUpDue"] = (now + timedelta(minutes=data["settings"]["stillUpAfter"])).strftime("%H:%M")
+                rec["stillUpWindow"] = data["settings"]["stillUpWindow"]
             data["days"][key] = rec
             self.store.save(data)
             self.send_soon()
@@ -123,10 +126,12 @@ class App:
         data = self.store.load()
         if not test and date.today().isoformat() in data["days"]:
             return self.state()  # Already up today: nothing to ring for.
+        s = data["settings"]
         self.alarm = {"active": True, "test": test}
         log.info("alarm %s", "test" if test else "ringing")
-        threading.Thread(target=pc_alarm.volume_up, daemon=True).start()
-        self.ringer.start(max_minutes=0.25 if test else 20)
+        threading.Thread(target=pc_alarm.set_volume, args=(s["alarmVolume"],), daemon=True).start()
+        self.ringer.start(max_minutes=0.25 if test else s["alarmMax"], sound=s["alarmSound"],
+                          ramp_seconds=min(s["alarmRamp"], 12) if test else s["alarmRamp"])
         if test:
             threading.Timer(15, lambda: self.stop_alarm(only_test=True)).start()
         return self.state()
@@ -159,7 +164,7 @@ class App:
         s = self.store.load()["settings"]
         try:
             if s.get("pcAlarm"):
-                ok, msg = pc_alarm.install(s["weekday"], s["weekend"])
+                ok, msg = pc_alarm.install(s["weekday"], s["weekend"], s["alarmOffset"])
                 self.pc_alarm = {"armed": ok, "next": pc_alarm.next_run() if ok else None, "error": None if ok else msg}
             else:
                 pc_alarm.remove()
@@ -191,12 +196,17 @@ class App:
             return
         if stats.still_up_state(rec, date.today(), date.today(), now_minutes()) != "open":
             return
-        rec["stillUpPinged"] = True
-        self.store.save(data)
+        with self.write_lock:
+            data = self.store.load()
+            rec = data["days"][date.today().isoformat()]
+            if rec.get("stillUpPinged"):
+                return
+            rec["stillUpPinged"] = True
+            self.store.save(data)
         self.ringer.chime()
         token, chat_id = self.store.secrets().get("token"), data["telegram"].get("chat_id")
         if token and chat_id:
-            deadline = stats.from_minutes(stats.to_minutes(rec["stillUpDue"]) + stats.STILL_UP_WINDOW)
+            deadline = stats.from_minutes(stats.to_minutes(rec["stillUpDue"]) + rec.get("stillUpWindow", stats.STILL_UP_WINDOW))
             try:
                 telegram.call(token, "sendMessage", chat_id=chat_id,
                               text=f"🕒 Still up? Go to your PC and press Still up before {deadline}. +5 coins, or half coins if you miss it.")
@@ -276,10 +286,16 @@ class App:
         for key in ("pcAlarm", "stillUp"):
             if key in body:
                 s[key] = bool(body[key])
+        if body.get("alarmSound") in pc_alarm.SOUNDS:
+            s["alarmSound"] = body["alarmSound"]
+        for key, lo, hi in (("alarmOffset", -15, 15), ("alarmRamp", 10, 180), ("alarmVolume", 0, 100),
+                            ("alarmMax", 1, 60), ("stillUpAfter", 5, 60), ("stillUpWindow", 3, 30)):
+            if key in body:
+                s[key] = _int(body[key], s[key], lo, hi)
         if "why" in body:
             s["why"] = " ".join(str(body["why"]).split())[:160]
         self.store.save(data)
-        if {"weekday", "weekend", "pcAlarm"} & set(body):
+        if {"weekday", "weekend", "pcAlarm", "alarmOffset"} & set(body):
             threading.Thread(target=self.sync_pc_alarm, daemon=True).start()
         return self.state()
 
@@ -404,10 +420,11 @@ class App:
             except telegram.TelegramError as e:
                 self.telegram_error = str(e)
                 return
-            data = self.store.load()
-            data["days"][today.isoformat()]["sent"] = True
-            data["telegram"]["pin"] = pin
-            self.store.save(data)
+            with self.write_lock:
+                data = self.store.load()
+                data["days"][today.isoformat()]["sent"] = True
+                data["telegram"]["pin"] = pin
+                self.store.save(data)
             self.telegram_error = None
 
 
@@ -492,7 +509,8 @@ def make_handler(app):
         def do_DELETE(self):
             app.last_seen = time.time()
             try:
-                self._delete()
+                with app.write_lock:
+                    self._delete()
             except Exception:
                 self._crash()
 
@@ -515,7 +533,9 @@ def make_handler(app):
             length = int(self.headers.get("Content-Length") or 0)
             try:
                 body = json.loads(self.rfile.read(length) or b"{}")
-                self._json(fn(body))
+                with app.write_lock:
+                    result = fn(body)
+                self._json(result)
             except BadRequest as e:
                 self._json({"error": str(e)}, 400)
             except json.JSONDecodeError:

@@ -154,66 +154,73 @@
 
     <!-- SETTINGS -->
     <section class="view" id="view-settings">
-      <div class="grid-2">
-        <div class="card">
-          <h2>Wake-up</h2>
+      <div class="settings-cols">
+        <div class="card set-card">
+          <h2>⏰ Wake-up</h2>
           <div class="form">
-            <label>Weekdays<input type="time" id="s-weekday"></label>
-            <label>Weekends<input type="time" id="s-weekend"></label>
+            <div class="row-2">
+              <label>Weekdays<input type="time" id="s-weekday"></label>
+              <label>Weekends<input type="time" id="s-weekend"></label>
+            </div>
             <label>Counts as on time if you check in within
               <span class="inline"><input type="number" id="s-grace" min="0" max="120"> minutes</span></label>
-            <label>Push-ups (when you use the camera)
-              <span class="stepper"><button data-step="-5">−</button><input type="number" id="s-reps" min="1" max="200"><button data-step="5">+</button></span></label>
-            <label class="switch-row">Sounds<input type="checkbox" id="s-sound" class="switch"></label>
+            <label class="switch-row">Sounds in the app<input type="checkbox" id="s-sound" class="switch"></label>
           </div>
-          <p class="muted small">Your phone's alarm wakes you. Charge the phone at your desk so you have to get up to turn it off, then check in here.</p>
+          <p class="muted small">Your phone's alarm wakes you. Charge it at your desk so you have to get up to turn it off.</p>
         </div>
 
-        <div class="card why-card">
-          <h2>Your why</h2>
+        <div class="card set-card">
+          <div class="card-head"><h2>🔔 PC alarm</h2><input type="checkbox" id="s-pcalarm" class="switch" aria-label="PC alarm on"></div>
+          <p class="muted small">Windows wakes the PC (asleep, not shut down) and Waky rings, getting louder, until you press I'M UP.</p>
+          <div class="form" id="pcalarm-form">
+            <label>Rings<span class="inline"><select id="s-alarmOffset"><option value="-15">15 min before</option><option value="-10">10 min before</option><option value="-5">5 min before</option><option value="-2">2 min before</option><option value="-1">1 min before</option><option value="0">Right at</option><option value="2">2 min after</option><option value="5">5 min after</option><option value="10">10 min after</option><option value="15">15 min after</option></select> your wake-up time</span></label>
+            <label>Sound<select id="s-alarmSound"></select></label>
+            <div class="row-2">
+              <label>Gets louder over<select id="s-alarmRamp"><option value="10">10 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="90">1.5 minutes</option><option value="120">2 minutes</option><option value="180">3 minutes</option></select></label>
+              <label>Set PC volume to<select id="s-alarmVolume"><option value="0">Don't change it</option><option value="40">40%</option><option value="60">60%</option><option value="80">80%</option><option value="100">100%</option></select></label>
+            </div>
+            <label>Stops by itself after<select id="s-alarmMax"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
+          </div>
+          <p class="small" id="pcalarm-status"></p>
+          <button class="btn ghost" id="alarm-test">▶ Test the alarm (15 s)</button>
+        </div>
+
+        <div class="card set-card">
+          <div class="card-head"><h2>🕒 Still-up check</h2><input type="checkbox" id="s-stillup" class="switch" aria-label="Still-up check on"></div>
+          <p class="muted small" id="stillup-desc"></p>
+          <div class="form row-2" id="stillup-form">
+            <label>Ask after check-in<select id="s-stillUpAfter"><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="25">25 minutes</option><option value="30">30 minutes</option><option value="40">40 minutes</option><option value="60">1 hour</option></select></label>
+            <label>Time to answer<select id="s-stillUpWindow"><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></label>
+          </div>
+        </div>
+
+        <div class="card set-card why-card">
+          <h2>✍️ Your why</h2>
           <p class="why-preview" id="why-preview"></p>
           <button class="btn ghost small" id="why-edit-settings">Edit</button>
         </div>
 
-        <div class="card">
-          <h2>Telegram</h2>
+        <div class="card set-card">
+          <h2>✈️ Telegram</h2>
           <div id="tg-box"></div>
         </div>
-      </div>
 
-      <div class="grid-2">
-        <div class="card">
-          <h2>PC alarm</h2>
-          <p class="muted small">Windows wakes your PC at your wake-up time and Waky rings, getting louder, until you press I'M UP. Works when the PC is asleep, not shut down.</p>
-          <div class="form">
-            <label class="switch-row">Wake the PC and ring<input type="checkbox" id="s-pcalarm" class="switch"></label>
-          </div>
-          <p class="small" id="pcalarm-status"></p>
-          <button class="btn ghost" id="alarm-test">Test the alarm (15 s)</button>
-        </div>
-        <div class="card">
-          <h2>Still-up check</h2>
-          <p class="muted small">20 minutes after you check in, Waky chimes and asks if you're still up. Answer at the PC within 10 minutes: +5 coins. Miss it: that morning pays half.</p>
-          <div class="form">
-            <label class="switch-row">Ask if I'm still up<input type="checkbox" id="s-stillup" class="switch"></label>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Camera (optional)</h2>
-        <p class="muted">Want proof? Check in with push-ups instead of the button. Put the camera so it sees you <b>from the side</b>, whole body, on the floor. A laptop on a chair works well.</p>
-        <button class="btn ghost" id="cam-test">Test the camera</button>
-      </div>
-
-      <div class="grid-2">
-        <div class="card update-card">
-          <div class="card-head"><h2>Updates</h2><span class="muted small" id="u-version"></span></div>
+        <div class="card set-card update-card">
+          <div class="card-head"><h2>⬆️ Updates</h2><span class="muted small" id="u-version"></span></div>
           <div id="u-box"></div>
         </div>
-        <div class="card">
-          <h2>Health</h2>
+
+        <div class="card set-card">
+          <h2>💚 Health</h2>
           <ul class="health" id="health"></ul>
+        </div>
+
+        <div class="card set-card">
+          <h2>📷 Camera (optional)</h2>
+          <p class="muted small">Check in with push-ups instead of the button. The camera has to see you from the side, whole body, on the floor.</p>
+          <label class="inline-label">Push-ups
+            <span class="stepper"><button data-step="-5">−</button><input type="number" id="s-reps" min="1" max="200"><button data-step="5">+</button></span></label>
+          <button class="btn ghost" id="cam-test">Test the camera</button>
         </div>
       </div>
 

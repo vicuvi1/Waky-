@@ -755,3 +755,18 @@ body::before {
 .su-done { color: var(--ontime); }
 .su-missed { color: var(--late); }
 .ok-text { color: var(--ontime); font-weight: 600; }
+
+/* ---------- settings: cards pack into two columns without gaps ---------- */
+.settings-cols { columns: 2 420px; column-gap: 18px; }
+.settings-cols > .card { break-inside: avoid; margin: 0 0 18px; display: block; width: 100%; }
+.set-card h2 { font-size: 16px; }
+.set-card .card-head { margin-bottom: 6px; }
+.set-card .form { margin-top: 12px; }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form select { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); font-size: 15px; color-scheme: dark; }
+.form select:focus { outline: none; border-color: var(--sun); }
+.form .inline select { width: auto; }
+.form.off, .form.row-2.off { opacity: .4; pointer-events: none; }
+#pcalarm-status { margin: 14px 0 12px; }
+.inline-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; font-weight: 500; margin: 12px 0; }
+.data-note { margin-top: 4px; }
