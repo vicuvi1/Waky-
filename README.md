@@ -18,7 +18,12 @@ you are. If you haven't checked in by your wake-up time, a Telegram bot nags you
 4. **Journey.** A timeline of levels (Waking up → Adjusting → Body clock locked in → The habit → Identity),
    each day explaining what's changing in your body and brain. It counts good mornings in total, so a bad
    day pauses it but never sends you back.
-5. **No check-in?** At your target + 15 minutes, the nag bot messages you on Telegram, up to three times.
+5. **PC alarm.** A Windows task wakes the PC (from sleep, not shutdown) a minute before your target; Waky
+   opens full screen and rings, getting louder, until you press I'M UP. The sound is played by Waky itself
+   and it turns the volume up first. Turn it off or test it in Settings.
+6. **Still-up check.** 20 minutes after you check in, Waky chimes (and nudges you on Telegram) and asks if
+   you're still up. Answer at the PC within 10 minutes for +5 coins; miss it and that morning pays half.
+7. **No check-in?** At your target + 15 minutes, the nag bot messages you on Telegram, up to three times.
 
 A day is **on time** if you check in within the grace window (default 15 minutes) after your
 target. The streak counts on-time days in a row.

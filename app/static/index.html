@@ -181,6 +181,25 @@
         </div>
       </div>
 
+      <div class="grid-2">
+        <div class="card">
+          <h2>PC alarm</h2>
+          <p class="muted small">Windows wakes your PC at your wake-up time and Waky rings, getting louder, until you press I'M UP. Works when the PC is asleep, not shut down.</p>
+          <div class="form">
+            <label class="switch-row">Wake the PC and ring<input type="checkbox" id="s-pcalarm" class="switch"></label>
+          </div>
+          <p class="small" id="pcalarm-status"></p>
+          <button class="btn ghost" id="alarm-test">Test the alarm (15 s)</button>
+        </div>
+        <div class="card">
+          <h2>Still-up check</h2>
+          <p class="muted small">20 minutes after you check in, Waky chimes and asks if you're still up. Answer at the PC within 10 minutes: +5 coins. Miss it: that morning pays half.</p>
+          <div class="form">
+            <label class="switch-row">Ask if I'm still up<input type="checkbox" id="s-stillup" class="switch"></label>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <h2>Camera (optional)</h2>
         <p class="muted">Want proof? Check in with push-ups instead of the button. Put the camera so it sees you <b>from the side</b>, whole body, on the floor. A laptop on a chair works well.</p>
@@ -297,6 +316,30 @@
     <div class="co-stage">
       <div class="co-chest" id="co-chest"></div>
       <div class="co-prize" id="co-prize" hidden></div>
+    </div>
+  </div>
+
+  <div class="alarm" id="alarm" hidden>
+    <div class="alarm-sky"></div>
+    <div class="alarm-sun-bg"></div>
+    <div class="alarm-content">
+      <div class="alarm-label" id="alarm-label">Time to get up</div>
+      <div class="alarm-clock" id="alarm-clock">06:30</div>
+      <p class="alarm-why" id="alarm-why"></p>
+      <button class="wake-btn alarm-btn" id="alarm-up" aria-label="I'm up">
+        <span class="rays"></span>
+        <span class="sun"><b>I'M UP</b><small>stop the alarm</small></span>
+      </button>
+      <button class="btn ghost" id="alarm-stop-test" hidden>Stop the test</button>
+    </div>
+  </div>
+
+  <div class="stillup" id="stillup" hidden>
+    <div class="stillup-card">
+      <div class="su-icon">🕒</div>
+      <h1>Still up?</h1>
+      <p class="muted">Prove you didn't go back to bed. <b id="su-left"></b></p>
+      <button class="btn primary big-tap" id="su-yes">Yes, I'm up (+5 coins)</button>
     </div>
   </div>
 
