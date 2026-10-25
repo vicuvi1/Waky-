@@ -70,6 +70,7 @@ class App:
             },
             "dataDir": str(self.store.dir),
             "backupDir": str(self.store.backup_dir) if self.store.backup_dir else None,
+            "backupOk": self.store.backup(),
         }
 
     # ---- days ----
@@ -402,8 +403,9 @@ def main():
         while True:
             time.sleep(60)
             app.send_checkin()  # Retry if Telegram was unreachable at check-in time.
+            backed_up = app.store.backup()  # Catch up if Google Drive started after Waky.
             idle = time.time() - app.last_seen > IDLE_EXIT_SECONDS
-            if not args.stay and idle and not app.telegram_error:
+            if not args.stay and idle and not app.telegram_error and backed_up:
                 server.shutdown()
                 return
 

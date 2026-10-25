@@ -398,7 +398,8 @@ function renderSettings() {
       if ($("tg-connect")) { $("tg-connect").disabled = false; $("tg-connect").textContent = "Connect"; }
     };
   }
-  $("data-note").textContent = `Data: ${state.dataDir}` + (state.backupDir ? ` · Backup copy: ${state.backupDir}` : "");
+  $("data-note").textContent = `Data: ${state.dataDir}` + (state.backupDir
+    ? ` · Backup: ${state.backupDir} ${state.backupOk ? "✓ up to date" : "· waiting for the drive, retrying every minute"}` : "");
 }
 
 // ---------- check-in ----------
