@@ -6,6 +6,8 @@ UI on 127.0.0.1, keeps your days in data/waky.json and posts check-ins to Telegr
 
 import argparse
 import json
+import logging
+import logging.handlers
 import mimetypes
 import os
 import re
@@ -24,11 +26,15 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import stats  # noqa: E402
 import telegram  # noqa: E402
+import updater  # noqa: E402
 from store import Store  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = Path(__file__).resolve().parent / "static"
 IDLE_EXIT_SECONDS = 600
+UPDATE_CHECK_SECONDS = 6 * 3600
+EXIT_RESTART = 3  # The child asks the supervisor to start it again (after an update).
+log = logging.getLogger("waky")
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
@@ -49,6 +55,9 @@ class App:
         self.last_seen = time.time()
         self.telegram_error = None
         self.send_lock = threading.Lock()
+        self.update_info = {"behind": 0, "changes": [], "error": None, "checkedAt": None, **updater.version()}
+        self.on_restart = None  # Set by the server: stops it so the supervisor starts the new version.
+        self.started_at = time.time()
 
     # ---- state ----
 
@@ -71,6 +80,8 @@ class App:
             "dataDir": str(self.store.dir),
             "backupDir": str(self.store.backup_dir) if self.store.backup_dir else None,
             "backupOk": self.store.backup(),
+            "update": self.update_info,
+            "uptime": int(time.time() - self.started_at),
         }
 
     # ---- days ----
@@ -137,6 +148,26 @@ class App:
             s["why"] = " ".join(str(body["why"]).split())[:160]
         self.store.save(data)
         return self.state()
+
+    # ---- updates ----
+
+    def check_update(self):
+        self.update_info = updater.check()
+        if self.update_info["error"]:
+            log.warning("update check: %s", self.update_info["error"])
+        return self.update_info
+
+    def install_update(self, body):
+        try:
+            new = updater.apply()
+        except updater.UpdateError as e:
+            log.warning("update failed: %s", e)
+            raise BadRequest(str(e))
+        log.info("updated to %s (build %s), restarting", new["commit"], new["build"])
+        self.update_info = {**self.update_info, **new, "behind": 0, "changes": []}
+        if self.on_restart:
+            threading.Timer(0.5, self.on_restart).start()  # After this response has been sent.
+        return {"updated": True, "version": new}
 
     # ---- rewards ----
 
@@ -277,11 +308,16 @@ def make_handler(app):
 
         def do_GET(self):
             app.last_seen = time.time()
-            if self.path == "/api/state":
-                return self._json(app.state())
-            if self.path == "/api/ping":
-                return self._json({"app": "waky"})
-            self._static()
+            try:
+                if self.path == "/api/state":
+                    return self._json(app.state())
+                if self.path == "/api/ping":
+                    return self._json({"app": "waky", "commit": app.update_info.get("commit")})
+                if self.path == "/api/update":
+                    return self._json(app.check_update())
+                self._static()
+            except Exception:
+                self._crash()
 
         def do_POST(self):
             self._route({
@@ -291,10 +327,17 @@ def make_handler(app):
                 "/api/settings": app.update_settings,
                 "/api/rewards": app.add_reward,
                 "/api/redeem": app.redeem,
+                "/api/update": app.install_update,
             })
 
         def do_DELETE(self):
             app.last_seen = time.time()
+            try:
+                self._delete()
+            except Exception:
+                self._crash()
+
+        def _delete(self):
             if self.path.startswith("/api/days/"):
                 return self._json(app.delete_day(self.path.rsplit("/", 1)[1]))
             if self.path == "/api/telegram":
@@ -318,6 +361,16 @@ def make_handler(app):
                 self._json({"error": str(e)}, 400)
             except json.JSONDecodeError:
                 self._json({"error": "Bad request"}, 400)
+            except Exception:
+                self._crash()
+
+        def _crash(self):
+            # One broken request must never take Waky down: log it and answer with an error.
+            log.exception("error handling %s %s", self.command, self.path)
+            try:
+                self._json({"error": "Something went wrong. It's been written to data/waky.log."}, 500)
+            except OSError:
+                pass
 
         def _json(self, payload, code=200):
             raw = json.dumps(payload).encode()
@@ -379,28 +432,92 @@ def already_running(url):
         return False
 
 
-def main():
+def setup_logging(data_dir):
+    Path(data_dir).mkdir(parents=True, exist_ok=True)
+    handler = logging.handlers.RotatingFileHandler(Path(data_dir) / "waky.log", maxBytes=512_000, backupCount=3,
+                                                   encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    root = logging.getLogger()
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+    # pythonw has no console: send stray prints and tracebacks to the log instead of nowhere.
+    if sys.stderr is None:
+        sys.stderr = sys.stdout = open(Path(data_dir) / "waky-console.log", "a", encoding="utf-8", buffering=1)
+
+
+def parse_args():
     load_env(ROOT / ".env")
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=int(os.environ.get("WAKY_PORT", 48990)))
     parser.add_argument("--no-window", action="store_true", help="Don't open the app window (for development).")
     parser.add_argument("--stay", action="store_true", help="Keep running even when the window is closed.")
     parser.add_argument("--data-dir", help="Use another data folder (e.g. for a demo).")
-    args = parser.parse_args()
+    parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
+    return parser.parse_args()
 
+
+def main():
+    args = parse_args()
     url = f"http://127.0.0.1:{args.port}"
     data_dir = args.data_dir or os.environ.get("WAKY_DATA_DIR") or ROOT / "data"
+    setup_logging(data_dir)
+    if args.child:
+        return run_server(args, data_dir)
     if already_running(url):
         if not args.no_window:
             open_window(url, data_dir)
         return
+    supervise(args, url, data_dir)
 
+
+def supervise(args, url, data_dir):
+    """Keep the server alive: restart it after an update, or if it ever crashes."""
+    child_args = [sys.executable, str(Path(__file__).resolve()), "--child", "--port", str(args.port)]
+    child_args += ["--stay"] * args.stay + (["--data-dir", str(args.data_dir)] if args.data_dir else [])
+    window_opened = args.no_window
+    crashes = []
+    while True:
+        proc = subprocess.Popen(child_args, cwd=ROOT, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if not window_opened:
+            for _ in range(50):  # Wait up to ~10 s for the server to answer, then open the window once.
+                if already_running(url) or proc.poll() is not None:
+                    break
+                time.sleep(0.2)
+            open_window(url, data_dir)
+            window_opened = True
+        code = proc.wait()
+        if code == 0:
+            log.info("server stopped normally")
+            return
+        if code == EXIT_RESTART:
+            log.info("restarting after update")
+            continue
+        crashes = [t for t in crashes if time.time() - t < 3600] + [time.time()]
+        log.error("server crashed (exit %s), restart %d this hour", code, len(crashes))
+        if len(crashes) > 10:
+            log.error("too many crashes, giving up until Waky is opened again")
+            return
+        time.sleep(min(30, 2 ** len(crashes)))
+
+
+def run_server(args, data_dir):
     backup = None if args.data_dir else os.environ.get("WAKY_BACKUP_DIR")
     app = App(Store(data_dir, backup or None))
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(app))
+    exit_code = {"value": 0}
+
+    def restart():
+        exit_code["value"] = EXIT_RESTART
+        server.shutdown()
+
+    app.on_restart = restart
 
     def background():
+        last_check = 0
         while True:
+            if time.time() - last_check > UPDATE_CHECK_SECONDS:
+                last_check = time.time()
+                app.check_update()
             time.sleep(60)
             app.send_checkin()  # Retry if Telegram was unreachable at check-in time.
             backed_up = app.store.backup()  # Catch up if Google Drive started after Waky.
@@ -410,9 +527,10 @@ def main():
                 return
 
     threading.Thread(target=background, daemon=True).start()
-    if not args.no_window:
-        open_window(url, data_dir)
+    log.info("Waky started, version %s (build %s)", app.update_info.get("commit"), app.update_info.get("build"))
     server.serve_forever()
+    server.server_close()
+    sys.exit(exit_code["value"])
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@
       <button class="tab" data-view="journey">Journey</button>
       <button class="tab" data-view="rewards">Rewards</button>
       <button class="tab" data-view="progress">Progress</button>
-      <button class="tab" data-view="settings">Settings</button>
+      <button class="tab" data-view="settings">Settings<i class="tab-dot" id="update-dot" hidden></i></button>
     </nav>
     <div class="clock" id="clock">--:--</div>
   </header>
@@ -176,6 +176,17 @@
         <button class="btn ghost" id="cam-test">Test the camera</button>
       </div>
 
+      <div class="grid-2">
+        <div class="card update-card">
+          <div class="card-head"><h2>Updates</h2><span class="muted small" id="u-version"></span></div>
+          <div id="u-box"></div>
+        </div>
+        <div class="card">
+          <h2>Health</h2>
+          <ul class="health" id="health"></ul>
+        </div>
+      </div>
+
       <p class="muted small data-note" id="data-note"></p>
     </section>
   </main>
@@ -267,6 +278,8 @@
       </div>
     </form>
   </dialog>
+
+  <div class="offline" id="offline" hidden>Reconnecting to Waky…</div>
 
   <div class="toast" id="toast" hidden></div>
 
