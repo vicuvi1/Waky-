@@ -77,33 +77,44 @@
 
     <!-- REWARDS -->
     <section class="view" id="view-rewards">
-      <div class="grid-2 top">
-        <div class="card balance-card">
-          <div class="label">Your coins</div>
-          <div class="balance"><span id="r-balance">0</span> 🪙</div>
-          <p class="muted small" id="r-earned"></p>
+      <div class="treasury card reveal" id="treasury"></div>
+
+      <div class="card chests-card reveal">
+        <div class="card-head"><h2>Chests</h2><span class="muted small">Earned with good mornings. Open them to see what's inside.</span></div>
+        <div class="chests" id="chests"></div>
+      </div>
+
+      <div id="shop-tiers"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h2>Add your own reward</h2>
+          <form class="add-reward" id="add-reward">
+            <input id="nr-emoji" value="🎁" maxlength="4" aria-label="Emoji">
+            <input id="nr-name" placeholder="e.g. Sushi night" required>
+            <select id="nr-tier" aria-label="Tier">
+              <option value="bronze">Bronze</option><option value="silver">Silver</option>
+              <option value="gold">Gold</option><option value="legendary">Legendary</option>
+            </select>
+            <input id="nr-cost" type="number" min="1" value="200" aria-label="Cost">
+            <button class="btn primary small">Add</button>
+          </form>
+          <p class="muted small">Bigger rewards belong in higher tiers: they unlock as your rank grows.</p>
         </div>
         <div class="card">
-          <div class="label">How you earn</div>
+          <h2>How the game works</h2>
           <ul class="earn">
-            <li><b>+10</b> up on time</li>
-            <li><b>+15</b> up before your target</li>
-            <li><b>+5</b> bonus every 7 days in a row</li>
-            <li><b>+20</b> when you reach a new level</li>
+            <li><b>+10</b> coins when you're up on time, <b>+15</b> before your target</li>
+            <li><b>+5</b> every 7 days in a row, <b>+20</b> for a new rank</li>
+            <li><b>🎁</b> a chest for every new journey day, every 7-day run and every new rank</li>
+            <li><b>🛡️</b> Streak Shield: saves your streak if you miss one day</li>
+            <li><b>⚡</b> Double Coins: your next on-time morning pays double</li>
+            <li><b>🎟️</b> Voucher: one reward of that tier, free</li>
             <li class="muted">Late mornings earn nothing, but never cost coins.</li>
           </ul>
         </div>
       </div>
-      <div class="card">
-        <div class="card-head"><h2>Reward shop</h2><span class="muted small">You set the rewards and prices</span></div>
-        <div class="shop" id="shop"></div>
-        <form class="add-reward" id="add-reward">
-          <input id="nr-emoji" value="🎁" maxlength="4" aria-label="Emoji">
-          <input id="nr-name" placeholder="New reward, e.g. Sushi night" required>
-          <input id="nr-cost" type="number" min="1" value="50" aria-label="Cost">
-          <button class="btn primary small">Add</button>
-        </form>
-      </div>
+
       <div class="card spent-card">
         <div class="card-head"><h2>Recently claimed</h2></div>
         <div class="history" id="spent"></div>
@@ -226,9 +237,11 @@
         <div class="done-stat"><span id="done-streak">1</span><small id="done-streak-label">day streak</small></div>
       </div>
       <div class="milestone-hit" id="done-milestone" hidden></div>
+      <div class="done-extras" id="done-extras"></div>
       <p class="muted small" id="done-goal"></p>
       <blockquote class="done-quote" id="done-quote"></blockquote>
       <p class="water">Now go drink a glass of water. 💧</p>
+      <button class="btn primary" id="done-open" hidden>🎁 Open your chest</button>
       <button class="btn primary" id="done-close">Done</button>
     </div>
   </div>
@@ -278,6 +291,14 @@
       </div>
     </form>
   </dialog>
+
+  <div class="chest-open" id="chest-open" hidden>
+    <canvas id="chest-confetti"></canvas>
+    <div class="co-stage">
+      <div class="co-chest" id="co-chest"></div>
+      <div class="co-prize" id="co-prize" hidden></div>
+    </div>
+  </div>
 
   <div class="offline" id="offline" hidden>Reconnecting to Waky…</div>
 

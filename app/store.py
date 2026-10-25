@@ -8,7 +8,7 @@ import time
 from datetime import date
 from pathlib import Path
 
-from stats import DEFAULT_REWARDS
+from game import DEFAULT_REWARDS, migrate_rewards
 
 KEEP_DAILY = 60
 
@@ -36,8 +36,10 @@ class Store:
             data["settings"] = {**DEFAULT_SETTINGS, **data.get("settings", {})}
             data.setdefault("days", {})
             data.setdefault("telegram", {})
-            data.setdefault("rewards", [dict(r) for r in DEFAULT_REWARDS])
+            data["rewards"] = migrate_rewards(data.get("rewards", [dict(r) for r in DEFAULT_REWARDS]))
             data.setdefault("spent", [])
+            data.setdefault("opened", {})  # chest id -> {"prize", "openedOn"}
+            data.setdefault("shielded", [])  # missed days saved by a Streak Shield
             return data
 
     def save(self, data):

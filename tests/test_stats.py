@@ -167,7 +167,8 @@ class AppTest(unittest.TestCase):
 
     def test_rewards_and_redeem(self):
         s = self.app.state()
-        self.assertEqual(len(s["rewards"]), 4)  # Defaults for a new user.
+        self.assertEqual(len(s["rewards"]), 7)  # Starter rewards for a new user, across 4 tiers.
+        self.assertEqual({r["tier"] for r in s["rewards"]}, {"bronze", "silver", "gold", "legendary"})
         s = self.app.add_reward({"emoji": "🍣", "name": "Sushi", "cost": 5})
         sushi = next(r for r in s["rewards"] if r["name"] == "Sushi")
         with self.assertRaises(BadRequest):

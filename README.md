@@ -10,8 +10,11 @@ you are. If you haven't checked in by your wake-up time, a Telegram bot nags you
 
 1. **Phone alarm rings.** Charge the phone at your desk, so you have to get up to turn it off.
 2. **Press "I'm up"** in Waky at the desk. (Optional: check in with push-ups counted by the webcam instead.)
-3. **Coins.** +10 for on time, +15 for before your target, +5 every 7 days in a row, +20 for a new level.
-   Late mornings earn nothing but never cost coins. Spend them in the reward shop on rewards you set yourself.
+3. **Coins and chests.** +10 for on time, +15 for before your target, +5 every 7 days in a row, +20 for a
+   new rank. Late mornings earn nothing but never cost coins. You also earn loot chests (every new journey
+   day, every 7-day run, every new rank) with random prizes: coins, a Streak Shield (saves your streak if
+   you miss a day), Double Coins, or a Voucher (one reward free). Rewards come in four tiers (Bronze,
+   Silver, Gold, Legendary) that unlock as your rank grows.
 4. **Journey.** A timeline of levels (Waking up → Adjusting → Body clock locked in → The habit → Identity),
    each day explaining what's changing in your body and brain. It counts good mornings in total, so a bad
    day pauses it but never sends you back.
