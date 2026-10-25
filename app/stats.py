@@ -119,6 +119,25 @@ COINS_ON_TIME = 10
 COINS_EARLY = 15  # Checked in before the target time.
 COINS_WEEK_BONUS = 5  # Every 7th on-time day in a row.
 COINS_LEVEL_BONUS = 20  # Reaching a new level.
+COINS_STILL_UP = 5  # Answering the "still up?" check.
+STILL_UP_WINDOW = 10  # Minutes you have to answer it.
+
+
+def still_up_state(rec, day, today, now_min):
+    """'none' (no check that day), 'waiting', 'open', 'done' or 'missed'."""
+    due = rec.get("stillUpDue")
+    if not due:
+        return "none"
+    if rec.get("stillUp"):
+        return "done"
+    if day < today:
+        return "missed"
+    if now_min is None:
+        return "waiting"
+    due_min = to_minutes(due)
+    if now_min < due_min:
+        return "waiting"
+    return "open" if now_min <= due_min + STILL_UP_WINDOW else "missed"
 
 DEFAULT_REWARDS = game.DEFAULT_REWARDS
 
@@ -169,7 +188,7 @@ def best_streak(days, grace, shielded=()):
     return best
 
 
-def coins_by_day(days, grace, shielded=()):
+def coins_by_day(days, grace, shielded=(), today=None, now_min=None):
     """Coins earned on each on-time day: {date: (coins, reasons)}."""
     out = {}
     good_total = run = 0
@@ -191,6 +210,13 @@ def coins_by_day(days, grace, shielded=()):
         if rec.get("boost"):
             coins *= 2
             reasons.append("double coins")
+        check = still_up_state(rec, d, today or d, now_min)
+        if check == "done":
+            coins += COINS_STILL_UP
+            reasons.append("still up")
+        elif check == "missed":
+            coins //= 2
+            reasons.append("missed the still-up check (half)")
         out[d.isoformat()] = (coins, reasons)
     return out
 
@@ -240,7 +266,7 @@ def _day_status(record, d, grace, today, first_day):
     return "pending" if d == today else "missed"
 
 
-def compute(data, today):
+def compute(data, today, now_min=None):
     settings, days = data["settings"], data["days"]
     grace = settings["grace"]
     first_day = min((date.fromisoformat(d) for d in days), default=None)
@@ -281,7 +307,7 @@ def compute(data, today):
             "ontime": bool(rec and is_on_time(rec, grace)),
         })
 
-    coins = coins_by_day(days, grace, shielded)
+    coins = coins_by_day(days, grace, shielded, today, now_min)
     good_total = len(coins)
     j = journey(good_total)
 
@@ -334,6 +360,12 @@ def compute(data, today):
             "coins": coins.get(today.isoformat(), (0, []))[0],
             "coinReasons": coins.get(today.isoformat(), (0, []))[1],
             "quote": quote_for(today),
+            "stillUp": {
+                "state": still_up_state(today_rec, today, today, now_min) if today_rec else "none",
+                "due": today_rec.get("stillUpDue") if today_rec else None,
+                "deadline": from_minutes(to_minutes(today_rec["stillUpDue"]) + STILL_UP_WINDOW)
+                if today_rec and today_rec.get("stillUpDue") else None,
+            },
         },
         "streak": streak,
         "best": best,

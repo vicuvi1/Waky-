@@ -25,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import game  # noqa: E402
+import pc_alarm  # noqa: E402
 import stats  # noqa: E402
 import telegram  # noqa: E402
 import updater  # noqa: E402
@@ -33,6 +34,7 @@ from store import Store  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = Path(__file__).resolve().parent / "static"
 IDLE_EXIT_SECONDS = 600
+STILL_UP_AFTER = 20  # Minutes after check-in.
 UPDATE_CHECK_SECONDS = 6 * 3600
 EXIT_RESTART = 3  # The child asks the supervisor to start it again (after an update).
 log = logging.getLogger("waky")
@@ -59,6 +61,10 @@ class App:
         self.update_info = {"behind": 0, "changes": [], "error": None, "checkedAt": None, **updater.version()}
         self.on_restart = None  # Set by the server: stops it so the supervisor starts the new version.
         self.started_at = time.time()
+        self.ringer = pc_alarm.Ringer(store.dir / "sounds")
+        self.alarm = {"active": False, "test": False}
+        self.pc_alarm = {"armed": False, "next": None, "error": None}
+        self.manage_pc_alarm = False  # Only the real app (not tests or demos) owns the Windows task.
 
     # ---- state ----
 
@@ -71,7 +77,7 @@ class App:
             "rewards": data["rewards"],
             "tiers": game.TIERS,
             "spent": data["spent"][-20:],
-            "stats": stats.compute(data, date.today()),
+            "stats": stats.compute(data, date.today(), now_minutes()),
             "telegram": {
                 "connected": bool(tg.get("chat_id") and self.store.secrets().get("token")),
                 "name": tg.get("name"),
@@ -83,6 +89,8 @@ class App:
             "backupDir": str(self.store.backup_dir) if self.store.backup_dir else None,
             "backupOk": self.store.backup(),
             "update": self.update_info,
+            "alarm": self.alarm,
+            "pcAlarm": self.pc_alarm,
             "uptime": int(time.time() - self.started_at),
         }
 
@@ -101,10 +109,99 @@ class App:
                 "sent": False,
             }
             self.apply_power_ups(data, now.date(), rec)
+            if data["settings"].get("stillUp"):
+                rec["stillUpDue"] = (now + timedelta(minutes=STILL_UP_AFTER)).strftime("%H:%M")
             data["days"][key] = rec
             self.store.save(data)
             self.send_soon()
+        self.stop_alarm()
         return self.state()
+
+    # ---- the PC alarm and the still-up check ----
+
+    def start_alarm(self, test=False):
+        data = self.store.load()
+        if not test and date.today().isoformat() in data["days"]:
+            return self.state()  # Already up today: nothing to ring for.
+        self.alarm = {"active": True, "test": test}
+        log.info("alarm %s", "test" if test else "ringing")
+        threading.Thread(target=pc_alarm.volume_up, daemon=True).start()
+        self.ringer.start(max_minutes=0.25 if test else 20)
+        if test:
+            threading.Timer(15, lambda: self.stop_alarm(only_test=True)).start()
+        return self.state()
+
+    def stop_alarm(self, only_test=False):
+        if only_test and not self.alarm.get("test"):
+            return self.state()
+        if self.alarm["active"]:
+            log.info("alarm stopped")
+        self.alarm = {"active": False, "test": False}
+        self.ringer.stop()
+        return self.state()
+
+    def alarm_action(self, body):
+        action = body.get("action")
+        if action == "test":
+            return self.start_alarm(test=True)
+        if action == "start":
+            return self.start_alarm()
+        if action == "stop":
+            if not self.alarm.get("test"):
+                raise BadRequest("The real alarm only stops when you press I'M UP.")
+            return self.stop_alarm()
+        raise BadRequest("Unknown alarm action.")
+
+    def sync_pc_alarm(self):
+        """Create, update or remove the Windows wake task to match the settings."""
+        if not self.manage_pc_alarm:
+            return
+        s = self.store.load()["settings"]
+        try:
+            if s.get("pcAlarm"):
+                ok, msg = pc_alarm.install(s["weekday"], s["weekend"])
+                self.pc_alarm = {"armed": ok, "next": pc_alarm.next_run() if ok else None, "error": None if ok else msg}
+            else:
+                pc_alarm.remove()
+                self.pc_alarm = {"armed": False, "next": None, "error": None}
+        except Exception as e:  # Never let the alarm setup take Waky down.
+            log.exception("pc alarm setup")
+            self.pc_alarm = {"armed": False, "next": None, "error": str(e)}
+
+    def still_up(self, body):
+        data = self.store.load()
+        now = datetime.now()
+        rec = data["days"].get(now.date().isoformat())
+        state = stats.still_up_state(rec, now.date(), now.date(), now_minutes()) if rec else "none"
+        if state == "done":
+            return self.state()
+        if state != "open":
+            raise BadRequest("The still-up check isn't open right now." if state != "missed"
+                             else "Too late: the still-up check has closed for today.")
+        rec["stillUp"] = now.strftime("%H:%M")
+        self.store.save(data)
+        log.info("still up at %s", rec["stillUp"])
+        return self.state()
+
+    def still_up_tick(self):
+        """At the still-up time: chime on the PC and nudge on Telegram, once."""
+        data = self.store.load()
+        rec = data["days"].get(date.today().isoformat())
+        if not rec or rec.get("stillUpPinged"):
+            return
+        if stats.still_up_state(rec, date.today(), date.today(), now_minutes()) != "open":
+            return
+        rec["stillUpPinged"] = True
+        self.store.save(data)
+        self.ringer.chime()
+        token, chat_id = self.store.secrets().get("token"), data["telegram"].get("chat_id")
+        if token and chat_id:
+            deadline = stats.from_minutes(stats.to_minutes(rec["stillUpDue"]) + stats.STILL_UP_WINDOW)
+            try:
+                telegram.call(token, "sendMessage", chat_id=chat_id,
+                              text=f"🕒 Still up? Go to your PC and press Still up before {deadline}. +5 coins, or half coins if you miss it.")
+            except telegram.TelegramError as e:
+                log.warning("still-up nudge: %s", e)
 
     def apply_power_ups(self, data, today, rec):
         """Use a Streak Shield and Double Coins by themselves when they help this check-in."""
@@ -122,7 +219,7 @@ class App:
 
     def open_chest(self, body):
         data = self.store.load()
-        s = stats.compute(data, date.today())
+        s = stats.compute(data, date.today(), now_minutes())
         chest = next((c for c in s["game"]["chests"] if c["id"] == body.get("id")), None)
         if not chest:
             raise BadRequest("That chest isn't yours yet.")
@@ -176,9 +273,14 @@ class App:
             s["reps"] = _int(body["reps"], s["reps"], 1, 200)
         if "sound" in body:
             s["sound"] = bool(body["sound"])
+        for key in ("pcAlarm", "stillUp"):
+            if key in body:
+                s[key] = bool(body[key])
         if "why" in body:
             s["why"] = " ".join(str(body["why"]).split())[:160]
         self.store.save(data)
+        if {"weekday", "weekend", "pcAlarm"} & set(body):
+            threading.Thread(target=self.sync_pc_alarm, daemon=True).start()
         return self.state()
 
     # ---- updates ----
@@ -229,7 +331,7 @@ class App:
         reward = next((r for r in data["rewards"] if r["id"] == body.get("id")), None)
         if not reward:
             raise BadRequest("That reward doesn't exist any more.")
-        s = stats.compute(data, date.today())
+        s = stats.compute(data, date.today(), now_minutes())
         tier = reward.get("tier", "bronze")
         if not game.tier_unlocked(tier, s["journey"]["level"]):
             rank = stats.RANKS[game.TIER_LEVEL[tier]]
@@ -309,6 +411,11 @@ class App:
             self.telegram_error = None
 
 
+def now_minutes():
+    now = datetime.now()
+    return now.hour * 60 + now.minute
+
+
 def checkin_text(data, today):
     rec = data["days"][today.isoformat()]
     s = stats.compute(data, today)
@@ -378,6 +485,8 @@ def make_handler(app):
                 "/api/redeem": app.redeem,
                 "/api/update": app.install_update,
                 "/api/chests/open": app.open_chest,
+                "/api/alarm": app.alarm_action,
+                "/api/stillup": app.still_up,
             })
 
         def do_DELETE(self):
@@ -462,7 +571,9 @@ def find_browser():
     return str(found) if found else shutil.which("msedge") or shutil.which("chrome")
 
 
-def open_window(url, data_dir):
+def open_window(url, data_dir, alarm=False):
+    if alarm:
+        url += "/?alarm=1"
     browser = find_browser()
     if not browser:
         webbrowser.open(url)
@@ -471,7 +582,14 @@ def open_window(url, data_dir):
     subprocess.Popen([
         browser, f"--app={url}", f"--user-data-dir={Path(data_dir) / 'window'}",
         "--window-size=1240,860", "--no-first-run", "--no-default-browser-check",
-    ])
+        "--autoplay-policy=no-user-gesture-required",
+    ] + (["--start-fullscreen"] if alarm else []))
+
+
+def post(url, payload):
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        return json.load(resp)
 
 
 def already_running(url):
@@ -503,6 +621,7 @@ def parse_args():
     parser.add_argument("--stay", action="store_true", help="Keep running even when the window is closed.")
     parser.add_argument("--data-dir", help="Use another data folder (e.g. for a demo).")
     parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--alarm", action="store_true", help="Ring the alarm (used by the Windows wake task).")
     return parser.parse_args()
 
 
@@ -514,8 +633,13 @@ def main():
     if args.child:
         return run_server(args, data_dir)
     if already_running(url):
+        if args.alarm:
+            try:
+                post(url + "/api/alarm", {"action": "start"})
+            except OSError:
+                log.exception("couldn't start the alarm")
         if not args.no_window:
-            open_window(url, data_dir)
+            open_window(url, data_dir, alarm=args.alarm)
         return
     supervise(args, url, data_dir)
 
@@ -526,14 +650,17 @@ def supervise(args, url, data_dir):
     child_args += ["--stay"] * args.stay + (["--data-dir", str(args.data_dir)] if args.data_dir else [])
     window_opened = args.no_window
     crashes = []
+    first = True
     while True:
-        proc = subprocess.Popen(child_args, cwd=ROOT, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        extra = ["--alarm"] if (args.alarm and first) else []
+        first = False
+        proc = subprocess.Popen(child_args + extra, cwd=ROOT, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if not window_opened:
             for _ in range(50):  # Wait up to ~10 s for the server to answer, then open the window once.
                 if already_running(url) or proc.poll() is not None:
                     break
                 time.sleep(0.2)
-            open_window(url, data_dir)
+            open_window(url, data_dir, alarm=args.alarm)
             window_opened = True
         code = proc.wait()
         if code == 0:
@@ -561,22 +688,31 @@ def run_server(args, data_dir):
         server.shutdown()
 
     app.on_restart = restart
+    app.manage_pc_alarm = not args.data_dir  # Demo/test copies must never touch the real Windows task.
 
     def background():
         last_check = 0
+        threading.Thread(target=app.sync_pc_alarm, daemon=True).start()
+        threading.Thread(target=pc_alarm.sound_files, args=(app.store.dir / "sounds",), daemon=True).start()
         while True:
             if time.time() - last_check > UPDATE_CHECK_SECONDS:
                 last_check = time.time()
                 app.check_update()
-            time.sleep(60)
+            time.sleep(20)
+            try:
+                app.still_up_tick()
+            except Exception:
+                log.exception("still-up tick")
             app.send_checkin()  # Retry if Telegram was unreachable at check-in time.
             backed_up = app.store.backup()  # Catch up if Google Drive started after Waky.
             idle = time.time() - app.last_seen > IDLE_EXIT_SECONDS
-            if not args.stay and idle and not app.telegram_error and backed_up:
+            if not args.stay and idle and not app.telegram_error and backed_up and not app.alarm["active"]:
                 server.shutdown()
                 return
 
     threading.Thread(target=background, daemon=True).start()
+    if args.alarm:
+        app.start_alarm()
     log.info("Waky started, version %s (build %s)", app.update_info.get("commit"), app.update_info.get("build"))
     server.serve_forever()
     server.server_close()

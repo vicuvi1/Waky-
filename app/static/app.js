@@ -77,6 +77,8 @@ function render() {
   renderProgress();
   renderSettings();
   renderUpdates();
+  renderAlarm();
+  renderStillUp();
 }
 
 function renderToday() {
@@ -97,6 +99,7 @@ function renderToday() {
         <div class="eyebrow">Done for today</div>
         <div class="target">${esc(t.record.time)}</div>
         <div class="status ${t.ontime ? "ok" : "late"}">${how}${t.record.reps ? ` · ${plural(t.record.reps, "push-up")}` : ""}${t.coins ? ` · +${t.coins} coins` : ""}</div>
+        ${stillUpLine(t.stillUp, t.record, t.ontime)}
       </div>
       <svg class="hero-check ${t.ontime ? "" : "late"}" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg>`;
   } else {
@@ -419,6 +422,23 @@ async function openChest(id) {
   $("co-collect").onclick = () => { box.hidden = true; state = res; render(); };
 }
 
+function formatNext(iso) {
+  if (!iso) return "soon";
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-GB", { weekday: "short" }) + " " + iso.slice(11, 16);
+}
+
+function stillUpLine(su, rec, ontime) {
+  if (!su || su.state === "none") return "";
+  const text = {
+    waiting: `🕒 Still-up check at ${su.due}. Be at your desk.`,
+    open: `🕒 Still-up check is open until ${su.deadline}.`,
+    done: `✓ Still up at ${rec.stillUp}${ontime ? " · +5 coins" : ""}`,
+    missed: ontime ? "✗ Missed the still-up check: this morning pays half." : "✗ Missed the still-up check.",
+  }[su.state];
+  return `<div class="su-line su-${su.state}">${text}</div>`;
+}
+
 function formatGap(min) {
   if (min < 60) return `${min} min`;
   const h = Math.floor(min / 60), m = min % 60;
@@ -490,6 +510,12 @@ function renderSettings() {
     if (document.activeElement !== $(id)) $(id).value = st[key];
   }
   $("s-sound").checked = st.sound;
+  $("s-pcalarm").checked = st.pcAlarm;
+  $("s-stillup").checked = st.stillUp;
+  const pa = state.pcAlarm;
+  $("pcalarm-status").innerHTML = !st.pcAlarm ? `<span class="muted">Off</span>`
+    : pa.error ? `<span class="err">${esc(pa.error)}</span>`
+    : pa.armed ? `<span class="ok-text">✓ Armed · next ring ${esc(formatNext(pa.next))}</span>` : `<span class="muted">Setting up…</span>`;
   $("why-preview").textContent = st.why ? `“${st.why}”` : "Not written yet.";
 
   const tg = state.telegram;
@@ -636,6 +662,7 @@ function showDone(prevStreak) {
   if (t.record.shieldUsed) extras.push("🛡️ A Streak Shield saved your streak");
   if (t.record.boost) extras.push("⚡ Double Coins used");
   s.game.newChests.forEach((x) => extras.push(`🎁 New ${x.name.toLowerCase()}! Open it in Rewards`));
+  if (t.stillUp.state === "waiting") extras.push(`🕒 At ${t.stillUp.due} Waky asks if you're still up. Be at your desk: +5 coins.`);
   $("done-extras").innerHTML = extras.map((x) => `<div>${esc(x)}</div>`).join("");
   $("done-open").hidden = !s.game.unopened;
   const g = s.coins.goal;
@@ -831,6 +858,7 @@ function renderUpdates() {
 
   const items = [
     [true, `Running for ${formatGap(Math.max(1, Math.round(state.uptime / 60)))}`],
+    [!state.settings.pcAlarm || state.pcAlarm.armed, state.settings.pcAlarm ? (state.pcAlarm.armed ? `PC alarm armed · next ${formatNext(state.pcAlarm.next)}` : (state.pcAlarm.error || "PC alarm not armed yet")) : "PC alarm off"],
     [state.backupOk, state.backupDir ? (state.backupOk ? "Google Drive backup up to date" : "Waiting for Google Drive, retrying every minute") : "No backup folder set"],
     [state.telegram.connected && !state.telegram.error, state.telegram.connected ? (state.telegram.error ? `Telegram: ${state.telegram.error}` : `Telegram connected to @${state.telegram.bot}`) : "Telegram not connected"],
     [!u.error, u.error ? "Can't reach GitHub for updates" : "Updates from GitHub working"],
@@ -874,6 +902,49 @@ async function installUpdate(e) {
   }
   toast("Waky didn't come back. Open it again from the desktop.", true);
 }
+
+// ---------- PC alarm & still-up ----------
+
+const wantsAlarm = new URLSearchParams(location.search).has("alarm");
+
+function renderAlarm() {
+  const a = state.alarm;
+  const ringing = a.active || (wantsAlarm && !state.stats.today.record && !renderAlarm.dismissed);
+  $("alarm").hidden = !ringing;
+  if (!ringing) return;
+  $("alarm-label").textContent = a.test ? "Test alarm" : "Time to get up";
+  $("alarm-why").textContent = state.settings.why ? `“${state.settings.why}”` : state.stats.today.quote.text;
+  $("alarm-stop-test").hidden = !a.test;
+  $("alarm-up").hidden = !!a.test;
+}
+
+function renderStillUp() {
+  const su = state.stats.today.stillUp;
+  $("stillup").hidden = su.state !== "open";
+  if (su.state === "open") $("su-left").textContent = `You have until ${su.deadline}.`;
+  clearTimeout(renderStillUp.timer);
+  if (su.state === "waiting" || su.state === "open") {
+    // Refresh right when the window opens or closes.
+    const [h, m] = (su.state === "waiting" ? su.due : su.deadline).split(":").map(Number);
+    const at = new Date(); at.setHours(h, m + (su.state === "open" ? 1 : 0), 2, 0);
+    renderStillUp.timer = setTimeout(() => refresh().catch(() => {}), Math.max(1000, at - Date.now()));
+  }
+}
+
+$("alarm-up").onclick = async () => {
+  renderAlarm.dismissed = true;
+  history.replaceState(null, "", "/");
+  await checkinNow();
+};
+$("alarm-stop-test").onclick = () => act("POST", "/api/alarm", { action: "stop" });
+$("alarm-test").onclick = () => act("POST", "/api/alarm", { action: "test" }, "Ringing for 15 seconds");
+$("su-yes").onclick = () => act("POST", "/api/stillup", {}, "Still up! +5 coins").then((ok) => ok && confetti($("chest-confetti"), 90));
+$("s-pcalarm").onchange = (e) => saveSetting("pcAlarm", e.target.checked);
+$("s-stillup").onchange = (e) => saveSetting("stillUp", e.target.checked);
+setInterval(() => {
+  $("alarm-clock").textContent = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (!$("alarm").hidden) refresh().catch(() => {});  // Notice quickly when the alarm stops.
+}, 3000);
 
 let timeScope = "all";
 function setTimeScope(scope) {
