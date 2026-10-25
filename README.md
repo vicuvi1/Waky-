@@ -33,13 +33,23 @@ That puts a **Waky** shortcut on the desktop and in Startup. Or run `python app\
 The app is a small local server (`app/server.py`, port 48990) plus an app window. It shuts down
 10 minutes after you close the window.
 
+### Updates and staying up
+
+- **Settings → Updates** checks GitHub (Waky also checks by itself every 6 hours) and installs a new
+  version with one click: a fast-forward `git pull` of `main`, then Waky restarts itself. Your data
+  (`data/`, `.env`) is git-ignored and never touched. The Waky folder must be a git clone on `main`.
+- A small supervisor keeps the server alive: it restarts it after an update, or within seconds if it
+  crashes (up to 10 times an hour).
+- Errors go to `data/waky.log`. **Settings → Health** shows uptime, the Drive backup, Telegram and updates.
+
 ### Settings
 
 - Wake-up times (weekdays and weekends), grace window, push-up count, sounds: in the app.
 - Telegram: paste your bot token in *Settings → Telegram*, send `/start` to the bot, press Connect.
   The token is stored in `data/secrets.json`, never in git.
 - Optional `.env` (see `.env.example`): `WAKY_BACKUP_DIR` copies `waky.json` to another folder
-  (e.g. Google Drive) after every change.
+  (e.g. Google Drive) after every change, plus one dated copy per day in `daily/` (60 days kept).
+  If the folder isn't there yet (Google Drive starts after Waky), it retries every minute.
 
 Your data is one file, `data/waky.json`. History can be edited and deleted in *Progress → History*.
 
