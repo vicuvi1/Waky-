@@ -117,12 +117,16 @@ function renderToday() {
       `<button class="target editable" id="edit-time" title="Change wake-up time">${esc(time)}<span class="edit">Change</span></button>`;
     const pv = state.stats.preview;
     const early = nowMin < target;
-    const prizeCoins = missed ? pv.onTime : early ? pv.early : pv.onTime;
+    const prizeCoins = (missed ? pv.onTime : early ? pv.early : pv.onTime) * (pv.double ? 2 : 1);
+    const gm = state.stats.game;
     const chips = [
       `<span class="chip gold">🪙 +${prizeCoins} coins${!missed && early ? " (early bonus)" : ""}</span>`,
       pv.stage ? `<span class="chip">🧠 Day ${pv.stage.days} · ${esc(pv.stage.title)}</span>` : "",
       pv.levelUp ? `<span class="chip rank">⚔️ Become ${pv.stage.rank === "Agoge" ? "an Agoge trainee" : `a ${esc(pv.stage.rank)}`}</span>` : "",
       pv.streak > 1 ? `<span class="chip">🔥 ${pv.streak}-day streak</span>` : "",
+      pv.double ? `<span class="chip gold">⚡ Double Coins active</span>` : "",
+      gm.shieldSave && !missed ? `<span class="chip shield">🛡️ Shield ready: saves your ${gm.shieldSave}-day streak</span>` : "",
+      pv.stage ? `<span class="chip">🎁 ${pv.stage.bonus ? "Rank" : "Milestone"} chest</span>` : "",
     ].join("");
     const frac = missed ? 1 : nowMin < target ? 1 : Math.max(0, (deadline - nowMin) / Math.max(1, state.settings.grace));
     const calling = !missed && nowMin >= target - 30 && nowMin <= deadline;
@@ -181,6 +185,7 @@ function renderToday() {
   if (c.goal) {
     $("goal-bar").style.width = `${Math.max(4, Math.min(100, (100 * c.balance) / c.goal.cost))}%`;
     $("goal-sub").textContent = `${c.balance} / ${c.goal.cost} to ${c.goal.emoji} ${c.goal.name}`;
+    if (s.game.unopened) $("goal-sub").innerHTML = `<span class="chest-chip">🎁 ${s.game.unopened} ${s.game.unopened === 1 ? "chest" : "chests"} to open</span>`;
   } else {
     $("goal-bar").style.width = "100%";
     $("goal-sub").textContent = state.rewards.length ? "You can afford every reward 🎉" : "Add rewards in the Rewards tab";
@@ -282,28 +287,136 @@ function renderJourney() {
     </div>`;
 }
 
+const RARITY = { common: "Common", rare: "Rare", epic: "Epic", legendary: "Legendary" };
+const ITEMS = {
+  shield: ["🛡️", "Streak Shield", "Saves your streak if you miss one day"],
+  double: ["⚡", "Double Coins", "Your next on-time morning pays double"],
+  voucher: ["🎟️", "Voucher", "One reward of this tier, free"],
+};
+
+function chestSvg(kind) {
+  return `<svg class="chest-svg kind-${kind}" viewBox="0 0 120 100" aria-hidden="true">
+    <ellipse class="ch-shadow" cx="60" cy="94" rx="46" ry="5"/>
+    <rect class="ch-body" x="14" y="46" width="92" height="44" rx="6"/>
+    <rect class="ch-plank" x="14" y="66" width="92" height="3"/>
+    <g class="ch-lid"><path class="ch-lid-top" d="M14 48 Q14 16 60 16 Q106 16 106 48 Z"/><rect class="ch-band" x="12" y="43" width="96" height="8" rx="2"/></g>
+    <rect class="ch-strap" x="22" y="18" width="9" height="72" rx="2"/><rect class="ch-strap" x="89" y="18" width="9" height="72" rx="2"/>
+    <rect class="ch-lock" x="51" y="44" width="18" height="20" rx="4"/><circle class="ch-hole" cx="60" cy="54" r="2.6"/>
+  </svg>`;
+}
+
+function itemLine(it) {
+  if (it.type === "coins") return `<div class="pz-item"><span class="pz-ico">🪙</span><div><b>+${it.amount} coins</b></div></div>`;
+  const [ico, name, desc] = ITEMS[it.type];
+  const title = it.type === "voucher" ? `${it.tier[0].toUpperCase() + it.tier.slice(1)} ${name}` : name;
+  return `<div class="pz-item"><span class="pz-ico">${ico}</span><div><b>${title}</b><small>${desc}</small></div></div>`;
+}
+
+function prizeShort(p) {
+  return p.items.map((it) => it.type === "coins" ? `${it.amount} coins` : it.type === "voucher" ? `${it.tier} voucher` : ITEMS[it.type][1]).join(" + ");
+}
+
 function renderRewards() {
   const c = state.stats.coins;
-  countTo($("r-balance"), c.balance);
-  $("r-earned").textContent = `${c.earned} earned · ${c.spent} spent`;
-  const rewards = [...state.rewards].sort((a, b) => a.cost - b.cost);
-  $("shop").innerHTML = rewards.length ? rewards.map((r) => {
-    const ready = c.balance >= r.cost;
-    return `<div class="reward${ready ? " ready" : ""}">
-      <button class="icon-btn del" data-del-reward="${esc(r.id)}" title="Remove">✕</button>
-      <div class="emoji">${esc(r.emoji)}</div>
-      <div class="name">${esc(r.name)}</div>
-      <div class="cost">${r.cost} 🪙</div>
-      <div class="bar"><div class="bar-fill" style="width:${Math.max(3, Math.min(100, (100 * c.balance) / r.cost))}%"></div></div>
-      <button class="btn ${ready ? "primary" : "ghost"} small" data-redeem="${esc(r.id)}" ${ready ? "" : "disabled"}>${ready ? "Claim it" : `${r.cost - c.balance} more to go`}</button>
+  const g = state.stats.game;
+  const j = state.stats.journey;
+  const inv = g.inventory;
+  const vouchers = inv.vouchers.reduce((m, t) => ({ ...m, [t]: (m[t] || 0) + 1 }), {});
+
+  $("treasury").innerHTML = `
+    <div class="tr-coins">
+      <div class="label">Treasury</div>
+      <div class="balance"><span id="r-balance">${c.balance}</span><i class="coin"></i></div>
+      <p class="muted small">${c.earned} earned · ${c.spent} spent${c.goal ? ` · next: ${esc(c.goal.emoji)} ${esc(c.goal.name)} in ${c.goal.cost - c.balance}` : ""}</p>
+    </div>
+    <div class="tr-rank"><div class="label">Rank</div><div class="tr-rank-name">${esc(j.rank)}</div>
+      <div class="muted small">Unlocks ${g.tiers.filter((t) => t.unlocked).map((t) => t.name).join(", ")} rewards</div></div>
+    <div class="tr-inv">
+      <div class="label">Power-ups</div>
+      <div class="inv">
+        <div class="inv-item ${inv.shields ? "" : "none"}" title="${ITEMS.shield[2]}"><span>🛡️</span><b>${inv.shields}</b><small>Shield${inv.shields === 1 ? "" : "s"}</small></div>
+        <div class="inv-item ${inv.doubles ? "" : "none"}" title="${ITEMS.double[2]}"><span>⚡</span><b>${inv.doubles}</b><small>Double</small></div>
+        <div class="inv-item ${inv.vouchers.length ? "" : "none"}" title="${ITEMS.voucher[2]}"><span>🎟️</span><b>${inv.vouchers.length}</b><small>${inv.vouchers.length ? Object.entries(vouchers).map(([t, n]) => `${n}× ${t}`).join(", ") : "Vouchers"}</small></div>
+      </div>
     </div>`;
-  }).join("") : `<div class="empty-note">No rewards yet. Add something you really want.</div>`;
+
+  const closed = g.chests.filter((x) => !x.opened);
+  const opened = g.chests.filter((x) => x.opened).reverse().slice(0, 6);
+  $("chests").innerHTML = (closed.length ? closed.map((x) => `
+      <button class="chest kind-${x.kind}" data-open="${esc(x.id)}">
+        <div class="chest-glow"></div>${chestSvg(x.kind)}
+        <div class="chest-name">${esc(x.name)}</div><div class="muted small">${esc(x.reason)}</div>
+        <span class="btn primary small">Open</span>
+      </button>`).join("") : `<div class="no-chests"><div class="chest-ghost">${chestSvg("milestone")}</div>
+        <div><b>No chests waiting</b><p class="muted small">${j.next ? `Your next one comes with day ${j.next.days} of your journey.` : "Keep your streak going for streak chests."}</p></div></div>`)
+    + (opened.length ? `<div class="opened"><div class="label">Opened</div>${opened.map((x) => `
+      <div class="opened-row r-${x.prize.rarity}"><span class="rar">${RARITY[x.prize.rarity]}</span>${esc(x.name)} · ${esc(prizeShort(x.prize))}</div>`).join("")}</div>` : "");
+
+  const byTier = {};
+  state.rewards.forEach((r) => { (byTier[r.tier || "bronze"] ||= []).push(r); });
+  $("shop-tiers").innerHTML = g.tiers.map((t) => {
+    const list = (byTier[t.id] || []).sort((a, b) => a.cost - b.cost);
+    const head = `<div class="tier-head tier-${t.id}"><span class="tier-badge">${t.name}</span>
+      ${t.unlocked ? `<span class="muted small">Unlocked</span>` : `<span class="lock">🔒 Unlocks when you become <b>${esc(t.rank)}</b></span>`}</div>`;
+    const cards = list.length ? list.map((r) => {
+      const ready = t.unlocked && c.balance >= r.cost;
+      const voucher = t.unlocked && inv.vouchers.find((v) => ["bronze", "silver", "gold", "legendary"].indexOf(v) >= ["bronze", "silver", "gold", "legendary"].indexOf(t.id));
+      const pct = Math.max(3, Math.min(100, (100 * c.balance) / r.cost));
+      return `<div class="reward tier-${t.id}${ready ? " ready" : ""}${t.unlocked ? "" : " locked"}">
+        <button class="icon-btn del" data-del-reward="${esc(r.id)}" title="Remove">✕</button>
+        <div class="emoji">${esc(r.emoji)}</div>
+        <div class="name">${esc(r.name)}</div>
+        <div class="cost">${r.cost} <i class="coin sm"></i></div>
+        <div class="bar"><div class="bar-fill" style="width:${t.unlocked ? pct : 0}%"></div></div>
+        ${!t.unlocked ? `<button class="btn ghost small" disabled>🔒 ${esc(t.rank)}</button>`
+          : `<button class="btn ${ready ? "primary" : "ghost"} small" data-redeem="${esc(r.id)}" ${ready ? "" : "disabled"}>${ready ? "Claim it" : `${r.cost - c.balance} more to go`}</button>`}
+        ${voucher ? `<button class="btn small voucher-btn" data-voucher="${esc(r.id)}">🎟️ Use voucher</button>` : ""}
+      </div>`;
+    }).join("") : `<div class="empty-note">No ${t.name.toLowerCase()} rewards yet. Add one below.</div>`;
+    return `<section class="card tier-section tier-${t.id}${t.unlocked ? "" : " locked"} reveal">${head}<div class="shop">${cards}</div></section>`;
+  }).join("");
+
   const spent = [...state.spent].reverse();
   $("spent").innerHTML = spent.length ? spent.map((x) => `<div class="row">
       <div class="when">${esc(x.emoji)} <b>${esc(x.name)}</b> <span class="muted small">· ${new Date(x.date + "T12:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span></div>
-      <span class="muted small">−${x.cost} 🪙</span>
+      <span class="muted small">${x.voucher ? `🎟️ ${esc(x.voucher)} voucher` : `−${x.cost} coins`}</span>
       <div class="acts"><button class="icon-btn" data-undo="${esc(x.id)}">Undo</button></div>
     </div>`).join("") : `<div class="empty-note">Nothing claimed yet. Enjoy it when you get there.</div>`;
+}
+
+async function openChest(id) {
+  const chest = state.stats.game.chests.find((x) => x.id === id);
+  const box = $("chest-open");
+  $("co-chest").innerHTML = `${chestSvg(chest.kind)}<div class="co-name">${esc(chest.name)}</div><div class="muted small">Tap to open</div>`;
+  $("co-chest").className = "co-chest";
+  $("co-prize").hidden = true;
+  box.hidden = false;
+  box.className = "chest-open";
+  let res;
+  try {
+    res = await api("POST", "/api/chests/open", { id });
+  } catch (e) {
+    box.hidden = true;
+    toast(e.message, true);
+    return;
+  }
+  sound("tick");
+  $("co-chest").classList.add("shaking");
+  await new Promise((r) => setTimeout(r, 1500));
+  $("co-chest").classList.add("bursting");
+  box.classList.add(`flash-${res.prize.rarity}`);
+  sound("done");
+  await new Promise((r) => setTimeout(r, 450));
+  const p = res.prize;
+  $("co-prize").className = `co-prize r-${p.rarity}`;
+  $("co-prize").innerHTML = `
+    <div class="pz-rarity">${RARITY[p.rarity]}</div>
+    <div class="pz-items">${p.items.map(itemLine).join("")}</div>
+    <button class="btn primary" id="co-collect">Collect</button>`;
+  $("co-prize").hidden = false;
+  $("co-chest").classList.add("gone");
+  if (p.rarity === "epic" || p.rarity === "legendary") confetti($("chest-confetti"), p.rarity === "legendary" ? 260 : 160);
+  $("co-collect").onclick = () => { box.hidden = true; state = res; render(); };
 }
 
 function formatGap(min) {
@@ -519,6 +632,12 @@ function showDone(prevStreak) {
       ? `<small>New level</small><b class="rank-up">${m.rank === "Agoge" ? "You've entered the Agoge" : `You are now a ${esc(m.rank)}`}</b>Level ${m.level} · ${esc(m.levelName)}. Day ${m.days}: ${esc(m.title)}. ${esc(m.text)}<span>+20 coins level bonus</span>`
       : `<b>🧠 Day ${m.days} · ${esc(m.title)}</b>${esc(m.text)}<span>How it may feel: ${esc(m.feel)}</span>`;
   }
+  const extras = [];
+  if (t.record.shieldUsed) extras.push("🛡️ A Streak Shield saved your streak");
+  if (t.record.boost) extras.push("⚡ Double Coins used");
+  s.game.newChests.forEach((x) => extras.push(`🎁 New ${x.name.toLowerCase()}! Open it in Rewards`));
+  $("done-extras").innerHTML = extras.map((x) => `<div>${esc(x)}</div>`).join("");
+  $("done-open").hidden = !s.game.unopened;
   const g = s.coins.goal;
   $("done-goal").textContent = g ? `${s.coins.balance} / ${g.cost} coins to ${g.emoji} ${g.name}` : `${s.coins.balance} coins: you can claim any reward`;
   $("done").hidden = false;
@@ -596,24 +715,29 @@ function showView(name) {
 document.querySelectorAll(".tab").forEach((tab) => { tab.onclick = () => showView(tab.dataset.view); });
 document.querySelectorAll("[data-goto]").forEach((el) => { el.onclick = () => showView(el.dataset.goto); });
 
-$("shop").onclick = (e) => {
+$("view-rewards").onclick = (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
+  if (btn.dataset.open) openChest(btn.dataset.open);
   if (btn.dataset.redeem) {
     const r = state.rewards.find((x) => x.id === btn.dataset.redeem);
     if (r && confirm(`Claim ${r.emoji} ${r.name} for ${r.cost} coins?`)) {
-      act("POST", "/api/redeem", { id: r.id }, `Enjoy it! ${r.emoji}`);
+      act("POST", "/api/redeem", { id: r.id }, `Enjoy it! ${r.emoji}`).then((ok) => ok && confetti($("chest-confetti"), 120));
     }
   }
+  if (btn.dataset.voucher) {
+    const r = state.rewards.find((x) => x.id === btn.dataset.voucher);
+    if (r && confirm(`Use a voucher to claim ${r.emoji} ${r.name} for free?`)) {
+      act("POST", "/api/redeem", { id: r.id, voucher: true }, `Enjoy it! ${r.emoji}`);
+    }
+  }
+  if (btn.dataset.undo) act("DELETE", `/api/spent/${btn.dataset.undo}`, null, "Coins returned");
   if (btn.dataset.delReward && confirm("Remove this reward?")) act("DELETE", `/api/rewards/${btn.dataset.delReward}`, null, "Removed");
 };
-$("spent").onclick = (e) => {
-  const id = e.target.dataset.undo;
-  if (id) act("DELETE", `/api/spent/${id}`, null, "Coins returned");
-};
+
 $("add-reward").onsubmit = async (e) => {
   e.preventDefault();
-  const ok = await act("POST", "/api/rewards", { emoji: $("nr-emoji").value, name: $("nr-name").value, cost: $("nr-cost").value }, "Reward added");
+  const ok = await act("POST", "/api/rewards", { emoji: $("nr-emoji").value, name: $("nr-name").value, tier: $("nr-tier").value, cost: $("nr-cost").value }, "Reward added");
   if (ok) $("nr-name").value = "";
 };
 
@@ -627,6 +751,12 @@ $("session-manual").onclick = () => {
 };
 $("manual-tap").onclick = () => { if (session && !session.done) addRep(); };
 $("done-close").onclick = () => { $("done").hidden = true; };
+$("done-open").onclick = () => {
+  $("done").hidden = true;
+  showView("rewards");
+  const first = state.stats.game.chests.find((x) => !x.opened);
+  if (first) setTimeout(() => openChest(first.id), 400);
+};
 $("cam-test").onclick = () => startSession("test");
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeSession(); $("done").hidden = true; } });
 

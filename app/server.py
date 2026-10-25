@@ -18,12 +18,13 @@ import threading
 import time
 import urllib.request
 import webbrowser
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import game  # noqa: E402
 import stats  # noqa: E402
 import telegram  # noqa: E402
 import updater  # noqa: E402
@@ -68,6 +69,7 @@ class App:
             "settings": data["settings"],
             "days": data["days"],
             "rewards": data["rewards"],
+            "tiers": game.TIERS,
             "spent": data["spent"][-20:],
             "stats": stats.compute(data, date.today()),
             "telegram": {
@@ -91,16 +93,46 @@ class App:
         data = self.store.load()
         key = now.date().isoformat()
         if key not in data["days"]:
-            data["days"][key] = {
+            rec = {
                 "time": now.strftime("%H:%M"),
                 "target": stats.target_for(now.date(), data["settings"]),
                 "reps": _int(body.get("reps"), 0, 0, 500),
                 "mode": body.get("mode") if body.get("mode") in ("camera", "manual") else "button",
                 "sent": False,
             }
+            self.apply_power_ups(data, now.date(), rec)
+            data["days"][key] = rec
             self.store.save(data)
             self.send_soon()
         return self.state()
+
+    def apply_power_ups(self, data, today, rec):
+        """Use a Streak Shield and Double Coins by themselves when they help this check-in."""
+        grace = data["settings"]["grace"]
+        if not stats.is_on_time(rec, grace):
+            return  # A late morning breaks the streak anyway; keep the power-ups for a better day.
+        inv = game.inventory(data["opened"], data["days"], data["spent"], set(data["shielded"]))
+        yesterday = today - timedelta(days=1)
+        if (inv["shields"] and yesterday.isoformat() not in data["days"]
+                and stats.current_streak(data["days"], grace, yesterday, set(data["shielded"])) > 0):
+            data["shielded"].append(yesterday.isoformat())
+            rec["shieldUsed"] = yesterday.isoformat()
+        if inv["doubles"]:
+            rec["boost"] = 2
+
+    def open_chest(self, body):
+        data = self.store.load()
+        s = stats.compute(data, date.today())
+        chest = next((c for c in s["game"]["chests"] if c["id"] == body.get("id")), None)
+        if not chest:
+            raise BadRequest("That chest isn't yours yet.")
+        if chest["opened"]:
+            return {**self.state(), "prize": chest["prize"], "chest": chest}
+        prize = game.roll(chest["kind"], s["journey"]["level"])
+        data["opened"][chest["id"]] = {"prize": prize, "openedOn": date.today().isoformat()}
+        self.store.save(data)
+        log.info("opened %s: %s %s", chest["id"], prize["rarity"], game.prize_text(prize))
+        return {**self.state(), "prize": prize, "chest": chest}
 
     def upsert_day(self, body):
         day, hhmm = body.get("date", ""), body.get("time", "")
@@ -180,7 +212,8 @@ class App:
             "id": f"r{int(time.time() * 1000)}",
             "emoji": str(body.get("emoji") or "🎁").strip()[:4] or "🎁",
             "name": name,
-            "cost": _int(body.get("cost"), 50, 1, 100000),
+            "cost": _int(body.get("cost"), 100, 1, 100000),
+            "tier": body.get("tier") if body.get("tier") in game.TIER_LEVEL else "bronze",
         })
         self.store.save(data)
         return self.state()
@@ -196,11 +229,21 @@ class App:
         reward = next((r for r in data["rewards"] if r["id"] == body.get("id")), None)
         if not reward:
             raise BadRequest("That reward doesn't exist any more.")
-        balance = stats.compute(data, date.today())["coins"]["balance"]
-        if reward["cost"] > balance:
-            raise BadRequest(f"Not enough coins yet: {balance} of {reward['cost']}.")
-        data["spent"].append({"id": f"s{int(time.time() * 1000)}", "name": reward["name"],
-                              "emoji": reward["emoji"], "cost": reward["cost"], "date": date.today().isoformat()})
+        s = stats.compute(data, date.today())
+        tier = reward.get("tier", "bronze")
+        if not game.tier_unlocked(tier, s["journey"]["level"]):
+            rank = stats.RANKS[game.TIER_LEVEL[tier]]
+            raise BadRequest(f"{tier.title()} rewards unlock when you become {rank}.")
+        entry = {"id": f"s{int(time.time() * 1000)}", "name": reward["name"], "emoji": reward["emoji"],
+                 "cost": reward["cost"], "date": date.today().isoformat(), "tier": tier}
+        if body.get("voucher"):
+            voucher = game.best_voucher_for(tier, s["game"]["inventory"]["vouchers"])
+            if not voucher:
+                raise BadRequest(f"You don't have a voucher for {tier.title()} rewards.")
+            entry.update(cost=0, voucher=voucher)
+        elif reward["cost"] > s["coins"]["balance"]:
+            raise BadRequest(f"Not enough coins yet: {s['coins']['balance']} of {reward['cost']}.")
+        data["spent"].append(entry)
         self.store.save(data)
         return self.state()
 
@@ -285,6 +328,12 @@ def checkin_text(data, today):
         lines.append(f"⚔️ New level {s['hit']['level']}: {s['hit']['rank']} · {s['hit']['levelName']}")
     if s["hit"]:
         lines.append(f"🧠 Day {s['hit']['days']} · {s['hit']['title']}")
+    if rec.get("shieldUsed"):
+        lines.append("🛡️ A Streak Shield saved your streak")
+    if rec.get("boost"):
+        lines.append("⚡ Double Coins used")
+    for c in s["game"]["newChests"]:
+        lines.append(f"🎁 New {c['name'].lower()}: open it in Waky")
     if data["settings"].get("why"):
         lines.append(f"\n“{data['settings']['why']}”")
     return "\n".join(lines)
@@ -328,6 +377,7 @@ def make_handler(app):
                 "/api/rewards": app.add_reward,
                 "/api/redeem": app.redeem,
                 "/api/update": app.install_update,
+                "/api/chests/open": app.open_chest,
             })
 
         def do_DELETE(self):

@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 
+import game
 from quotes import quote_for
 
 LEVELS = {1: "Waking up", 2: "Adjusting", 3: "Body clock locked in", 4: "The habit", 5: "Identity"}
@@ -119,12 +120,7 @@ COINS_EARLY = 15  # Checked in before the target time.
 COINS_WEEK_BONUS = 5  # Every 7th on-time day in a row.
 COINS_LEVEL_BONUS = 20  # Reaching a new level.
 
-DEFAULT_REWARDS = [
-    {"id": "r1", "emoji": "🎮", "name": "1 hour of gaming, guilt-free", "cost": 20},
-    {"id": "r2", "emoji": "🎬", "name": "Movie night", "cost": 40},
-    {"id": "r3", "emoji": "🍕", "name": "Pizza or shawarma", "cost": 60},
-    {"id": "r4", "emoji": "🎁", "name": "Something I've wanted to buy", "cost": 300},
-]
+DEFAULT_REWARDS = game.DEFAULT_REWARDS
 
 
 def to_minutes(hhmm):
@@ -149,31 +145,31 @@ def _on_time_dates(days, grace):
     return {date.fromisoformat(d) for d, r in days.items() if is_on_time(r, grace)}
 
 
-def current_streak(days, grace, today):
+def current_streak(days, grace, today, shielded=()):
     good = _on_time_dates(days, grace)
     if today.isoformat() in days and today not in good:
         return 0  # Checked in late today: the streak is broken.
     # Today still counts as "in progress" until it's checked in, so the streak
-    # can end yesterday without being broken.
+    # can end yesterday without being broken. A shielded day bridges the gap without counting.
     cursor = today if today in good else today - timedelta(days=1)
     streak = 0
-    while cursor in good:
-        streak += 1
+    while cursor in good or cursor.isoformat() in shielded:
+        streak += cursor in good
         cursor -= timedelta(days=1)
     return streak
 
 
-def best_streak(days, grace):
+def best_streak(days, grace, shielded=()):
     best = run = 0
     prev = None
     for d in sorted(_on_time_dates(days, grace)):
-        run = run + 1 if prev and d - prev == timedelta(days=1) else 1
+        run = run + 1 if game.connected(prev, d, shielded) else 1
         best = max(best, run)
         prev = d
     return best
 
 
-def coins_by_day(days, grace):
+def coins_by_day(days, grace, shielded=()):
     """Coins earned on each on-time day: {date: (coins, reasons)}."""
     out = {}
     good_total = run = 0
@@ -182,7 +178,7 @@ def coins_by_day(days, grace):
     for d in sorted(_on_time_dates(days, grace)):
         rec = days[d.isoformat()]
         good_total += 1
-        run = run + 1 if prev and d - prev == timedelta(days=1) else 1
+        run = run + 1 if game.connected(prev, d, shielded) else 1
         prev = d
         early = to_minutes(rec["time"]) < to_minutes(rec["target"])
         coins, reasons = (COINS_EARLY, ["early"]) if early else (COINS_ON_TIME, ["on time"])
@@ -192,6 +188,9 @@ def coins_by_day(days, grace):
         if good_total in level_starts:
             coins += COINS_LEVEL_BONUS
             reasons.append("new level")
+        if rec.get("boost"):
+            coins *= 2
+            reasons.append("double coins")
         out[d.isoformat()] = (coins, reasons)
     return out
 
@@ -227,6 +226,10 @@ def journey(good_total):
     }
 
 
+def today_rec_of(days, today):
+    return days.get(today.isoformat())
+
+
 def _day_status(record, d, grace, today, first_day):
     if d > today:
         return "future"
@@ -242,8 +245,9 @@ def compute(data, today):
     grace = settings["grace"]
     first_day = min((date.fromisoformat(d) for d in days), default=None)
 
-    streak = current_streak(days, grace, today)
-    best = best_streak(days, grace)
+    shielded = set(data.get("shielded", []))
+    streak = current_streak(days, grace, today, shielded)
+    best = best_streak(days, grace, shielded)
 
     # On-time rate over the last 30 days, counted from the first check-in.
     window = [today - timedelta(days=i) for i in range(30)]
@@ -277,15 +281,32 @@ def compute(data, today):
             "ontime": bool(rec and is_on_time(rec, grace)),
         })
 
-    coins = coins_by_day(days, grace)
-    earned = sum(c for c, _ in coins.values())
+    coins = coins_by_day(days, grace, shielded)
+    good_total = len(coins)
+    j = journey(good_total)
+
+    # The game: chests earned, what's been opened, power-ups left.
+    opened = data.get("opened", {})
+    level_starts = {level_start(lv) for lv in LEVELS if lv > 1}
+    chests = game.earned_chests(sorted(_on_time_dates(days, grace)), {n for n, *_ in JOURNEY}, level_starts, shielded)
+    for c in chests:
+        c["opened"] = c["id"] in opened
+        c["prize"] = opened.get(c["id"], {}).get("prize")
+        c["name"], c["info"] = game.CHEST_INFO[c["kind"]]
+    inv = game.inventory(opened, days, data.get("spent", []), shielded)
+
+    earned = sum(c for c, _ in coins.values()) + inv["chestCoins"]
     spent = sum(s["cost"] for s in data.get("spent", []))
     balance = earned - spent
     rewards = sorted(data.get("rewards", []), key=lambda r: r["cost"])
-    goal = next((r for r in rewards if r["cost"] > balance), None)
+    unlocked = [r for r in rewards if game.tier_unlocked(r.get("tier"), j["level"])]
+    goal = next((r for r in unlocked if r["cost"] > balance), None)
 
-    good_total = len(coins)
-    j = journey(good_total)
+    # A shield will save the streak if yesterday was missed and today is checked in on time.
+    yesterday = today - timedelta(days=1)
+    at_risk = current_streak(days, grace, yesterday, shielded) if (
+        not today_rec_of(days, today) and yesterday.isoformat() not in days
+        and yesterday.isoformat() not in shielded) else 0
     today_rec = days.get(today.isoformat())
     today_ontime = bool(today_rec and is_on_time(today_rec, grace))
     next_good = good_total + 1
@@ -325,5 +346,14 @@ def compute(data, today):
         "hit": hit,
         "levelUp": bool(hit and j["level"] > prev_level),
         "coins": {"balance": balance, "earned": earned, "spent": spent, "goal": goal},
-        "preview": preview,
+        "preview": {**preview, "double": inv["doubles"] > 0},
+        "game": {
+            "chests": chests,
+            "unopened": sum(not c["opened"] for c in chests),
+            "inventory": inv,
+            "tiers": [{**t, "unlocked": t["level"] <= j["level"], "rank": RANKS[t["level"]]} for t in game.TIERS],
+            "shieldSave": at_risk if inv["shields"] and at_risk else 0,
+            "streakAtRisk": at_risk,
+            "newChests": [c for c in chests if c["date"] == today.isoformat()],
+        },
     }
