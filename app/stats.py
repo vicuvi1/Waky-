@@ -1,8 +1,9 @@
 """Streaks, coins and the journey, computed from the saved days."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 import game
+import night
 from quotes import quote_for
 
 LEVELS = {1: "Waking up", 2: "Adjusting", 3: "Body clock locked in", 4: "The habit", 5: "Identity"}
@@ -321,7 +322,9 @@ def compute(data, today, now_min=None):
         c["name"], c["info"] = game.CHEST_INFO[c["kind"]]
     inv = game.inventory(opened, days, data.get("spent", []), shielded)
 
-    earned = sum(c for c, _ in coins.values()) + inv["chestCoins"]
+    nights = data.get("nights", {})
+    night_coins = night.coins(nights, grace)
+    earned = sum(c for c, _ in coins.values()) + inv["chestCoins"] + sum(night_coins.values())
     spent = sum(s["cost"] for s in data.get("spent", []))
     balance = earned - spent
     rewards = sorted(data.get("rewards", []), key=lambda r: r["cost"])
@@ -379,6 +382,13 @@ def compute(data, today, now_min=None):
         "levelUp": bool(hit and j["level"] > prev_level),
         "coins": {"balance": balance, "earned": earned, "spent": spent, "goal": goal},
         "preview": {**preview, "double": inv["doubles"] > 0},
+        "night": {
+            **night.tonight(datetime.combine(today, time(*divmod(now_min if now_min is not None else 720, 60))),
+                            settings, target_for, nights, days),
+            "enabled": settings.get("bedtimeOn", True),
+            "coins": night.COINS_BEDTIME,
+        },
+        "sleep": night.sleep_stats(nights, days, today, settings.get("sleepGoal", 480)),
         "game": {
             "chests": chests,
             "unopened": sum(not c["opened"] for c in chests),
