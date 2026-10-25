@@ -209,6 +209,28 @@ class AppTest(unittest.TestCase):
         backup = (Path(self.tmp.name) / "backup" / "waky.json").read_text(encoding="utf-8")
         self.assertNotIn("123:abc", backup)
 
+    def test_backup_catches_up_when_the_drive_appears_later(self):
+        # Google Drive starts after Waky: the backup folder isn't reachable at check-in time.
+        late_drive = Path(self.tmp.name) / "drive" / "Apps" / "WAKY"
+        store = Store(Path(self.tmp.name) / "local", late_drive)
+        blocker = Path(self.tmp.name) / "drive"
+        blocker.write_text("not a folder yet")  # Makes the backup path unreachable.
+        store.save({"settings": {}, "days": {"2026-10-25": {"time": "06:32"}}})
+        self.assertFalse(store.backup())
+        blocker.unlink()  # The drive shows up a minute later.
+        self.assertTrue(store.backup())
+        self.assertIn("06:32", (late_drive / "waky.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(list((late_drive / "daily").glob("waky-*.json"))), 1)
+
+    def test_daily_backups_are_pruned(self):
+        backup_dir = Path(self.tmp.name) / "backup"
+        daily = backup_dir / "daily"
+        daily.mkdir(parents=True)
+        for i in range(70):
+            (daily / f"waky-2025-01-{i:02d}.json").write_text("{}")
+        self.app.checkin({})
+        self.assertEqual(len(list(daily.glob("waky-*.json"))), 60)
+
     def test_damaged_file_is_set_aside(self):
         self.app.store.path.write_text("{not json")
         self.app.store.load()
