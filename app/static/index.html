@@ -35,6 +35,8 @@
       <div class="col-main">
       <button class="why-banner reveal" id="why-banner" title="Edit your why"></button>
 
+      <div class="card night-card reveal" id="night-card" hidden></div>
+
       <div class="hero card reveal" id="hero"></div>
 
       <button class="card journey-card reveal" id="journey-card" data-goto="journey"></button>
@@ -146,6 +148,13 @@
         </div>
       </div>
 
+      <div class="card sleep-card">
+        <div class="card-head"><h2>😴 Sleep · 14 nights</h2>
+          <div class="legend"><i class="line"></i>Goal</div></div>
+        <div class="sleep-stats" id="sleep-stats"></div>
+        <div class="sleep-bars" id="sleep-bars"></div>
+      </div>
+
       <div class="card history-card">
         <div class="card-head"><h2>History</h2><button class="btn ghost small" id="add-day">Add a day</button></div>
         <div class="history" id="history"></div>
@@ -192,6 +201,16 @@
             <label>Ask after check-in<select id="s-stillUpAfter"><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="25">25 minutes</option><option value="30">30 minutes</option><option value="40">40 minutes</option><option value="60">1 hour</option></select></label>
             <label>Time to answer<select id="s-stillUpWindow"><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option></select></label>
           </div>
+        </div>
+
+        <div class="card set-card">
+          <div class="card-head"><h2>🌙 Bedtime</h2><input type="checkbox" id="s-bedtimeOn" class="switch" aria-label="Bedtime on"></div>
+          <p class="muted small">Your bedtime is your wake-up time minus your sleep goal. In bed on time: +5 coins.</p>
+          <div class="form row-2" id="bed-form">
+            <label>Sleep goal<select id="s-sleepGoal"><option value="360">6 h</option><option value="390">6 h 30 min</option><option value="420">7 h</option><option value="450">7 h 30 min</option><option value="480">8 h</option><option value="510">8 h 30 min</option><option value="540">9 h</option><option value="570">9 h 30 min</option><option value="600">10 h</option></select></label>
+            <label>Remind me<select id="s-bedRemind"><option value="0">No reminder</option><option value="15">15 min before</option><option value="30">30 min before</option><option value="45">45 min before</option><option value="60">1 hour before</option><option value="90">1.5 hours before</option></select></label>
+          </div>
+          <p class="small bed-times" id="bed-times"></p>
         </div>
 
         <div class="card set-card why-card">
@@ -347,6 +366,23 @@
       <h1>Still up?</h1>
       <p class="muted">Prove you didn't go back to bed. <b id="su-left"></b></p>
       <button class="btn primary big-tap" id="su-yes">Yes, I'm up (+5 coins)</button>
+    </div>
+  </div>
+
+  <div class="bed-prompt" id="bed-prompt" hidden>
+    <div class="bed-card">
+      <div class="moon"></div>
+      <h1 id="bp-title">Bedtime in 30 minutes</h1>
+      <p class="muted" id="bp-sub"></p>
+      <ul class="wind-down">
+        <li>📵 Screens off soon</li>
+        <li>🔌 Phone charging at the desk</li>
+        <li id="bp-alarm">⏰ Alarm set</li>
+      </ul>
+      <div class="bp-actions">
+        <button class="btn ghost" id="bp-later">Not yet</button>
+        <button class="btn primary" id="bp-bed">🌙 Going to bed now</button>
+      </div>
     </div>
   </div>
 

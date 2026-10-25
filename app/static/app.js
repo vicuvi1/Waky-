@@ -79,6 +79,7 @@ function render() {
   renderUpdates();
   renderAlarm();
   renderStillUp();
+  renderNight();
 }
 
 function renderToday() {
@@ -100,6 +101,7 @@ function renderToday() {
         <div class="target">${esc(t.record.time)}</div>
         <div class="status ${t.ontime ? "ok" : "late"}">${how}${t.record.reps ? ` · ${plural(t.record.reps, "push-up")}` : ""}${t.coins ? ` · +${t.coins} coins` : ""}</div>
         ${stillUpLine(t.stillUp, t.record, t.ontime)}
+        ${s.sleep.last ? `<div class="su-line sleep-line">😴 Slept ${fmtDur(s.sleep.last)}</div>` : ""}
       </div>
       <svg class="hero-check ${t.ontime ? "" : "late"}" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M15 27l7 7 15-16"/></svg>`;
   } else {
@@ -511,6 +513,12 @@ function renderSettings() {
   }
   $("s-sound").checked = st.sound;
   $("s-pcalarm").checked = st.pcAlarm;
+  $("s-bedtimeOn").checked = st.bedtimeOn;
+  $("bed-form").classList.toggle("off", !st.bedtimeOn);
+  const bedFor = (wake) => fromMin(((toMin(wake) - st.sleepGoal) % 1440 + 1440) % 1440);
+  $("bed-times").innerHTML = st.bedtimeOn
+    ? `Bedtime: <b>${bedFor(st.weekday)}</b> on weeknights${st.weekend !== st.weekday ? `, <b>${bedFor(st.weekend)}</b> before weekend mornings` : ""}`
+    : `<span class="muted">Off</span>`;
   $("s-stillup").checked = st.stillUp;
   if (!$("s-alarmSound").options.length) {
     $("s-alarmSound").innerHTML = Object.entries(state.sounds).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
@@ -951,7 +959,8 @@ $("alarm-stop-test").onclick = () => act("POST", "/api/alarm", { action: "stop" 
 $("alarm-test").onclick = () => act("POST", "/api/alarm", { action: "test" }, "Ringing for 15 seconds");
 $("su-yes").onclick = () => act("POST", "/api/stillup", {}, "Still up! +5 coins").then((ok) => ok && confetti($("chest-confetti"), 90));
 $("s-pcalarm").onchange = (e) => saveSetting("pcAlarm", e.target.checked);
-const SETTING_SELECTS = ["alarmOffset", "alarmSound", "alarmRamp", "alarmVolume", "alarmMax", "stillUpAfter", "stillUpWindow"];
+const SETTING_SELECTS = ["alarmOffset", "alarmSound", "alarmRamp", "alarmVolume", "alarmMax", "stillUpAfter", "stillUpWindow", "sleepGoal", "bedRemind"];
+$("s-bedtimeOn").onchange = (e) => saveSetting("bedtimeOn", e.target.checked);
 for (const key of SETTING_SELECTS) {
   $(`s-${key}`).onchange = (e) => saveSetting(key, key === "alarmSound" ? e.target.value : Number(e.target.value));
 }
@@ -960,6 +969,97 @@ setInterval(() => {
   $("alarm-clock").textContent = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   if (!$("alarm").hidden) refresh().catch(() => {});  // Notice quickly when the alarm stops.
 }, 3000);
+
+// ---------- bedtime ----------
+
+function fmtDur(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `${h} h ${String(m).padStart(2, "0")} min` : `${h} h`;
+}
+
+function renderNight() {
+  const n = state.stats.night;
+  const card = $("night-card");
+  const show = n.enabled && n.state !== "day";
+  card.hidden = !show;
+  if (show) {
+    const left = n.minutesLeft;
+    let body;
+    if (n.state === "done") {
+      body = `
+        <div class="nc-main"><div class="eyebrow">Good night 🌙</div>
+          <div class="nc-big">In bed at ${esc(n.record.time)}</div>
+          <div class="status ${n.onTime ? "ok" : ""}">${n.onTime ? `On time · +${n.coins} coins` : "After bedtime · no coins tonight"} · alarm ${esc(n.wake)}</div></div>
+        <div class="nc-cta"><button class="btn primary" id="nc-sleep">😴 Put the PC to sleep</button>
+          <button class="btn ghost small" id="nc-undo">Undo</button>
+          <span class="muted small">Asleep, not shut down: then the PC alarm can wake it.</span></div>`;
+    } else {
+      const head = { evening: `Bedtime ${n.bedtime}`, remind: `Bedtime in ${left} min`, due: "It's bedtime", late: `Past bedtime (${n.bedtime})` }[n.state];
+      const sub = n.state === "late"
+        ? `Going now still gives you ${fmtDur(n.sleepIfNow)} of sleep.`
+        : `${n.state === "evening" ? `In ${formatGap(left)}. ` : ""}Going now gives you ${fmtDur(n.sleepIfNow)} of sleep before ${n.wake}.`;
+      body = `
+        <div class="nc-main"><div class="eyebrow">Tonight</div><div class="nc-big">${head}</div><div class="status">${sub}</div></div>
+        <div class="nc-cta"><button class="btn ${n.state === "evening" ? "ghost" : "primary"} ${n.state === "due" ? "calling" : ""}" id="nc-bed">🌙 Going to bed</button>
+          <span class="muted small">${n.state === "late" ? "Too late for coins tonight" : `+${n.coins} coins if you're in bed by ${addMin(n.bedtime, state.settings.grace)}`}</span></div>`;
+    }
+    card.className = `card night-card s-${n.state}`;
+    card.innerHTML = `<div class="nc-moon"></div>${body}`;
+    if ($("nc-bed")) $("nc-bed").onclick = goToBed;
+    if ($("nc-sleep")) $("nc-sleep").onclick = sleepPc;
+    if ($("nc-undo")) $("nc-undo").onclick = () => act("DELETE", "/api/bed", null, "Undone");
+  }
+
+  // The reminder prompt: once per state per night.
+  const key = `bed-${n.morning}-${n.state}`;
+  const prompt = n.enabled && (n.state === "remind" || n.state === "due") && !seen(key);
+  $("bed-prompt").hidden = !prompt;
+  if (prompt) {
+    $("bp-title").textContent = n.state === "due" ? "Time for bed" : `Bedtime in ${n.minutesLeft} minutes`;
+    $("bp-sub").textContent = `Bedtime ${n.bedtime} · wake-up ${n.wake}. Going now gives you ${fmtDur(n.sleepIfNow)} of sleep.`;
+    $("bp-alarm").textContent = `⏰ Phone alarm set for ${n.wake}`;
+    $("bp-later").onclick = () => { remember(key); $("bed-prompt").hidden = true; };
+    $("bp-bed").onclick = () => { remember(key); goToBed(); };
+  }
+
+  renderSleep();
+}
+
+function seen(key) { try { return localStorage.getItem(key) === "1"; } catch { return renderNight[key]; } }
+function remember(key) { try { localStorage.setItem(key, "1"); } catch { renderNight[key] = true; } }
+function addMin(hhmm, m) { return fromMin((toMin(hhmm) + m) % 1440); }
+
+async function goToBed() {
+  const ok = await act("POST", "/api/bed", {});
+  if (!ok) return;
+  $("bed-prompt").hidden = true;
+  const n = state.stats.night;
+  toast(n.onTime ? `Good night. +${n.coins} coins 🌙` : "Good night 🌙");
+  sound("done");
+}
+
+async function sleepPc() {
+  if (!confirm(`Put the PC to sleep now? It wakes itself for the alarm at ${state.pcAlarm.next ? state.pcAlarm.next.slice(11, 16) : "your wake-up time"}.`)) return;
+  try {
+    await api("POST", "/api/sleep-pc", {});
+    toast("Sleeping in 3 seconds. Good night 🌙");
+  } catch (e) { toast(e.message, true); }
+}
+
+function renderSleep() {
+  const sl = state.stats.sleep;
+  $("sleep-stats").innerHTML = `
+    <div><b>${sl.last ? fmtDur(sl.last) : "–"}</b><span>last night</span></div>
+    <div><b>${sl.avg ? fmtDur(sl.avg) : "–"}</b><span>average</span></div>
+    <div><b>${fmtDur(sl.goal)}</b><span>goal</span></div>
+    <div><b>${sl.nights ? `${sl.nightsOnGoal}/${sl.nights}` : "–"}</b><span>nights near the goal</span></div>`;
+  const max = Math.max(sl.goal + 60, ...sl.chart.map((c) => c.minutes || 0));
+  $("sleep-bars").innerHTML = `<div class="goal-line" style="bottom:${(100 * sl.goal) / max}%"></div>` + sl.chart.map((c) => {
+    const h = c.minutes ? (100 * c.minutes) / max : 0;
+    const cls = !c.minutes ? "none" : c.minutes >= sl.goal - 15 ? "good" : c.minutes >= sl.goal - 75 ? "ok" : "short";
+    return `<div class="sb ${cls}" title="${c.date.slice(5)}${c.minutes ? " · " + fmtDur(c.minutes) : ""}"><i style="height:${h}%"></i><span>${Number(c.date.slice(8))}</span></div>`;
+  }).join("") + (sl.nights ? "" : `<div class="sleep-empty">Press "Going to bed" at night and check in in the morning: your sleep shows up here.</div>`);
+}
 
 let timeScope = "all";
 function setTimeScope(scope) {

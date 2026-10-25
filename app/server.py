@@ -25,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import game  # noqa: E402
+import night  # noqa: E402
 import pc_alarm  # noqa: E402
 import stats  # noqa: E402
 import telegram  # noqa: E402
@@ -173,6 +174,66 @@ class App:
             log.exception("pc alarm setup")
             self.pc_alarm = {"armed": False, "next": None, "error": str(e)}
 
+    # ---- bedtime ----
+
+    def going_to_bed(self, body):
+        data = self.store.load()
+        now = datetime.now()
+        morning = night.morning_for(now)
+        key = morning.isoformat()
+        if key not in data["nights"]:
+            wake = stats.target_for(morning, data["settings"])
+            data["nights"][key] = {"time": now.strftime("%H:%M"), "target": night.bedtime_for(wake, data["settings"])}
+            self.store.save(data)
+            log.info("going to bed at %s", data["nights"][key]["time"])
+        return self.state()
+
+    def undo_bed(self):
+        data = self.store.load()
+        data["nights"].pop(night.morning_for(datetime.now()).isoformat(), None)
+        self.store.save(data)
+        return self.state()
+
+    def sleep_pc(self, body):
+        """Put the PC to sleep (not hibernate), with wake timers allowed so the alarm can wake it."""
+        if sys.platform != "win32":
+            raise BadRequest("Only on Windows.")
+        log.info("putting the PC to sleep")
+        subprocess.Popen(["powershell", "-NoProfile", "-Command",
+                          "Start-Sleep -Seconds 3; Add-Type -AssemblyName System.Windows.Forms; "
+                          "[System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"],
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return {"sleeping": True}
+
+    def bed_tick(self):
+        """The evening reminder before bedtime and a nudge at bedtime, once each per night."""
+        with self.write_lock:
+            data = self.store.load()
+            s = data["settings"]
+            if not s.get("bedtimeOn"):
+                return
+            t = night.tonight(datetime.now(), s, stats.target_for, data["nights"], data["days"])
+            if t["state"] not in ("remind", "due"):
+                return
+            flags = data.setdefault("bedReminders", {})
+            key = f"{t['morning']}:{t['state']}"
+            if flags.get(key):
+                return
+            flags.clear()  # Only tonight's flags matter.
+            flags[key] = True
+            flags[f"{t['morning']}:remind"] = True  # A nudge at bedtime replaces a missed reminder.
+            self.store.save(data)
+        self.ringer.chime()
+        token, chat_id = self.store.secrets().get("token"), data["telegram"].get("chat_id")
+        if token and chat_id:
+            text = (f"🌙 Bedtime in {t['minutesLeft']} min ({t['bedtime']}). Screens off soon, phone to the desk. "
+                    f"Alarm {t['wake']}." if t["state"] == "remind"
+                    else f"🛏️ It's {t['bedtime']}: time for bed. Press Going to bed in Waky and put the PC to sleep.")
+            try:
+                telegram.call(token, "sendMessage", chat_id=chat_id, text=text)
+            except telegram.TelegramError as e:
+                log.warning("bedtime reminder: %s", e)
+
     def still_up(self, body):
         data = self.store.load()
         now = datetime.now()
@@ -283,13 +344,14 @@ class App:
             s["reps"] = _int(body["reps"], s["reps"], 1, 200)
         if "sound" in body:
             s["sound"] = bool(body["sound"])
-        for key in ("pcAlarm", "stillUp"):
+        for key in ("pcAlarm", "stillUp", "bedtimeOn"):
             if key in body:
                 s[key] = bool(body[key])
         if body.get("alarmSound") in pc_alarm.SOUNDS:
             s["alarmSound"] = body["alarmSound"]
         for key, lo, hi in (("alarmOffset", -15, 15), ("alarmRamp", 10, 180), ("alarmVolume", 0, 100),
-                            ("alarmMax", 1, 60), ("stillUpAfter", 5, 60), ("stillUpWindow", 3, 30)):
+                            ("alarmMax", 1, 60), ("stillUpAfter", 5, 60), ("stillUpWindow", 3, 30),
+                            ("sleepGoal", 360, 600), ("bedRemind", 0, 120)):
             if key in body:
                 s[key] = _int(body[key], s[key], lo, hi)
         if "why" in body:
@@ -452,6 +514,9 @@ def checkin_text(data, today):
         lines.append(f"⚔️ New level {s['hit']['level']}: {s['hit']['rank']} · {s['hit']['levelName']}")
     if s["hit"]:
         lines.append(f"🧠 Day {s['hit']['days']} · {s['hit']['title']}")
+    if s["sleep"]["last"]:
+        h, m = divmod(s["sleep"]["last"], 60)
+        lines.append(f"😴 Slept {h} h {m:02d} min")
     if rec.get("shieldUsed"):
         lines.append("🛡️ A Streak Shield saved your streak")
     if rec.get("boost"):
@@ -504,6 +569,8 @@ def make_handler(app):
                 "/api/chests/open": app.open_chest,
                 "/api/alarm": app.alarm_action,
                 "/api/stillup": app.still_up,
+                "/api/bed": app.going_to_bed,
+                "/api/sleep-pc": app.sleep_pc,
             })
 
         def do_DELETE(self):
@@ -521,6 +588,8 @@ def make_handler(app):
                 return self._json(app.disconnect_telegram())
             if self.path.startswith("/api/rewards/"):
                 return self._json(app.delete_reward(self.path.rsplit("/", 1)[1]))
+            if self.path == "/api/bed":
+                return self._json(app.undo_bed())
             if self.path.startswith("/api/spent/"):
                 return self._json(app.undo_redeem(self.path.rsplit("/", 1)[1]))
             self._json({"error": "Not found"}, 404)
@@ -721,8 +790,9 @@ def run_server(args, data_dir):
             time.sleep(20)
             try:
                 app.still_up_tick()
+                app.bed_tick()
             except Exception:
-                log.exception("still-up tick")
+                log.exception("still-up / bedtime tick")
             app.send_checkin()  # Retry if Telegram was unreachable at check-in time.
             backed_up = app.store.backup()  # Catch up if Google Drive started after Waky.
             idle = time.time() - app.last_seen > IDLE_EXIT_SECONDS

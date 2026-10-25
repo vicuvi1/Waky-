@@ -770,3 +770,43 @@ body::before {
 #pcalarm-status { margin: 14px 0 12px; }
 .inline-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; font-weight: 500; margin: 12px 0; }
 .data-note { margin-top: 4px; }
+
+/* ---------- bedtime ---------- */
+.night-card { margin-top: 16px; display: grid; grid-template-columns: auto 1fr auto; gap: 22px; align-items: center; padding: 24px 28px;
+  background: radial-gradient(500px 200px at 0% 0%, rgba(99, 102, 241, .16), transparent 70%), linear-gradient(135deg, #0f1022, var(--surface) 70%);
+  border-color: rgba(129, 140, 248, .3); }
+.night-card .nc-moon { width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #f5f3ff, #c7d2fe 60%, #818cf8);
+  box-shadow: 0 0 40px rgba(165, 180, 252, .45), inset -14px -6px 0 rgba(15, 16, 34, .55); animation: bob 5s ease-in-out infinite; }
+.night-card .nc-big { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; margin: 2px 0 4px; }
+.night-card .nc-cta { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; text-align: right; max-width: 280px; }
+.night-card.s-remind, .night-card.s-due { border-color: rgba(165, 180, 252, .6); box-shadow: 0 10px 50px -20px rgba(129, 140, 248, .8); }
+.night-card.s-late .nc-big { color: #c7d2fe; }
+.night-card .btn.primary { background: linear-gradient(135deg, #a5b4fc, #6366f1); color: #0b0b1e; box-shadow: 0 8px 30px -8px rgba(99, 102, 241, .7); }
+.sleep-line { color: #c7d2fe; }
+
+.bed-prompt { position: fixed; inset: 0; z-index: 86; display: grid; place-items: center; background: rgba(4, 4, 14, .9); backdrop-filter: blur(12px); animation: fade .4s both; }
+.bed-card { text-align: center; max-width: 520px; padding: 34px 40px; border-radius: 24px; background: linear-gradient(180deg, #12132a, var(--surface));
+  border: 1px solid rgba(129, 140, 248, .45); box-shadow: 0 0 90px -10px rgba(99, 102, 241, .5); animation: prize-in .5s cubic-bezier(.3, 1.5, .5, 1) both; }
+.bed-card .moon { width: 84px; height: 84px; margin: 0 auto 14px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #f5f3ff, #c7d2fe 60%, #818cf8);
+  box-shadow: 0 0 60px rgba(165, 180, 252, .5), inset -18px -8px 0 rgba(18, 19, 42, .6); }
+.bed-card h1 { font-size: 34px; font-weight: 800; }
+.wind-down { list-style: none; padding: 0; margin: 18px auto; display: grid; gap: 8px; text-align: left; max-width: 300px; font-size: 15px; }
+.wind-down li { padding: 10px 14px; border-radius: 12px; background: var(--surface-2); }
+.bp-actions { display: flex; gap: 10px; justify-content: center; }
+.bp-actions .btn.primary { background: linear-gradient(135deg, #a5b4fc, #6366f1); color: #0b0b1e; }
+
+.sleep-card { margin-top: 16px; }
+.sleep-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+.sleep-stats div { padding: 12px 14px; border-radius: 12px; background: var(--surface-2); }
+.sleep-stats b { display: block; font-size: 22px; font-weight: 800; }
+.sleep-stats span { font-size: 12px; color: var(--muted); }
+.sleep-bars { position: relative; height: 170px; display: grid; grid-template-columns: repeat(14, 1fr); gap: 8px; align-items: end; padding-bottom: 20px; }
+.sleep-bars .sb { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; position: relative; }
+.sleep-bars .sb i { display: block; width: 100%; border-radius: 8px 8px 3px 3px; background: var(--surface-2); min-height: 4px; transition: height .8s cubic-bezier(.2, .8, .2, 1); }
+.sleep-bars .sb.good i { background: linear-gradient(180deg, #a5b4fc, #6366f1); }
+.sleep-bars .sb.ok i { background: linear-gradient(180deg, #c4b5fd, #7c3aed); opacity: .75; }
+.sleep-bars .sb.short i { background: linear-gradient(180deg, #fbbf24, #b45309); }
+.sleep-bars .sb span { position: absolute; bottom: -20px; font-size: 11px; color: var(--muted); }
+.sleep-bars .goal-line { position: absolute; left: 0; right: 0; border-top: 2px dashed #5a5a68; z-index: 1; pointer-events: none; margin-bottom: 20px; }
+.sleep-empty { position: absolute; inset: 0 0 20px; display: grid; place-items: center; color: var(--muted); font-size: 14px; text-align: center; }
+.bed-times { margin-top: 12px; }

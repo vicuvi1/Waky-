@@ -15,7 +15,8 @@ KEEP_DAILY = 60
 DEFAULT_SETTINGS = {"weekday": "06:30", "weekend": "06:30", "grace": 15, "reps": 20, "sound": True, "why": "",
                     "pcAlarm": True, "stillUp": True,
                     "alarmOffset": -1, "alarmSound": "sunrise", "alarmRamp": 60, "alarmVolume": 80, "alarmMax": 20,
-                    "stillUpAfter": 20, "stillUpWindow": 10}
+                    "stillUpAfter": 20, "stillUpWindow": 10,
+                    "bedtimeOn": True, "sleepGoal": 480, "bedRemind": 30}
 
 
 class Store:
@@ -43,6 +44,7 @@ class Store:
             data.setdefault("spent", [])
             data.setdefault("opened", {})  # chest id -> {"prize", "openedOn"}
             data.setdefault("shielded", [])  # missed days saved by a Streak Shield
+            data.setdefault("nights", {})  # morning date -> {"time", "target"}: when you went to bed
             return data
 
     def save(self, data):
