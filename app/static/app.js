@@ -1,4 +1,5 @@
 import { analyzePose, RepCounter, HINTS } from "./pushups.js";
+import { spartanSvg } from "./avatar.js";
 import { startPoseCamera } from "./camera.js";
 
 const $ = (id) => document.getElementById(id);
@@ -1077,47 +1078,6 @@ function renderSleep() {
 }
 
 // ---------- Spartan avatar ----------
-
-function spartanSvg(level) {
-  const gold = level >= 5;
-  const metal = gold ? "url(#gGold)" : "url(#gBronze)";
-  const tunic = level >= 2 ? "#9f1d1d" : "#c9b48a";
-  const parts = [];
-  parts.push(`<defs>
-    <linearGradient id="gBronze" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0c27b"/><stop offset="1" stop-color="#8a5a22"/></linearGradient>
-    <linearGradient id="gGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff1b8"/><stop offset=".5" stop-color="#f5c44a"/><stop offset="1" stop-color="#a86d12"/></linearGradient>
-    <radialGradient id="gAura"><stop offset="0" stop-color="rgba(245,196,74,.55)"/><stop offset="1" stop-color="rgba(245,196,74,0)"/></radialGradient></defs>`);
-  if (gold) parts.push(`<circle cx="60" cy="74" r="62" fill="url(#gAura)" class="av-aura"/>`);
-  if (level >= 4) parts.push(`<path d="M34 58 Q60 50 86 58 L98 148 Q60 158 22 148 Z" fill="#7f1414"/>`); // cloak
-  // legs and sandals
-  parts.push(`<rect x="46" y="112" width="11" height="34" rx="4" fill="#d9a77a"/><rect x="63" y="112" width="11" height="34" rx="4" fill="#d9a77a"/>`);
-  parts.push(`<rect x="44" y="142" width="15" height="6" rx="3" fill="#5b3a1e"/><rect x="61" y="142" width="15" height="6" rx="3" fill="#5b3a1e"/>`);
-  // tunic / body
-  parts.push(`<path d="M40 60 Q60 54 80 60 L84 116 Q60 122 36 116 Z" fill="${tunic}"/>`);
-  if (level >= 3) parts.push(`<path d="M42 62 Q60 56 78 62 L79 92 Q60 98 41 92 Z" fill="${metal}" stroke="rgba(0,0,0,.25)"/>`); // breastplate
-  if (level >= 2) parts.push(`<rect x="38" y="94" width="44" height="6" rx="2" fill="${metal}"/>`); // belt
-  // arms
-  parts.push(`<rect x="26" y="62" width="11" height="40" rx="5" fill="#d9a77a" transform="rotate(12 31 62)"/>`);
-  parts.push(`<rect x="83" y="62" width="11" height="40" rx="5" fill="#d9a77a" transform="rotate(-12 88 62)"/>`);
-  // spear (right hand)
-  if (level >= 3) parts.push(`<line x1="98" y1="10" x2="96" y2="150" stroke="#6b4423" stroke-width="3.5" stroke-linecap="round"/><path d="M98 2 L104 18 L92 18 Z" fill="${metal}"/>`);
-  // head
-  parts.push(`<circle cx="60" cy="38" r="15" fill="#e2b48a"/>`);
-  if (level >= 3) {
-    if (level >= 4) parts.push(`<path d="M42 26 Q60 0 78 26 Q60 16 42 26 Z" fill="${gold ? "#f5c44a" : "#c41e1e"}"/>`); // crest
-    parts.push(`<path d="M44 40 Q44 20 60 20 Q76 20 76 40 L76 50 L68 50 L68 38 L52 38 L52 50 L44 50 Z" fill="${metal}" stroke="rgba(0,0,0,.25)"/>`); // helmet
-  } else {
-    parts.push(`<path d="M46 34 Q60 18 74 34 Q60 28 46 34 Z" fill="#4a3020"/>`); // hair
-    parts.push(`<circle cx="55" cy="40" r="1.6" fill="#2a1a10"/><circle cx="65" cy="40" r="1.6" fill="#2a1a10"/>`);
-  }
-  // shield (left arm)
-  if (level >= 2) {
-    const r = level >= 3 ? 22 : 15;
-    parts.push(`<circle cx="26" cy="92" r="${r}" fill="${metal}" stroke="rgba(0,0,0,.3)" stroke-width="2"/>`);
-    if (level >= 3) parts.push(`<path d="M18 102 L26 82 L34 102" fill="none" stroke="#7f1414" stroke-width="4" stroke-linejoin="round"/>`); // Λ
-  }
-  return `<svg class="spartan" viewBox="0 0 120 160" aria-hidden="true">${parts.join("")}</svg>`;
-}
 
 function renderAvatar() {
   const j = state.stats.journey;
