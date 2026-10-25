@@ -607,3 +607,19 @@ body::before {
   .hero.wake { flex-direction: column; align-items: flex-start; }
   .wake-cta { align-self: center; }
 }
+
+/* ---------- updates & health ---------- */
+.tab { position: relative; }
+.tab-dot { position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--sun); box-shadow: 0 0 8px var(--sun); }
+.update-card p { margin: 8px 0 12px; }
+.u-new { font-weight: 700; color: var(--sun-2); }
+.u-changes { margin: 0 0 14px; padding-left: 18px; color: #c9c9d1; font-size: 14px; }
+.u-changes li { margin: 3px 0; }
+.health { list-style: none; margin: 12px 0 0; padding: 0; }
+.health li { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 14px; }
+.health li i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.health li.ok i { background: var(--ontime); box-shadow: 0 0 8px rgba(52, 211, 153, .6); }
+.health li.warn i { background: var(--late); box-shadow: 0 0 8px rgba(251, 191, 36, .6); }
+.health li.warn { color: #e9d9a8; }
+.offline { position: fixed; top: 0; left: 0; right: 0; z-index: 90; text-align: center; padding: 8px; font-size: 13px; font-weight: 600;
+  background: rgba(251, 191, 36, .14); color: var(--late); border-bottom: 1px solid rgba(251, 191, 36, .35); backdrop-filter: blur(10px); }

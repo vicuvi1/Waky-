@@ -37,7 +37,13 @@ async function api(method, path, body) {
 }
 
 async function refresh() {
-  state = await api("GET", "/api/state");
+  try {
+    state = await api("GET", "/api/state");
+  } catch (e) {
+    $("offline").hidden = false;  // The server is restarting or stopped; keep trying.
+    throw e;
+  }
+  $("offline").hidden = true;
   render();
 }
 
@@ -70,6 +76,7 @@ function render() {
   renderRewards();
   renderProgress();
   renderSettings();
+  renderUpdates();
 }
 
 function renderToday() {
@@ -667,6 +674,77 @@ $("why-dialog").addEventListener("close", () => {
   if ($("why-dialog").returnValue === "save") act("POST", "/api/settings", { why: $("why-input").value }, "Saved. See you at dawn.");
 });
 
+function ago(sec) {
+  if (sec == null) return "never";
+  const d = Math.floor(Date.now() / 1000) - sec;
+  return d < 90 ? "just now" : d < 5400 ? `${Math.round(d / 60)} min ago` : `${Math.round(d / 3600)} h ago`;
+}
+
+function renderUpdates() {
+  const u = state.update;
+  $("update-dot").hidden = !u.behind;
+  $("u-version").textContent = u.build ? `Build ${u.build} · ${u.commit} · ${u.date}` : "";
+  if (u.behind) {
+    $("u-box").innerHTML = `
+      <p class="u-new">✨ A new version is ready (${u.behind} ${u.behind === 1 ? "change" : "changes"})</p>
+      <ul class="u-changes">${u.changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
+      <button class="btn primary" id="u-install">Update now</button>
+      <p class="muted small">Takes a few seconds. Your days, coins and settings stay exactly as they are.</p>`;
+    $("u-install").onclick = installUpdate;
+  } else {
+    $("u-box").innerHTML = `
+      <p>${u.error ? `<span class="err">${esc(u.error)}</span>` : "✓ You're on the latest version."}</p>
+      <button class="btn ghost" id="u-check">Check for updates</button>
+      <p class="muted small">Checked ${ago(u.checkedAt)}. Waky also checks GitHub by itself every 6 hours.</p>`;
+    $("u-check").onclick = checkUpdate;
+  }
+
+  const items = [
+    [true, `Running for ${formatGap(Math.max(1, Math.round(state.uptime / 60)))}`],
+    [state.backupOk, state.backupDir ? (state.backupOk ? "Google Drive backup up to date" : "Waiting for Google Drive, retrying every minute") : "No backup folder set"],
+    [state.telegram.connected && !state.telegram.error, state.telegram.connected ? (state.telegram.error ? `Telegram: ${state.telegram.error}` : `Telegram connected to @${state.telegram.bot}`) : "Telegram not connected"],
+    [!u.error, u.error ? "Can't reach GitHub for updates" : "Updates from GitHub working"],
+  ];
+  $("health").innerHTML = items.map(([ok, text]) => `<li class="${ok ? "ok" : "warn"}"><i></i>${esc(text)}</li>`).join("");
+}
+
+async function checkUpdate(e) {
+  e.target.disabled = true;
+  e.target.textContent = "Checking GitHub…";
+  try {
+    state.update = await api("GET", "/api/update");
+    renderUpdates();
+    toast(state.update.behind ? "A new version is ready" : state.update.error ? "Couldn't check" : "You're up to date", !!state.update.error);
+  } catch (err) {
+    toast(err.message, true);
+    renderUpdates();
+  }
+}
+
+async function installUpdate(e) {
+  e.target.disabled = true;
+  e.target.textContent = "Updating…";
+  try {
+    const res = await api("POST", "/api/update", {});
+    toast(`Updated to build ${res.version.build}. Restarting…`);
+  } catch (err) {
+    toast(err.message, true);
+    renderUpdates();
+    return;
+  }
+  // Wait for the new version to come back up, then load it.
+  const started = Date.now();
+  await new Promise((r) => setTimeout(r, 1500));
+  while (Date.now() - started < 60000) {
+    try {
+      const ping = await fetch("/api/ping", { cache: "no-store" });
+      if (ping.ok) { location.reload(); return; }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  toast("Waky didn't come back. Open it again from the desktop.", true);
+}
+
 let timeScope = "all";
 function setTimeScope(scope) {
   timeScope = scope;
@@ -693,5 +771,6 @@ function tick() {
 setInterval(tick, 1000);
 tick();
 setInterval(() => refresh().catch(() => {}), 60000); // Also tells the server the window is still open.
+setInterval(() => { if (!$("offline").hidden) refresh().catch(() => {}); }, 5000);
 addEventListener("focus", () => refresh().catch(() => {}));
 refresh().catch((e) => toast(e.message, true));
