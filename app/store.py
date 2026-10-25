@@ -16,7 +16,8 @@ DEFAULT_SETTINGS = {"weekday": "06:30", "weekend": "06:30", "grace": 15, "reps":
                     "pcAlarm": True, "stillUp": True,
                     "alarmOffset": -1, "alarmSound": "sunrise", "alarmRamp": 60, "alarmVolume": 80, "alarmMax": 20,
                     "stillUpAfter": 20, "stillUpWindow": 10,
-                    "bedtimeOn": True, "sleepGoal": 480, "bedRemind": 30}
+                    "bedtimeOn": True, "sleepGoal": 480, "bedRemind": 30,
+                    "sunrise": 10, "theme": "dawn", "notifications": True}
 
 
 class Store:
