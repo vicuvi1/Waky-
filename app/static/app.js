@@ -91,7 +91,7 @@ function renderToday() {
   if (t.record) {
     const late = toMin(t.record.time) - toMin(t.record.target);
     const how = t.ontime ? (late <= 0 ? "On time" : `On time · ${late} min after target`) : `${late} min late`;
-    hero.className = "hero card done";
+    hero.className = "hero card checked-in";
     hero.innerHTML = `
       <div>
         <div class="eyebrow">Done for today</div>

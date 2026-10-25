@@ -97,7 +97,7 @@ main { max-width: 1480px; margin: 0 auto; padding: 28px 40px 48px; }
   content: ""; position: absolute; right: -80px; top: -80px; width: 320px; height: 320px; border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 138, 61, .18), transparent 65%); pointer-events: none;
 }
-.hero.done::after { background: radial-gradient(circle, rgba(52, 211, 153, .16), transparent 65%); }
+.hero.checked-in::after { background: radial-gradient(circle, rgba(52, 211, 153, .16), transparent 65%); }
 .hero .eyebrow { color: var(--muted); font-weight: 500; }
 .hero .target { font-size: 76px; font-weight: 800; letter-spacing: -0.05em; line-height: 1; margin: 6px 0 10px; font-variant-numeric: tabular-nums; }
 .hero .target.editable {
@@ -242,15 +242,15 @@ main { max-width: 1480px; margin: 0 auto; padding: 28px 40px 48px; }
 .big-tap { font-size: 22px; padding: 30px 60px; border-radius: 22px; }
 
 /* ---------- done ---------- */
-.done { position: fixed; inset: 0; z-index: 60; background: rgba(5, 5, 8, .92); backdrop-filter: blur(14px); display: grid; place-items: center; animation: fade .3s ease both; }
+#done { position: fixed; inset: 0; z-index: 60; background: rgba(5, 5, 8, .92); backdrop-filter: blur(14px); display: grid; place-items: center; animation: fade .3s ease both; }
 @keyframes fade { from { opacity: 0; } }
-.done canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#done canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .done-card { text-align: center; max-width: 560px; padding: 24px; position: relative; }
 .check svg { width: 96px; height: 96px; }
 .check circle { fill: none; stroke: var(--ontime); stroke-width: 2.5; stroke-dasharray: 151; stroke-dashoffset: 151; animation: draw .6s ease forwards; }
 .check path { fill: none; stroke: var(--ontime); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: draw .4s .45s ease forwards; }
 @keyframes draw { to { stroke-dashoffset: 0; } }
-.done h1 { font-size: 40px; font-weight: 800; margin-top: 18px; }
+#done h1 { font-size: 40px; font-weight: 800; margin-top: 18px; }
 .milestone-hit { margin: 18px 0; padding: 16px; border-radius: 16px; background: rgba(255, 138, 61, .1); border: 1px solid rgba(255, 138, 61, .35); }
 .milestone-hit b { display: block; font-size: 17px; color: var(--sun-2); margin-bottom: 4px; }
 .water { margin: 18px 0 24px; }
